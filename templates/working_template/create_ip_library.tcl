@@ -1,0 +1,304 @@
+#
+# ARTICo3 IP library script for Vivado
+#
+# Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+# Date        : August 2017
+#
+# Description : This script generates the required IP library to be used
+#               in Vivado IP integrator (packages all required IPs) as
+#               part of the process carried out in the export.tcl script.
+#
+
+proc create_artico3_interfaces {repo_path} {
+
+    #
+    # ARTICo3 custom interface definition
+    #
+    # s_artico3_aclk    : in  std_logic;
+    # s_artico3_aresetn : in  std_logic;
+    # s_artico3_start   : in  std_logic;
+    # s_artico3_ready   : out std_logic;
+    # s_artico3_en      : in  std_logic;
+    # s_artico3_we      : in  std_logic;
+    # s_artico3_mode    : in  std_logic;
+    # s_artico3_addr    : in  std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+    # s_artico3_wdata   : in  std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
+    # s_artico3_rdata   : out std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0):
+    #
+
+    # ARTICo3 custom interface
+    ipx::create_abstraction_definition cei.upm.es artico3 artico3_rtl 1.0
+    ipx::create_bus_definition cei.upm.es artico3 artico3 1.0
+    set_property xml_file_name $repo_path/artico3_rtl.xml [ipx::current_busabs]
+    set_property xml_file_name $repo_path/artico3.xml [ipx::current_busdef]
+    set_property bus_type_vlnv cei.upm.es:artico3:artico3:1.0 [ipx::current_busabs]
+    set_property description {ARTICo3 custom interface (Shuffler and Accelerators)} [ipx::current_busdef]
+
+    # ARTICo3 clock port
+    ipx::add_bus_abstraction_port artico3_aclk [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 clock signal} [ipx::get_bus_abstraction_ports artico3_aclk -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 reset port
+    ipx::add_bus_abstraction_port artico3_aresetn [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 reset signal (active low)} [ipx::get_bus_abstraction_ports artico3_aresetn -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 start port
+    ipx::add_bus_abstraction_port artico3_start [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 start signal (rising-edge sensitive)} [ipx::get_bus_abstraction_ports artico3_start -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 ready port
+    ipx::add_bus_abstraction_port artico3_ready [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property master_direction in [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 ready signal (level-high sensitive)} [ipx::get_bus_abstraction_ports artico3_ready -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 enable port
+    ipx::add_bus_abstraction_port artico3_en [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 accelerator enable signal} [ipx::get_bus_abstraction_ports artico3_en -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 write enable port
+    ipx::add_bus_abstraction_port artico3_we [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 accelerator write enable signal} [ipx::get_bus_abstraction_ports artico3_we -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 access mode port
+    ipx::add_bus_abstraction_port artico3_mode [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property master_width 1 [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property slave_width 1 [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 access mode signal (0 - registers, 1 - memory)} [ipx::get_bus_abstraction_ports artico3_mode -of_objects [ipx::current_busabs]]
+
+    # TODO: make bus width configurable in the following three elements (now fixed to 32 bits)
+
+    # ARTICo3 address port
+    ipx::add_bus_abstraction_port artico3_addr [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property master_width 32 [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property slave_width 32 [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 address signal (multiplexed for read and write operations)} [ipx::get_bus_abstraction_ports artico3_addr -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 write data port
+    ipx::add_bus_abstraction_port artico3_wdata [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property master_width 32 [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property slave_direction in [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property slave_width 32 [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 write data channel} [ipx::get_bus_abstraction_ports artico3_wdata -of_objects [ipx::current_busabs]]
+
+    # ARTICo3 data out port
+    ipx::add_bus_abstraction_port artico3_rdata [ipx::current_busabs]
+    set_property default_value 0 [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property master_presence required [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property master_direction in [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property master_width 32 [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property slave_presence required [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property slave_width 32 [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+    set_property description {ARTICo3 read data channel} [ipx::get_bus_abstraction_ports artico3_rdata -of_objects [ipx::current_busabs]]
+
+    # Save and finish
+    ipx::save_abstraction_definition [ipx::current_busabs]
+    ipx::save_bus_definition [ipx::current_busdef]
+
+}
+
+proc load_artico3_interfaces {repo_path} {
+
+    ipx::open_ipxact_file $repo_path/artico3.xml
+
+}
+
+proc add_artico3_interface {path_to_ip bus_name aclk_signal_name aresetn_signal_name start_signal_name ready_signal_name en_signal_name we_signal_name mode_signal_name addr_signal_name wdata_signal_name rdata_signal_name mode} {
+
+    ipx::current_core $path_to_ip/component.xml
+
+    #
+    # Set specific interface (master for Shuffler, slave for accelerators)
+    #
+    ipx::add_bus_interface $bus_name [ipx::current_core]
+    set_property abstraction_type_vlnv cei.upm.es:artico3:artico3_rtl:1.0 [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property bus_type_vlnv cei.upm.es:artico3:artico3:1.0 [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    if { [string equal "master" $mode] == 1 } {
+        set_property interface_mode master [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    }
+
+    # ARTICo3 clock port
+    ipx::add_port_map artico3_aclk [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $aclk_signal_name [ipx::get_port_maps artico3_aclk -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 reset port
+    ipx::add_port_map artico3_aresetn [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $aresetn_signal_name [ipx::get_port_maps artico3_aresetn -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 start port
+    ipx::add_port_map artico3_start [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $start_signal_name [ipx::get_port_maps artico3_start -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 ready port
+    ipx::add_port_map artico3_ready [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $ready_signal_name [ipx::get_port_maps artico3_ready -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 enable port
+    ipx::add_port_map artico3_en [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $en_signal_name [ipx::get_port_maps artico3_en -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 write enable port
+    ipx::add_port_map artico3_we [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $we_signal_name [ipx::get_port_maps artico3_we -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 access mode port
+    ipx::add_port_map artico3_mode [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $mode_signal_name [ipx::get_port_maps artico3_mode -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 address port
+    ipx::add_port_map artico3_addr [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $addr_signal_name [ipx::get_port_maps artico3_addr -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 write data port
+    ipx::add_port_map artico3_wdata [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $wdata_signal_name [ipx::get_port_maps artico3_wdata -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+
+    # ARTICo3 data out port
+    ipx::add_port_map artico3_rdata [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
+    set_property physical_name $rdata_signal_name [ipx::get_port_maps artico3_rdata -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
+    
+    #
+    # Save everything
+    #
+    ipx::create_xgui_files [ipx::current_core]
+    ipx::update_checksums [ipx::current_core]
+    ipx::save_core [ipx::current_core]
+
+}
+
+proc import_pcore { repo_path ip_name {libs ""} } {
+    
+    set artico3_pcore $ip_name  ;#[file tail $argv]
+    set artico3_pcore_name [string range $artico3_pcore 0 [expr [string length $artico3_pcore]-9] ] ;# cuts of version string
+    set artico3_pcore_dir $repo_path ;#[file dirname $argv] 
+    set temp_dir "/tmp/artico3_tmp/"
+
+    puts "\[A3DK\] $artico3_pcore $artico3_pcore_name $artico3_pcore_dir $temp_dir"
+    
+    if { $artico3_pcore_name == "artico3" } {
+        ipx::infer_core -set_current true -as_library true -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
+        set_property display_name artico3lib [ipx::current_core]
+    } else {
+        ipx::infer_core -set_current true -as_library false -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
+    }
+
+    puts "\[A3DK\] After infer_core"    
+    set_property vendor                 cei.upm.es              [ipx::current_core]
+    set_property library                artico3                 [ipx::current_core]
+    set_property name                   $artico3_pcore_name     [ipx::current_core]
+    set_property company_url            http://www.cei.upm.es/  [ipx::current_core]
+    set_property display_name           $artico3_pcore_name     [ipx::current_core]    
+    set_property vendor_display_name    {Centro de Electronica Industrial (CEI-UPM)} [ipx::current_core]
+    set_property description            {ARTICo3 Library}       [ipx::current_core]
+
+    # Set libraries
+    foreach {lib} $libs {
+        puts "\[A3DK\] adding subcore $lib"
+        ipx::add_subcore $lib [ipx::get_file_groups xilinx_anylanguagesynthesis -of_objects [ipx::current_core]]
+    }
+
+    # Modify memory map type (default is AXI4-Lite + registers, use more general AXI4-Full + memory)
+    if { [join [ipx::get_memory_maps -of_objects [ipx::current_core]] ""] != "" } {
+        puts "\[A3DK\] changing behavior of memory map"
+        set_property usage memory [ipx::get_address_blocks -of_objects [ipx::get_memory_maps -of_objects [ipx::current_core]]]
+    }
+       
+    set_property core_revision 1 [ipx::current_core]
+    ipx::create_xgui_files [ipx::current_core]
+      
+    ipx::update_checksums [ipx::current_core]
+    ipx::save_core [ipx::current_core]
+    puts "\[A3DK\] After save_core"
+    
+}
+
+#
+# Main script starts here
+#
+
+set ip_repo "pcores.tmp"
+set temp_dir "/tmp/artico3_tmp/"
+
+create_project -force managed_ip_project $temp_dir/managed_ip_project -part xc7z020clg400-1 -ip
+set_property  ip_repo_paths  $ip_repo [current_project]
+
+create_artico3_interfaces $ip_repo 
+load_artico3_interfaces $ip_repo
+
+import_pcore $ip_repo artico3_shuffler_v1_00_a ""
+import_pcore $ip_repo a3_dummy_v1_00_a ""
+import_pcore $ip_repo test_axi4full_v1_00_a ""
+import_pcore $ip_repo test_axi4lite_v1_00_a ""
+
+# TODO: this part has to be parsed to generate as many connections as required
+set ip_name "artico3_shuffler_v1_00_a"
+add_artico3_interface $ip_repo/$ip_name "m00_artico3" "m00_artico3_aclk" "m00_artico3_aresetn" "m00_artico3_start" "m00_artico3_ready" "m00_artico3_en" "m00_artico3_we" "m00_artico3_mode" "m00_artico3_addr" "m00_artico3_wdata" "m00_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m01_artico3" "m01_artico3_aclk" "m01_artico3_aresetn" "m01_artico3_start" "m01_artico3_ready" "m01_artico3_en" "m01_artico3_we" "m01_artico3_mode" "m01_artico3_addr" "m01_artico3_wdata" "m01_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m02_artico3" "m02_artico3_aclk" "m02_artico3_aresetn" "m02_artico3_start" "m02_artico3_ready" "m02_artico3_en" "m02_artico3_we" "m02_artico3_mode" "m02_artico3_addr" "m02_artico3_wdata" "m02_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m03_artico3" "m03_artico3_aclk" "m03_artico3_aresetn" "m03_artico3_start" "m03_artico3_ready" "m03_artico3_en" "m03_artico3_we" "m03_artico3_mode" "m03_artico3_addr" "m03_artico3_wdata" "m03_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m04_artico3" "m04_artico3_aclk" "m04_artico3_aresetn" "m04_artico3_start" "m04_artico3_ready" "m04_artico3_en" "m04_artico3_we" "m04_artico3_mode" "m04_artico3_addr" "m04_artico3_wdata" "m04_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m05_artico3" "m05_artico3_aclk" "m05_artico3_aresetn" "m05_artico3_start" "m05_artico3_ready" "m05_artico3_en" "m05_artico3_we" "m05_artico3_mode" "m05_artico3_addr" "m05_artico3_wdata" "m05_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m06_artico3" "m06_artico3_aclk" "m06_artico3_aresetn" "m06_artico3_start" "m06_artico3_ready" "m06_artico3_en" "m06_artico3_we" "m06_artico3_mode" "m06_artico3_addr" "m06_artico3_wdata" "m06_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m07_artico3" "m07_artico3_aclk" "m07_artico3_aresetn" "m07_artico3_start" "m07_artico3_ready" "m07_artico3_en" "m07_artico3_we" "m07_artico3_mode" "m07_artico3_addr" "m07_artico3_wdata" "m07_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m08_artico3" "m08_artico3_aclk" "m08_artico3_aresetn" "m08_artico3_start" "m08_artico3_ready" "m08_artico3_en" "m08_artico3_we" "m08_artico3_mode" "m08_artico3_addr" "m08_artico3_wdata" "m08_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m09_artico3" "m09_artico3_aclk" "m09_artico3_aresetn" "m09_artico3_start" "m09_artico3_ready" "m09_artico3_en" "m09_artico3_we" "m09_artico3_mode" "m09_artico3_addr" "m09_artico3_wdata" "m09_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m10_artico3" "m10_artico3_aclk" "m10_artico3_aresetn" "m10_artico3_start" "m10_artico3_ready" "m10_artico3_en" "m10_artico3_we" "m10_artico3_mode" "m10_artico3_addr" "m10_artico3_wdata" "m10_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m11_artico3" "m11_artico3_aclk" "m11_artico3_aresetn" "m11_artico3_start" "m11_artico3_ready" "m11_artico3_en" "m11_artico3_we" "m11_artico3_mode" "m11_artico3_addr" "m11_artico3_wdata" "m11_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m12_artico3" "m12_artico3_aclk" "m12_artico3_aresetn" "m12_artico3_start" "m12_artico3_ready" "m12_artico3_en" "m12_artico3_we" "m12_artico3_mode" "m12_artico3_addr" "m12_artico3_wdata" "m12_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m13_artico3" "m13_artico3_aclk" "m13_artico3_aresetn" "m13_artico3_start" "m13_artico3_ready" "m13_artico3_en" "m13_artico3_we" "m13_artico3_mode" "m13_artico3_addr" "m13_artico3_wdata" "m13_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m14_artico3" "m14_artico3_aclk" "m14_artico3_aresetn" "m14_artico3_start" "m14_artico3_ready" "m14_artico3_en" "m14_artico3_we" "m14_artico3_mode" "m14_artico3_addr" "m14_artico3_wdata" "m14_artico3_rdata" "master"
+add_artico3_interface $ip_repo/$ip_name "m15_artico3" "m15_artico3_aclk" "m15_artico3_aresetn" "m15_artico3_start" "m15_artico3_ready" "m15_artico3_en" "m15_artico3_we" "m15_artico3_mode" "m15_artico3_addr" "m15_artico3_wdata" "m15_artico3_rdata" "master"
+
+# TODO: this part has to be parsed to generate as many accelerators as required and,
+#       in case no accelerators are found, to add a dummy wrapper to plug in the
+#       resulting system.
+set ip_name "a3_dummy_v1_00_a"
+add_artico3_interface $ip_repo/$ip_name "s_artico3" "s_artico3_aclk" "s_artico3_aresetn" "s_artico3_start" "s_artico3_ready" "s_artico3_en" "s_artico3_we" "s_artico3_mode" "s_artico3_addr" "s_artico3_wdata" "s_artico3_rdata" "slave"
+
+close_project
+file delete -force $temp_dir
