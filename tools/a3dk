@@ -1,0 +1,15 @@
+#!/usr/bin/python3
+
+"""
+ARTICo3 Development Kit
+
+Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+Date        : August 2017
+Description : Application launcher.
+
+"""
+
+
+import artico3.runtime.a3dk
+
+artico3.runtime.a3dk.main()

@@ -1,0 +1,7 @@
+Cell	            Slave Interface	    Base Name	Offset Address	Range	High Address
+
+----------------------------------------------------------------------------------------
+processing_system7_0					
+Data (32 address bits : 0x80000000 [ 1G ])					
+----------------------------------------------------------------------------------------
+axi4full_test_0	    S_AXI	            reg0	    0x83C00000	    64K	    0x83C0FFFF

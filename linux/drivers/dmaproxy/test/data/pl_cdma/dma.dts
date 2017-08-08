@@ -1,0 +1,170 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    model = "Pynq Development Board";
+	compatible = "xlnx,zynq-pynq", "xlnx,zynq-7000";
+
+    fragment@0 {    
+        target = <&amba_pl>;        
+        __overlay__ {       
+            axi_cdma_0: dma@8e200000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 29 4>;
+                reg = <0x8e200000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                xlnx,include-sg ;
+                dma-channel@8e200000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 29 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x0>;
+                    xlnx,include-dre ;
+                    xlnx,max-burst-len = <0x100>;
+                };
+            };
+            axi_cdma_1: dma@8e210000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 30 4>;
+                reg = <0x8e210000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                xlnx,include-sg ;
+                dma-channel@8e210000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 30 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x1>;
+                    xlnx,max-burst-len = <0x100>;
+                };
+            };
+            axi_cdma_2: dma@8e220000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 31 4>;
+                reg = <0x8e220000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                dma-channel@8e220000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 31 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x2>;
+                    xlnx,include-dre ;
+                    xlnx,max-burst-len = <0x100>;
+                };
+            };
+            axi_cdma_3: dma@8e230000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 32 4>;
+                reg = <0x8e230000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                dma-channel@8e230000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 32 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x3>;
+                    xlnx,max-burst-len = <0x100>;
+                };
+            };
+            axi_cdma_4: dma@8e240000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 33 4>;
+                reg = <0x8e240000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                xlnx,include-sg ;
+                dma-channel@8e240000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 33 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x4>;
+                    xlnx,include-dre ;
+                    xlnx,max-burst-len = <0x10>;
+                };
+            };
+            axi_cdma_5: dma@8e250000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 34 4>;
+                reg = <0x8e250000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                xlnx,include-sg ;
+                dma-channel@8e250000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 34 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x5>;
+                    xlnx,max-burst-len = <0x10>;
+                };
+            };
+            axi_cdma_6: dma@8e260000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 35 4>;
+                reg = <0x8e260000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                dma-channel@8e260000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 35 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x6>;
+                    xlnx,include-dre ;
+                    xlnx,max-burst-len = <0x10>;
+                };
+            };
+            axi_cdma_7: dma@8e270000 {
+                #dma-cells = <1>;
+                clock-names = "s_axi_lite_aclk", "m_axi_aclk";
+                clocks = <&clkc 15>, <&clkc 15>;
+                compatible = "xlnx,axi-cdma-1.00.a";
+                interrupt-parent = <&intc>;
+                interrupts = <0 36 4>;
+                reg = <0x8e270000 0x10000>;
+                xlnx,addrwidth = <0x20>;
+                dma-channel@8e270000 {
+                    compatible = "xlnx,axi-cdma-channel";
+                    interrupts = <0 36 4>;
+                    xlnx,datawidth = <0x20>;
+                    xlnx,device-id = <0x7>;
+                    xlnx,max-burst-len = <0x10>;
+                };
+            };
+            axi4full_test_0: axi4full_test@hp0 {
+                compatible = "cei.upm,proxy-cdma-1.00.a";
+                reg = <0x76000000 0x10000>;
+                dmas = <&axi_cdma_0 0
+                        &axi_cdma_1 0
+                        &axi_cdma_2 0
+                        &axi_cdma_3 0
+                        &axi_cdma_4 0
+                        &axi_cdma_5 0
+                        &axi_cdma_6 0
+                        &axi_cdma_7 0>;
+                dma-names = "sg_dre_256", "sg_256", "simple_dre_256", "simple_256", "sg_dre_16", "sg_16", "simple_dre_16", "simple_16";
+            };
+        };        
+    };
+};
