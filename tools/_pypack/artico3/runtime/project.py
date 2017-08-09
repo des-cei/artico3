@@ -28,11 +28,13 @@ class Shuffler:
 class Slot:
     """Class to store information of an ARTICo\u00b3 slot."""
 
+    _id = 0
+
     def __init__(self):
         pass
 
     def __repr__(self):
-        pass
+        return "slot"
 
     def __str__(self):
         pass
@@ -40,14 +42,16 @@ class Slot:
 class Accelerator:
     """ Class to store information of an ARTICo\u00b3 hardware accelerator."""
 
+    _id = 0
+
     def __init__(self):
         pass
 
     def __repr__(self):
-        pass
+        return "accelerator"
 
     def __str__(self):
-        pass 
+        pass
 
 class Project:
     """ Main class of an ARTICo\u00b3-based project. Contains all the
@@ -57,7 +61,23 @@ class Project:
         pass
 
     def __repr__(self):
-        pass
+        return "project"
 
     def __str__(self):
-        pass    
+        pass
+
+    def load(self, filepath):
+        """ Loads project info from configuration (.cfg) file. """
+
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str
+        ret = cfg.read(filepath)
+        if not ret:
+            log.error("Config file '" + filepath + "' not found")
+            return
+
+        self._parse_project(cfg)
+
+    def _parse_project(self, cfg):
+        """ Parses project configuration. """
+        print(cfg.get("General", "Name"))

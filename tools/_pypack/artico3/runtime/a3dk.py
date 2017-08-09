@@ -17,7 +17,6 @@ import artico3
 import artico3.scripts
 
 import artico3.runtime.project as project
-help(artico3.runtime.project)
 
 logging.basicConfig(format="[artico3-toolchain] <%(name)s> %(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -25,7 +24,8 @@ log = logging.getLogger(__name__)
 def main():
 
     # TODO: load project configuration
-    prj = ""
+    prj = project.Project()
+    prj.load("build.cfg")
 
     pkgs = pkgutil.walk_packages(artico3.scripts.__path__, artico3.scripts.__name__ + ".")
     cmds = {}
