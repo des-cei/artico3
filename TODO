@@ -1,0 +1,2 @@
+1. Modify dmaproxy driver to check all possible addresses inside the device tree
+2. Complete shuffler functionality (error monitors)

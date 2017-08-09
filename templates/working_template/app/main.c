@@ -14,7 +14,7 @@
 #include "../../../linux/drivers/dmaproxy/dmaproxy.h"
 
 #define SLOTS  (4)
-#define VALUES (10)
+#define VALUES (100)
 #define ID     (0xa)
 #define HWADDR (0x8aa00000)
 #define DEVICE "/dev/dmaproxy0"
@@ -23,12 +23,25 @@
 
 int main(int argc, char *argv[]) {
     int fd;
-    unsigned int i, errors;
+    unsigned int i, values, errors;
     struct dmaproxy_token token;
     uint32_t *mem = NULL;
     uint32_t *gld = NULL;
     struct timeval t0, tf;
     float t, tg;
+
+    printf("argc = %d\n", argc);
+    for (i = 0; i < argc; i++) {
+        printf("argv[%d] = %s\n", i, argv[i]);
+    }
+
+    if (argc > 1) {
+        values = atoi(argv[1]);
+    }
+    else {
+        values = VALUES;
+    }
+    printf("Using %d 32-bit words (%d bytes) per accelerator\n", values, values * 4);
 
     /* ARTICo3 configuration */
 
@@ -56,7 +69,7 @@ int main(int argc, char *argv[]) {
     /* ARTICo3 configuration */
 
     // Allocate memory for golden (SW) copy
-    gld = malloc(VALUES * SLOTS * sizeof *gld);
+    gld = malloc(values * SLOTS * sizeof *gld);
     if (!gld) {
         printf("malloc() failed\n");
         munmap(artico3, 0x100000);
@@ -76,7 +89,7 @@ int main(int argc, char *argv[]) {
     printf("Opened %s\n", DEVICE);
 
     // Map user-space memory to kernel-space, DMA-allocated memory
-    mem = mmap(NULL, VALUES * SLOTS * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    mem = mmap(NULL, values * SLOTS * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (mem == MAP_FAILED) {
         printf("mmap() failed\n");
         munmap(artico3, 0x100000);
@@ -90,9 +103,9 @@ int main(int argc, char *argv[]) {
     // Write to memory
     srand(time(NULL));
     gettimeofday(&t0, NULL);
-    for (i = 0; i < (VALUES * SLOTS); i++) {
-        //~ mem[i] = rand();
-        mem[i] = i + 1;
+    for (i = 0; i < (values * SLOTS); i++) {
+        mem[i] = rand();
+        //~ mem[i] = i + 1;
         gld[i] = mem[i];
     }
     gettimeofday(&tf, NULL);
@@ -113,7 +126,7 @@ int main(int argc, char *argv[]) {
     artico3[3] = 0x00000000;              // TMR register high
     artico3[4] = 0x00000000;              // DMR register low
     artico3[5] = 0x00000000;              // DMR register high
-    artico3[6] = VALUES;                  // Block size (# 32-bit words)
+    artico3[6] = values;                  // Block size (# 32-bit words)
     artico3[7] = 0x0000000F;              // Clock enable register
 
     gettimeofday(&tf, NULL);
@@ -128,7 +141,7 @@ int main(int argc, char *argv[]) {
     token.memoff = 0x00000000;
     token.hwaddr = (void *)HWADDR;
     token.hwoff = ID << 16;
-    token.size = VALUES * SLOTS * sizeof *mem;
+    token.size = values * SLOTS * sizeof *mem;
     printf("Sending data to hardware...\n");
     ioctl(fd, DMAPROXY_IOC_DMA_MEM2HW, &token);
 
@@ -141,7 +154,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&t0, NULL);
 
     while (!artico3[10]) ;
-    printf("Ready: %08x\n", artico3[10]);
+    printf("Ready register -> %08x\n", artico3[10]);
 
     gettimeofday(&tf, NULL);
     t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
@@ -150,7 +163,7 @@ int main(int argc, char *argv[]) {
 
     // Erase memory
     gettimeofday(&t0, NULL);
-    for (i = 0; i < (VALUES * SLOTS); i++) {
+    for (i = 0; i < (values * SLOTS); i++) {
         mem[i] = 0;
     }
     gettimeofday(&tf, NULL);
@@ -171,7 +184,7 @@ int main(int argc, char *argv[]) {
     artico3[3] = 0x00000000;              // TMR register high
     artico3[4] = 0x00000000;              // DMR register low
     artico3[5] = 0x00000000;              // DMR register high
-    artico3[6] = VALUES;                  // Block size (# 32-bit words)
+    artico3[6] = values;                  // Block size (# 32-bit words)
     artico3[7] = 0x0000000F;              // Clock enable register
 
     gettimeofday(&tf, NULL);
@@ -186,7 +199,7 @@ int main(int argc, char *argv[]) {
     token.memoff = 0x00000000;
     token.hwaddr = (void *)HWADDR;
     token.hwoff = ID << 16;
-    token.size = VALUES * SLOTS * sizeof *mem;
+    token.size = values * SLOTS * sizeof *mem;
     printf("Receiving data from hardware...\n");
     ioctl(fd, DMAPROXY_IOC_DMA_HW2MEM, &token);
 
@@ -198,8 +211,10 @@ int main(int argc, char *argv[]) {
     // Compare against golden reference
     gettimeofday(&t0, NULL);
     errors = 0;
-    for (i = 0; i < (VALUES * SLOTS); i++) {
-        printf("%3d | %08x | %08x\n", i, mem[i], gld[i]);
+    for (i = 0; i < (values * SLOTS); i++) {
+        if (i % (values) < 4) {
+            printf("%5d | %08x | %08x\n", i, mem[i], gld[i]);
+        }
         if (mem[i] != gld[i]) {
             errors++;
         }
@@ -213,7 +228,7 @@ int main(int argc, char *argv[]) {
     printf("Total time : %.6f ms\n", tg);
 
     // Unmap user-space memory from kernel-space
-    munmap(mem, VALUES * SLOTS * sizeof *mem);
+    munmap(mem, values * SLOTS * sizeof *mem);
     printf("Released memory region\n");
 
     // Close file

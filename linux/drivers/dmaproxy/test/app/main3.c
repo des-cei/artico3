@@ -1,9 +1,11 @@
 /*
- * main.c
+ * DMA proxy kernel module
  *
- *  Created on: Jul 21, 2017
- *      Author: alfonso
+ * Author   : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date     : July 2017
+ *
  */
+
 
 #include <stdio.h>
 #include <stdlib.h>

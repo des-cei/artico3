@@ -201,7 +201,7 @@ proc add_artico3_interface {path_to_ip bus_name aclk_signal_name aresetn_signal_
     # ARTICo3 data out port
     ipx::add_port_map artico3_rdata [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]
     set_property physical_name $rdata_signal_name [ipx::get_port_maps artico3_rdata -of_objects [ipx::get_bus_interfaces $bus_name -of_objects [ipx::current_core]]]
-    
+
     #
     # Save everything
     #
@@ -212,14 +212,14 @@ proc add_artico3_interface {path_to_ip bus_name aclk_signal_name aresetn_signal_
 }
 
 proc import_pcore { repo_path ip_name {libs ""} } {
-    
+
     set artico3_pcore $ip_name  ;#[file tail $argv]
     set artico3_pcore_name [string range $artico3_pcore 0 [expr [string length $artico3_pcore]-9] ] ;# cuts of version string
-    set artico3_pcore_dir $repo_path ;#[file dirname $argv] 
+    set artico3_pcore_dir $repo_path ;#[file dirname $argv]
     set temp_dir "/tmp/artico3_tmp/"
 
     puts "\[A3DK\] $artico3_pcore $artico3_pcore_name $artico3_pcore_dir $temp_dir"
-    
+
     if { $artico3_pcore_name == "artico3" } {
         ipx::infer_core -set_current true -as_library true -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
         set_property display_name artico3lib [ipx::current_core]
@@ -227,12 +227,12 @@ proc import_pcore { repo_path ip_name {libs ""} } {
         ipx::infer_core -set_current true -as_library false -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
     }
 
-    puts "\[A3DK\] After infer_core"    
+    puts "\[A3DK\] After infer_core"
     set_property vendor                 cei.upm.es              [ipx::current_core]
     set_property library                artico3                 [ipx::current_core]
     set_property name                   $artico3_pcore_name     [ipx::current_core]
     set_property company_url            http://www.cei.upm.es/  [ipx::current_core]
-    set_property display_name           $artico3_pcore_name     [ipx::current_core]    
+    set_property display_name           $artico3_pcore_name     [ipx::current_core]
     set_property vendor_display_name    {Centro de Electronica Industrial (CEI-UPM)} [ipx::current_core]
     set_property description            {ARTICo3 Library}       [ipx::current_core]
 
@@ -247,14 +247,26 @@ proc import_pcore { repo_path ip_name {libs ""} } {
         puts "\[A3DK\] changing behavior of memory map"
         set_property usage memory [ipx::get_address_blocks -of_objects [ipx::get_memory_maps -of_objects [ipx::current_core]]]
     }
-       
+
+    # ARTICo3 infrastructure
+    if { $artico3_pcore_name == "artico3_shuffler" } {
+        puts "\[A3DK\] applying ARTICo3 infrastructure specific configuration"
+        # Associate AXI interfaces to clock. Given the particular structure
+        # (one clock/reset pair for two AXI4 interfaces), this is not done
+        # automatically by Vivado and requires user intervention.
+        ipx::associate_bus_interfaces -busif s00_axi -clock s_axi_aclk [ipx::current_core]
+        ipx::associate_bus_interfaces -busif s01_axi -clock s_axi_aclk [ipx::current_core]
+        # TODO: associate ARTICo3 interfaces to clock (not done automatically) [NOT NECESSARY, WOULD REQUIRE PARSING ALSO]
+        #~ ipx::associate_bus_interfaces -busif m00_artico3 -clock m00_artico3_aclk [ipx::current_core]
+    }
+
     set_property core_revision 1 [ipx::current_core]
     ipx::create_xgui_files [ipx::current_core]
-      
+
     ipx::update_checksums [ipx::current_core]
     ipx::save_core [ipx::current_core]
     puts "\[A3DK\] After save_core"
-    
+
 }
 
 #
@@ -267,7 +279,7 @@ set temp_dir "/tmp/artico3_tmp/"
 create_project -force managed_ip_project $temp_dir/managed_ip_project -part xc7z020clg400-1 -ip
 set_property  ip_repo_paths  $ip_repo [current_project]
 
-create_artico3_interfaces $ip_repo 
+create_artico3_interfaces $ip_repo
 load_artico3_interfaces $ip_repo
 
 import_pcore $ip_repo artico3_shuffler_v1_00_a ""

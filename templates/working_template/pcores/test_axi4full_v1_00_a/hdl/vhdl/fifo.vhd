@@ -1,6 +1,8 @@
------------------------------------------------
--- Synchronous Symmetric FIFO implementation --
------------------------------------------------
+-----------------------------------------------------------
+-- Synchronous Symmetric FIFO implementation             --
+--                                                       --
+-- Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
+-----------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;

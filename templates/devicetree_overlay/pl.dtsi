@@ -1,0 +1,9 @@
+/ {
+    amba_pl: amba_pl {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        interrupt-parent = <&intc>;
+        ranges ;
+    };
+};

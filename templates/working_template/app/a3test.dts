@@ -1,0 +1,58 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target = <&amba_pl>;
+        __overlay__ {
+            artico3_shuffler_0: artico3_shuffler@7aa00000 {
+                compatible = "xlnx,artico3-shuffler-1.0";
+                interrupt-parent = <&intc>;
+                interrupts = <0 29 4>;
+                //reg = <0x7aa00000 0x100000 0x8aa00000 0x100000>;
+                reg = <0x7aa00000 0x100000>;
+                xlnx,artico3-addr-width = <0x10>;
+                xlnx,artico3-gr-width = <0x4>;
+                xlnx,artico3-id-width = <0x4>;
+                xlnx,artico3-op-width = <0x4>;
+                xlnx,clk-gate-buffer = "NO_BUFFER";
+                xlnx,en-latency = <0x4>;
+                xlnx,max-slots = <0x4>;
+                xlnx,num-reg-ro = <0xa>;
+                xlnx,num-reg-rw = <0xa>;
+                xlnx,pipe-depth = <0x3>;
+                xlnx,rst-buffer = "NO_BUFFER";
+                xlnx,s-axi-aruser-width = <0x0>;
+                xlnx,s-axi-awuser-width = <0x0>;
+                xlnx,s-axi-buser-width = <0x0>;
+                xlnx,s-axi-id-width = <0xc>;
+                xlnx,s-axi-ruser-width = <0x0>;
+                xlnx,s-axi-wuser-width = <0x0>;
+                xlnx,voter-latency = <0x2>;
+            };
+            artico3_slots_0: artico3_slots@8aa00000 {
+                compatible = "cei.upm,proxy-cdma-1.00.a";
+                reg = <0x8aa00000 0x100000>;
+                dmas = <&dmac_s 0>;
+                dma-names = "ps-dma";
+            };
+            test_axi4full_0: test_axi4full@8ab00000 {
+                compatible = "xlnx,test-axi4full-1.0";
+                reg = <0x8ab00000 0x10000>;
+                xlnx,memory-banks = <0x4>;
+                xlnx,memory-size = <0x10000>;
+                xlnx,s-axi-aruser-width = <0x0>;
+                xlnx,s-axi-awuser-width = <0x0>;
+                xlnx,s-axi-buser-width = <0x0>;
+                xlnx,s-axi-id-width = <0xc>;
+                xlnx,s-axi-ruser-width = <0x0>;
+                xlnx,s-axi-wuser-width = <0x0>;
+            };
+            test_axi4lite_0: test_axi4lite@7ab00000 {
+                compatible = "xlnx,test-axi4lite-1.0";
+                reg = <0x7ab00000 0x10000>;
+                xlnx,num-reg = <0x14>;
+            };
+        };
+    };
+};

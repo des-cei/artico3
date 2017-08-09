@@ -1,0 +1,67 @@
+In order to work with device tree overlays, it is necesary to follow the
+next steps:
+
+    1. When generating the system, make sure it has a pl.dtsi file with
+       the same amount of info that is present in the one in this
+       directory. Otherwise, copy it to your working directory before
+       generating the device tree blob. This will ensure that your
+       overlays can be attached to a known node (in this case, amba_pl),
+       and that the interrupt hierarchy is kept (see reference to intc).
+
+    2. To create a new overlay, just add the node info in between the
+       __overlay__ { ... }; and compile it using a dtc version that
+       supports -@ command line option (to create references).
+
+       IMPORTANT: The system device tree to which this overlay will be
+       attached needs to be compiled using the same option.
+
+
+       Example:
+
+       file: system-top.dts
+       ...
+       /include/ "pl.dtsi"
+       ...
+
+       file: pl.dtsi
+       / {
+           amba_pl: amba_pl {
+               #address-cells = <1>;
+               #size-cells = <1>;
+               compatible = "simple-bus";
+               interrupt-parent = <&intc>;
+               ranges ;
+           };
+       };
+
+       file: <<NAME>>.dts
+       /dts-v1/;
+       /plugin/;
+
+       / {
+           fragment@0 {
+               target = <&amba_pl>;
+               __overlay__ {
+                   artico3_slots_0: artico3_slots@8aa00000 {
+                       compatible = "cei.upm,proxy-cdma-1.00.a";
+                       reg = <0x8aa00000 0x100000>;
+                       dmas = <&dmac_s 0>;
+                       dma-names = "ps-dma";
+                   };
+               };
+           };
+       };
+
+       host> dtc -I dts -O dtb -@ -o devicetree.dtb system-top.dts
+       host> dtc -I dts -O dtb -@ -o <<NAME>>.dtbo <<NAME>>.dts
+
+       target> mkdir /sys/kernel/config/device-tree/overlays/<<NAME>>
+       target> cp <<NAME>>.dtbo /lib/firmware/overlays
+       target> echo "overlays/<<NAME>>.dtbo" >
+           /sys/kernel/config/device-tree/overlays/<<NAME>>/path
+
+       NOTE: the previous steps assume that configfs is already mounted
+       on /sys/kernel/config. Otherwise, user is responsible of mounting
+       the virtual filesystem.
+
+       target> mount -t configfs config /sys/kernel/config

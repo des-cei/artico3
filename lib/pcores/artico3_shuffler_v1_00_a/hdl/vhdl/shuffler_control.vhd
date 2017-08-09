@@ -1,6 +1,8 @@
 -----------------------------------------------------------------------------
 -- ARTICo3 - Data Shuffler Control datapath                                --
 --                                                                         --
+-- Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>                   --
+--                                                                         --
 -- Features:                                                               --
 --     AXI4-Lite protocol                                                  --
 --     Register-based interface                                            --
