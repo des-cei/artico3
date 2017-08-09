@@ -13,6 +13,18 @@ import logging
 
 log = logging.getLogger(__name__)
 
+class Shuffler:
+    """Class to store information of the ARTICo\u00b3 infrastructure."""
+
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        pass
+
+    def __str__(self):
+        pass
+
 class Slot:
     """Class to store information of an ARTICo\u00b3 slot."""
 
