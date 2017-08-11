@@ -11,9 +11,9 @@
 #include <fcntl.h>
 #include <math.h>
 #include <string.h>
-
 #include <sys/ioctl.h>
-#include "../../../../linux/drivers/dmaproxy/dmaproxy.h"
+
+#include "dmaproxy.h"
 
 // Kernel config
 #define SLOTS    (3)
@@ -69,6 +69,7 @@ int main(int argc, char *argv[]) {
     printf("Assigned memory region: %p\n", artico3);
 
     // Reset accelerators
+    gettimeofday(&t0, NULL);
     id = 0;
     for (i = 0; i < SLOTS; i++) {
         id |= ID << (4 * i);
@@ -82,7 +83,10 @@ int main(int argc, char *argv[]) {
     artico3[6] = 0x00000000;              // Block size (# 32-bit words)
     artico3[7] = 0x0000000F;              // Clock enable register
     artico3[(ID << 14) + (0x1 << 10)] = 0x1;
-    printf("%p | %08x | %08x\n", artico3, (ID << 14) + (0x1 << 10), ((ID << 14) + (0x1 << 10)) * sizeof *artico3);
+    gettimeofday(&tf, NULL);
+    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    tg = t;
+    printf("Accelerator reset : %.6f ms\n", t);
 
     /* ARTICo3 configuration */
 
@@ -102,7 +106,7 @@ int main(int argc, char *argv[]) {
     }
     gettimeofday(&tf, NULL);
     t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
-    tg = t;
+    tg += t;
     printf("Data generation : %.6f ms\n", t);
 
     // Compute golden copy
