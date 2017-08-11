@@ -224,13 +224,13 @@ class Project:
                 log.error("ARTICo\u00b3 accelerators must have a name")
 
             name = match.group("name")
-            
+
             if cfg.has_option(kernel, "Replicas"):
                 replicas = int(cfg.get(kernel, "Replicas"))
             else:
                 log.warning("Number of replicas not specified, assuming 1")
                 replicas = 1
-                
+
             if cfg.has_option(kernel, "HwSource"):
                 hwsrc = cfg.get(kernel, "HwSource")
             else:
@@ -241,15 +241,17 @@ class Project:
             else:
                 log.warning("Local memory size for kernel not specified, assuming 16kB")
                 membytes = 16 * (2 ** 10)
-                
+
             if cfg.has_option(kernel, "MemBanks"):
                 membanks = int(cfg.get(kernel, "MemBanks"))
             else:
                 log.warning("Number of local memory banks not specified, assuming 2")
                 membanks = 2
 
-            # Fix to ensure correct partitioning
-            membytes = int(math.ceil(membytes / membanks) * membanks)
+            # NOTE: the following points are enforced by this fix.
+            #         1. An odd number of banks are supported
+            #         2. Each bank will have an integer number of 32-bit words
+            membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
 
             if cfg.has_option(kernel, "RegRW"):
                 regrw = int(cfg.get(kernel, "RegRW"))
