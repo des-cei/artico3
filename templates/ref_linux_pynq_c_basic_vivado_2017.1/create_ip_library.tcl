@@ -9,6 +9,8 @@
 #               part of the process carried out in the export.tcl script.
 #
 
+<a3<artico3_preproc>a3>
+
 proc create_artico3_interfaces {repo_path} {
 
     #
@@ -283,34 +285,33 @@ create_artico3_interfaces $ip_repo
 load_artico3_interfaces $ip_repo
 
 import_pcore $ip_repo artico3_shuffler_v1_00_a ""
-import_pcore $ip_repo a3_dummy_v1_00_a ""
 import_pcore $ip_repo test_axi4full_v1_00_a ""
 import_pcore $ip_repo test_axi4lite_v1_00_a ""
 
-# TODO: this part has to be parsed to generate as many connections as required
-set ip_name "artico3_shuffler_v1_00_a"
-add_artico3_interface $ip_repo/$ip_name "m00_artico3" "m00_artico3_aclk" "m00_artico3_aresetn" "m00_artico3_start" "m00_artico3_ready" "m00_artico3_en" "m00_artico3_we" "m00_artico3_mode" "m00_artico3_addr" "m00_artico3_wdata" "m00_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m01_artico3" "m01_artico3_aclk" "m01_artico3_aresetn" "m01_artico3_start" "m01_artico3_ready" "m01_artico3_en" "m01_artico3_we" "m01_artico3_mode" "m01_artico3_addr" "m01_artico3_wdata" "m01_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m02_artico3" "m02_artico3_aclk" "m02_artico3_aresetn" "m02_artico3_start" "m02_artico3_ready" "m02_artico3_en" "m02_artico3_we" "m02_artico3_mode" "m02_artico3_addr" "m02_artico3_wdata" "m02_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m03_artico3" "m03_artico3_aclk" "m03_artico3_aresetn" "m03_artico3_start" "m03_artico3_ready" "m03_artico3_en" "m03_artico3_we" "m03_artico3_mode" "m03_artico3_addr" "m03_artico3_wdata" "m03_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m04_artico3" "m04_artico3_aclk" "m04_artico3_aresetn" "m04_artico3_start" "m04_artico3_ready" "m04_artico3_en" "m04_artico3_we" "m04_artico3_mode" "m04_artico3_addr" "m04_artico3_wdata" "m04_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m05_artico3" "m05_artico3_aclk" "m05_artico3_aresetn" "m05_artico3_start" "m05_artico3_ready" "m05_artico3_en" "m05_artico3_we" "m05_artico3_mode" "m05_artico3_addr" "m05_artico3_wdata" "m05_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m06_artico3" "m06_artico3_aclk" "m06_artico3_aresetn" "m06_artico3_start" "m06_artico3_ready" "m06_artico3_en" "m06_artico3_we" "m06_artico3_mode" "m06_artico3_addr" "m06_artico3_wdata" "m06_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m07_artico3" "m07_artico3_aclk" "m07_artico3_aresetn" "m07_artico3_start" "m07_artico3_ready" "m07_artico3_en" "m07_artico3_we" "m07_artico3_mode" "m07_artico3_addr" "m07_artico3_wdata" "m07_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m08_artico3" "m08_artico3_aclk" "m08_artico3_aresetn" "m08_artico3_start" "m08_artico3_ready" "m08_artico3_en" "m08_artico3_we" "m08_artico3_mode" "m08_artico3_addr" "m08_artico3_wdata" "m08_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m09_artico3" "m09_artico3_aclk" "m09_artico3_aresetn" "m09_artico3_start" "m09_artico3_ready" "m09_artico3_en" "m09_artico3_we" "m09_artico3_mode" "m09_artico3_addr" "m09_artico3_wdata" "m09_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m10_artico3" "m10_artico3_aclk" "m10_artico3_aresetn" "m10_artico3_start" "m10_artico3_ready" "m10_artico3_en" "m10_artico3_we" "m10_artico3_mode" "m10_artico3_addr" "m10_artico3_wdata" "m10_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m11_artico3" "m11_artico3_aclk" "m11_artico3_aresetn" "m11_artico3_start" "m11_artico3_ready" "m11_artico3_en" "m11_artico3_we" "m11_artico3_mode" "m11_artico3_addr" "m11_artico3_wdata" "m11_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m12_artico3" "m12_artico3_aclk" "m12_artico3_aresetn" "m12_artico3_start" "m12_artico3_ready" "m12_artico3_en" "m12_artico3_we" "m12_artico3_mode" "m12_artico3_addr" "m12_artico3_wdata" "m12_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m13_artico3" "m13_artico3_aclk" "m13_artico3_aresetn" "m13_artico3_start" "m13_artico3_ready" "m13_artico3_en" "m13_artico3_we" "m13_artico3_mode" "m13_artico3_addr" "m13_artico3_wdata" "m13_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m14_artico3" "m14_artico3_aclk" "m14_artico3_aresetn" "m14_artico3_start" "m14_artico3_ready" "m14_artico3_en" "m14_artico3_we" "m14_artico3_mode" "m14_artico3_addr" "m14_artico3_wdata" "m14_artico3_rdata" "master"
-add_artico3_interface $ip_repo/$ip_name "m15_artico3" "m15_artico3_aclk" "m15_artico3_aresetn" "m15_artico3_start" "m15_artico3_ready" "m15_artico3_en" "m15_artico3_we" "m15_artico3_mode" "m15_artico3_addr" "m15_artico3_wdata" "m15_artico3_rdata" "master"
+# Import all required ARTICo3 kernels
+<a3<generate for SLOTS>a3>
+lappend kerns_list <a3<KernCoreName>a3>_v[string map {. _} "<a3<KernCoreVersion>a3>"]
+<a3<end generate>a3>
 
-# TODO: this part has to be parsed to generate as many accelerators as required and,
-#       in case no accelerators are found, to add a dummy wrapper to plug in the
-#       resulting system.
-set ip_name "a3_dummy_v1_00_a"
-add_artico3_interface $ip_repo/$ip_name "s_artico3" "s_artico3_aclk" "s_artico3_aresetn" "s_artico3_start" "s_artico3_ready" "s_artico3_en" "s_artico3_we" "s_artico3_mode" "s_artico3_addr" "s_artico3_wdata" "s_artico3_rdata" "slave"
+# Make the elements of the list unique, i.e. remove duplicates
+set kerns_list [lsort -unique $kerns_list]
+
+# Import all hardware kernels exactly once
+foreach kernel $kerns_list {
+    import_pcore $ip_repo $kernel ""
+}
+
+# Create as many ARTICo3 master interfaces as required in Shuffler
+set ip_name "artico3_shuffler_v1_00_a"
+<a3<generate for SLOTS>a3>
+add_artico3_interface $ip_repo/$ip_name "m<a3<id>a3>_artico3" "m<a3<id>a3>_artico3_aclk" "m<a3<id>a3>_artico3_aresetn" "m<a3<id>a3>_artico3_start" "m<a3<id>a3>_artico3_ready" "m<a3<id>a3>_artico3_en" "m<a3<id>a3>_artico3_we" "m<a3<id>a3>_artico3_mode" "m<a3<id>a3>_artico3_addr" "m<a3<id>a3>_artico3_wdata" "m<a3<id>a3>_artico3_rdata" "master"
+<a3<end generate>a3>
+
+# Create one ARTICo3 slave interface in each kernel
+foreach kernel $kerns_list {
+    set ip_name $kernel
+    add_artico3_interface $ip_repo/$ip_name "s_artico3" "s_artico3_aclk" "s_artico3_aresetn" "s_artico3_start" "s_artico3_ready" "s_artico3_en" "s_artico3_we" "s_artico3_mode" "s_artico3_addr" "s_artico3_wdata" "s_artico3_rdata" "slave"
+}
 
 close_project
 file delete -force $temp_dir

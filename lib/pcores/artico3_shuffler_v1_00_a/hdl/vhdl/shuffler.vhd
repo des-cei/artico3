@@ -3,7 +3,7 @@
 --                                                                                          --
 -- Author: Juan Valverde <juan.valverde@upm.es>                                             --
 --         Alfonso Rodriguez <alfonso.rodriguezm@upm.es>                                    --
---         Cesar Castañares <cekafra@gmail.com>                                             --
+--         Cesar CastaÃ±ares <cekafra@gmail.com>                                             --
 --                                                                                          --
 -- Features:                                                                                --
 --     Independent AXI4-Lite (register-based) and AXI4 Full (memory-based) interfaces       --
@@ -21,6 +21,8 @@
 -- This peripheral can be attached to any Xilinx AXI4 Interconnect to implement a fully     --
 -- enabled ARTICo3 implementation in a system with a host microprocessor                    --
 ----------------------------------------------------------------------------------------------
+
+<a3<artico3_preproc>a3>
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -89,199 +91,21 @@ entity shuffler is
         -------------------
 
         -- NOTE: this definition is for Vivado IP Integrator based designs
-
-        -- SLOT #0 --
-        m00_artico3_aclk    : out std_logic;
-        m00_artico3_aresetn : out std_logic;
-        m00_artico3_start   : out std_logic;
-        m00_artico3_ready   : in  std_logic;
-        m00_artico3_en      : out std_logic;
-        m00_artico3_we      : out std_logic;
-        m00_artico3_mode    : out std_logic;
-        m00_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m00_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m00_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #1 --
-        m01_artico3_aclk    : out std_logic;
-        m01_artico3_aresetn : out std_logic;
-        m01_artico3_start   : out std_logic;
-        m01_artico3_ready   : in  std_logic;
-        m01_artico3_en      : out std_logic;
-        m01_artico3_we      : out std_logic;
-        m01_artico3_mode    : out std_logic;
-        m01_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m01_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m01_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #2 --
-        m02_artico3_aclk    : out std_logic;
-        m02_artico3_aresetn : out std_logic;
-        m02_artico3_start   : out std_logic;
-        m02_artico3_ready   : in  std_logic;
-        m02_artico3_en      : out std_logic;
-        m02_artico3_we      : out std_logic;
-        m02_artico3_mode    : out std_logic;
-        m02_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m02_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m02_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #3 --
-        m03_artico3_aclk    : out std_logic;
-        m03_artico3_aresetn : out std_logic;
-        m03_artico3_start   : out std_logic;
-        m03_artico3_ready   : in  std_logic;
-        m03_artico3_en      : out std_logic;
-        m03_artico3_we      : out std_logic;
-        m03_artico3_mode    : out std_logic;
-        m03_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m03_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m03_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #4 --
-        m04_artico3_aclk    : out std_logic;
-        m04_artico3_aresetn : out std_logic;
-        m04_artico3_start   : out std_logic;
-        m04_artico3_ready   : in  std_logic;
-        m04_artico3_en      : out std_logic;
-        m04_artico3_we      : out std_logic;
-        m04_artico3_mode    : out std_logic;
-        m04_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m04_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m04_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #5 --
-        m05_artico3_aclk    : out std_logic;
-        m05_artico3_aresetn : out std_logic;
-        m05_artico3_start   : out std_logic;
-        m05_artico3_ready   : in  std_logic;
-        m05_artico3_en      : out std_logic;
-        m05_artico3_we      : out std_logic;
-        m05_artico3_mode    : out std_logic;
-        m05_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m05_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m05_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #6 --
-        m06_artico3_aclk    : out std_logic;
-        m06_artico3_aresetn : out std_logic;
-        m06_artico3_start   : out std_logic;
-        m06_artico3_ready   : in  std_logic;
-        m06_artico3_en      : out std_logic;
-        m06_artico3_we      : out std_logic;
-        m06_artico3_mode    : out std_logic;
-        m06_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m06_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m06_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #7 --
-        m07_artico3_aclk    : out std_logic;
-        m07_artico3_aresetn : out std_logic;
-        m07_artico3_start   : out std_logic;
-        m07_artico3_ready   : in  std_logic;
-        m07_artico3_en      : out std_logic;
-        m07_artico3_we      : out std_logic;
-        m07_artico3_mode    : out std_logic;
-        m07_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m07_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m07_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #8 --
-        m08_artico3_aclk    : out std_logic;
-        m08_artico3_aresetn : out std_logic;
-        m08_artico3_start   : out std_logic;
-        m08_artico3_ready   : in  std_logic;
-        m08_artico3_en      : out std_logic;
-        m08_artico3_we      : out std_logic;
-        m08_artico3_mode    : out std_logic;
-        m08_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m08_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m08_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #9 --
-        m09_artico3_aclk    : out std_logic;
-        m09_artico3_aresetn : out std_logic;
-        m09_artico3_start   : out std_logic;
-        m09_artico3_ready   : in  std_logic;
-        m09_artico3_en      : out std_logic;
-        m09_artico3_we      : out std_logic;
-        m09_artico3_mode    : out std_logic;
-        m09_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m09_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m09_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #10 --
-        m10_artico3_aclk    : out std_logic;
-        m10_artico3_aresetn : out std_logic;
-        m10_artico3_start   : out std_logic;
-        m10_artico3_ready   : in  std_logic;
-        m10_artico3_en      : out std_logic;
-        m10_artico3_we      : out std_logic;
-        m10_artico3_mode    : out std_logic;
-        m10_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m10_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m10_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #11 --
-        m11_artico3_aclk    : out std_logic;
-        m11_artico3_aresetn : out std_logic;
-        m11_artico3_start   : out std_logic;
-        m11_artico3_ready   : in  std_logic;
-        m11_artico3_en      : out std_logic;
-        m11_artico3_we      : out std_logic;
-        m11_artico3_mode    : out std_logic;
-        m11_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m11_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m11_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #12 --
-        m12_artico3_aclk    : out std_logic;
-        m12_artico3_aresetn : out std_logic;
-        m12_artico3_start   : out std_logic;
-        m12_artico3_ready   : in  std_logic;
-        m12_artico3_en      : out std_logic;
-        m12_artico3_we      : out std_logic;
-        m12_artico3_mode    : out std_logic;
-        m12_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m12_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m12_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #13 --
-        m13_artico3_aclk    : out std_logic;
-        m13_artico3_aresetn : out std_logic;
-        m13_artico3_start   : out std_logic;
-        m13_artico3_ready   : in  std_logic;
-        m13_artico3_en      : out std_logic;
-        m13_artico3_we      : out std_logic;
-        m13_artico3_mode    : out std_logic;
-        m13_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m13_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m13_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #14 --
-        m14_artico3_aclk    : out std_logic;
-        m14_artico3_aresetn : out std_logic;
-        m14_artico3_start   : out std_logic;
-        m14_artico3_ready   : in  std_logic;
-        m14_artico3_en      : out std_logic;
-        m14_artico3_we      : out std_logic;
-        m14_artico3_mode    : out std_logic;
-        m14_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m14_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m14_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
-        -- SLOT #15 --
-        m15_artico3_aclk    : out std_logic;
-        m15_artico3_aresetn : out std_logic;
-        m15_artico3_start   : out std_logic;
-        m15_artico3_ready   : in  std_logic;
-        m15_artico3_en      : out std_logic;
-        m15_artico3_we      : out std_logic;
-        m15_artico3_mode    : out std_logic;
-        m15_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
-        m15_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        m15_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-
+        
+        <a3<generate for SLOTS>a3>
+        -- SLOT #<a3<id>a3> --
+        m<a3<id>a3>_artico3_aclk    : out std_logic;
+        m<a3<id>a3>_artico3_aresetn : out std_logic;
+        m<a3<id>a3>_artico3_start   : out std_logic;
+        m<a3<id>a3>_artico3_ready   : in  std_logic;
+        m<a3<id>a3>_artico3_en      : out std_logic;
+        m<a3<id>a3>_artico3_we      : out std_logic;
+        m<a3<id>a3>_artico3_mode    : out std_logic;
+        m<a3<id>a3>_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+        m<a3<id>a3>_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
+        m<a3<id>a3>_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
+        <a3<end generate>a3>
+        
         ---------------------
         -- Interface ports --
         ---------------------
@@ -669,7 +493,7 @@ begin
         S_AXI_RREADY   => s00_axi_rready
     );
 
-    -- Instantiation of ÄXI4 Full interface (DATA PATH)
+    -- Instantiation of Ã„XI4 Full interface (DATA PATH)
     shuffler_data : entity work.shuffler_data
     generic map (
         C_PIPE_DEPTH         => C_PIPE_DEPTH,
@@ -755,197 +579,19 @@ begin
 
     -- NOTE: the following port connections are required when targeting Vivado IP Integrator designs
 
-    -- SLOT #0 --
-    m00_artico3_aclk <= artico3_aclk(0);
-    m00_artico3_aresetn <= artico3_aresetn(0);
-    m00_artico3_start <= artico3_start(0);
-    artico3_ready(0) <= m00_artico3_ready;
-    m00_artico3_en <= artico3_en(0);
-    m00_artico3_we <= artico3_we(0);
-    m00_artico3_mode <= artico3_mode(0);
-    m00_artico3_addr <= artico3_addr(0);
-    m00_artico3_wdata <= artico3_wdata(0);
-    artico3_rdata(0) <= m00_artico3_rdata;
-
-    -- SLOT #1 --
-    m01_artico3_aclk <= artico3_aclk(1);
-    m01_artico3_aresetn <= artico3_aresetn(1);
-    m01_artico3_start <= artico3_start(1);
-    artico3_ready(1) <= m01_artico3_ready;
-    m01_artico3_en <= artico3_en(1);
-    m01_artico3_we <= artico3_we(1);
-    m01_artico3_mode <= artico3_mode(1);
-    m01_artico3_addr <= artico3_addr(1);
-    m01_artico3_wdata <= artico3_wdata(1);
-    artico3_rdata(1) <= m01_artico3_rdata;
-
-    -- SLOT #2 --
-    m02_artico3_aclk <= artico3_aclk(2);
-    m02_artico3_aresetn <= artico3_aresetn(2);
-    m02_artico3_start <= artico3_start(2);
-    artico3_ready(2) <= m02_artico3_ready;
-    m02_artico3_en <= artico3_en(2);
-    m02_artico3_we <= artico3_we(2);
-    m02_artico3_mode <= artico3_mode(2);
-    m02_artico3_addr <= artico3_addr(2);
-    m02_artico3_wdata <= artico3_wdata(2);
-    artico3_rdata(2) <= m02_artico3_rdata;
-
-    -- SLOT #3 --
-    m03_artico3_aclk <= artico3_aclk(3);
-    m03_artico3_aresetn <= artico3_aresetn(3);
-    m03_artico3_start <= artico3_start(3);
-    artico3_ready(3) <= m03_artico3_ready;
-    m03_artico3_en <= artico3_en(3);
-    m03_artico3_we <= artico3_we(3);
-    m03_artico3_mode <= artico3_mode(3);
-    m03_artico3_addr <= artico3_addr(3);
-    m03_artico3_wdata <= artico3_wdata(3);
-    artico3_rdata(3) <= m03_artico3_rdata;
-
-    -- SLOT #4 --
-    m04_artico3_aclk <= artico3_aclk(4);
-    m04_artico3_aresetn <= artico3_aresetn(4);
-    m04_artico3_start <= artico3_start(4);
-    artico3_ready(4) <= m04_artico3_ready;
-    m04_artico3_en <= artico3_en(4);
-    m04_artico3_we <= artico3_we(4);
-    m04_artico3_mode <= artico3_mode(4);
-    m04_artico3_addr <= artico3_addr(4);
-    m04_artico3_wdata <= artico3_wdata(4);
-    artico3_rdata(4) <= m04_artico3_rdata;
-
-    -- SLOT #5 --
-    m05_artico3_aclk <= artico3_aclk(5);
-    m05_artico3_aresetn <= artico3_aresetn(5);
-    m05_artico3_start <= artico3_start(5);
-    artico3_ready(5) <= m05_artico3_ready;
-    m05_artico3_en <= artico3_en(5);
-    m05_artico3_we <= artico3_we(5);
-    m05_artico3_mode <= artico3_mode(5);
-    m05_artico3_addr <= artico3_addr(5);
-    m05_artico3_wdata <= artico3_wdata(5);
-    artico3_rdata(5) <= m05_artico3_rdata;
-
-    -- SLOT #6 --
-    m06_artico3_aclk <= artico3_aclk(6);
-    m06_artico3_aresetn <= artico3_aresetn(6);
-    m06_artico3_start <= artico3_start(6);
-    artico3_ready(6) <= m06_artico3_ready;
-    m06_artico3_en <= artico3_en(6);
-    m06_artico3_we <= artico3_we(6);
-    m06_artico3_mode <= artico3_mode(6);
-    m06_artico3_addr <= artico3_addr(6);
-    m06_artico3_wdata <= artico3_wdata(6);
-    artico3_rdata(6) <= m06_artico3_rdata;
-
-    -- SLOT #7 --
-    m07_artico3_aclk <= artico3_aclk(7);
-    m07_artico3_aresetn <= artico3_aresetn(7);
-    m07_artico3_start <= artico3_start(7);
-    artico3_ready(7) <= m07_artico3_ready;
-    m07_artico3_en <= artico3_en(7);
-    m07_artico3_we <= artico3_we(7);
-    m07_artico3_mode <= artico3_mode(7);
-    m07_artico3_addr <= artico3_addr(7);
-    m07_artico3_wdata <= artico3_wdata(7);
-    artico3_rdata(7) <= m07_artico3_rdata;
-
-    -- SLOT #8 --
-    m08_artico3_aclk <= artico3_aclk(8);
-    m08_artico3_aresetn <= artico3_aresetn(8);
-    m08_artico3_start <= artico3_start(8);
-    artico3_ready(8) <= m08_artico3_ready;
-    m08_artico3_en <= artico3_en(8);
-    m08_artico3_we <= artico3_we(8);
-    m08_artico3_mode <= artico3_mode(8);
-    m08_artico3_addr <= artico3_addr(8);
-    m08_artico3_wdata <= artico3_wdata(8);
-    artico3_rdata(8) <= m08_artico3_rdata;
-
-    -- SLOT #9 --
-    m09_artico3_aclk <= artico3_aclk(9);
-    m09_artico3_aresetn <= artico3_aresetn(9);
-    m09_artico3_start <= artico3_start(9);
-    artico3_ready(9) <= m09_artico3_ready;
-    m09_artico3_en <= artico3_en(9);
-    m09_artico3_we <= artico3_we(9);
-    m09_artico3_mode <= artico3_mode(9);
-    m09_artico3_addr <= artico3_addr(9);
-    m09_artico3_wdata <= artico3_wdata(9);
-    artico3_rdata(9) <= m09_artico3_rdata;
-
-    -- SLOT #10 --
-    m10_artico3_aclk <= artico3_aclk(10);
-    m10_artico3_aresetn <= artico3_aresetn(10);
-    m10_artico3_start <= artico3_start(10);
-    artico3_ready(10) <= m10_artico3_ready;
-    m10_artico3_en <= artico3_en(10);
-    m10_artico3_we <= artico3_we(10);
-    m10_artico3_mode <= artico3_mode(10);
-    m10_artico3_addr <= artico3_addr(10);
-    m10_artico3_wdata <= artico3_wdata(10);
-    artico3_rdata(10) <= m10_artico3_rdata;
-
-    -- SLOT #11 --
-    m11_artico3_aclk <= artico3_aclk(11);
-    m11_artico3_aresetn <= artico3_aresetn(11);
-    m11_artico3_start <= artico3_start(11);
-    artico3_ready(11) <= m11_artico3_ready;
-    m11_artico3_en <= artico3_en(11);
-    m11_artico3_we <= artico3_we(11);
-    m11_artico3_mode <= artico3_mode(11);
-    m11_artico3_addr <= artico3_addr(11);
-    m11_artico3_wdata <= artico3_wdata(11);
-    artico3_rdata(11) <= m11_artico3_rdata;
-
-    -- SLOT #12 --
-    m12_artico3_aclk <= artico3_aclk(12);
-    m12_artico3_aresetn <= artico3_aresetn(12);
-    m12_artico3_start <= artico3_start(12);
-    artico3_ready(12) <= m12_artico3_ready;
-    m12_artico3_en <= artico3_en(12);
-    m12_artico3_we <= artico3_we(12);
-    m12_artico3_mode <= artico3_mode(12);
-    m12_artico3_addr <= artico3_addr(12);
-    m12_artico3_wdata <= artico3_wdata(12);
-    artico3_rdata(12) <= m12_artico3_rdata;
-
-    -- SLOT #13 --
-    m13_artico3_aclk <= artico3_aclk(13);
-    m13_artico3_aresetn <= artico3_aresetn(13);
-    m13_artico3_start <= artico3_start(13);
-    artico3_ready(13) <= m13_artico3_ready;
-    m13_artico3_en <= artico3_en(13);
-    m13_artico3_we <= artico3_we(13);
-    m13_artico3_mode <= artico3_mode(13);
-    m13_artico3_addr <= artico3_addr(13);
-    m13_artico3_wdata <= artico3_wdata(13);
-    artico3_rdata(13) <= m13_artico3_rdata;
-
-    -- SLOT #14 --
-    m14_artico3_aclk <= artico3_aclk(14);
-    m14_artico3_aresetn <= artico3_aresetn(14);
-    m14_artico3_start <= artico3_start(14);
-    artico3_ready(14) <= m14_artico3_ready;
-    m14_artico3_en <= artico3_en(14);
-    m14_artico3_we <= artico3_we(14);
-    m14_artico3_mode <= artico3_mode(14);
-    m14_artico3_addr <= artico3_addr(14);
-    m14_artico3_wdata <= artico3_wdata(14);
-    artico3_rdata(14) <= m14_artico3_rdata;
-
-    -- SLOT #15 --
-    m15_artico3_aclk <= artico3_aclk(15);
-    m15_artico3_aresetn <= artico3_aresetn(15);
-    m15_artico3_start <= artico3_start(15);
-    artico3_ready(15) <= m15_artico3_ready;
-    m15_artico3_en <= artico3_en(15);
-    m15_artico3_we <= artico3_we(15);
-    m15_artico3_mode <= artico3_mode(15);
-    m15_artico3_addr <= artico3_addr(15);
-    m15_artico3_wdata <= artico3_wdata(15);
-    artico3_rdata(15) <= m15_artico3_rdata;
+    <a3<generate for SLOTS>a3>
+    -- SLOT #<a3<id>a3> --
+    m<a3<id>a3>_artico3_aclk <= artico3_aclk(<a3<id>a3>);
+    m<a3<id>a3>_artico3_aresetn <= artico3_aresetn(<a3<id>a3>);
+    m<a3<id>a3>_artico3_start <= artico3_start(<a3<id>a3>);
+    artico3_ready(<a3<id>a3>) <= m<a3<id>a3>_artico3_ready;
+    m<a3<id>a3>_artico3_en <= artico3_en(<a3<id>a3>);
+    m<a3<id>a3>_artico3_we <= artico3_we(<a3<id>a3>);
+    m<a3<id>a3>_artico3_mode <= artico3_mode(<a3<id>a3>);
+    m<a3<id>a3>_artico3_addr <= artico3_addr(<a3<id>a3>);
+    m<a3<id>a3>_artico3_wdata <= artico3_wdata(<a3<id>a3>);
+    artico3_rdata(<a3<id>a3>) <= m<a3<id>a3>_artico3_rdata;
+    <a3<end generate>a3>
 
     -----------------------
     -- Enable generation --
@@ -1362,7 +1008,7 @@ begin
                         red_araddr <= (others => '0');
                     end if;
                 -- If not capturing, the system is moving data
-                elsif red_en_base = '1' and engen_cnt_remaining /= 0 then -- TODO: verificar esta condición
+                elsif red_en_base = '1' and engen_cnt_remaining /= 0 then -- TODO: verificar esta condiciÃ³n
                     if addr_reset = '1' then
                         red_araddr <= (others => '0');
                     else

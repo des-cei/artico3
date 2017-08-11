@@ -57,20 +57,20 @@ def _gen_preproc(scope):
                 continue
 
             # recursively processing nested generates which use equal signs to
-            # indicate the nesting, e.g. <<= ... =>>
-            od = "<<" + "=" * len(scope)
-            cd = "=" * len(scope) + ">>"
+            # indicate the nesting, e.g. <a3<= ... =>a3>
+            od = "<a3<" + "=" * len(scope)
+            cd = "=" * len(scope) + ">a3>"
             reg = od + r"generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?" + cd + r"\n?(?P<data>.*?)" + od + r"end generate" + cd
             ndata = re.sub(reg, _gen_preproc(nscope), m.group("data"), 0, re.DOTALL)
 
             # processing keys which are replaced by values from the scope, e.g.
-            # <<...>>
-            reg = r"<<(?P<key>[A-Za-z0-9_]+)(?:\((?P<join>.*?)\))?(?:\|(?P<format>.*))?>>"
+            # <a3<...>a3>
+            reg = r"<a3<(?P<key>[A-Za-z0-9_]+)(?:\((?P<join>.*?)\))?(?:\|(?P<format>.*))?>a3>"
             def repl(m):
                 values = [_[m.group("key")] for _ in nscope if m.group("key") in _]
 
                 if not values:
-                    return "<<" + m.group("key") + ">>"
+                    return "<a3<" + m.group("key") + ">a3>"
                 else:
                     if m.group("format") is None:
                         return str(values[0])
@@ -80,7 +80,7 @@ def _gen_preproc(scope):
 
             # processing optional character which is not printed in the last
             # iteration of the generation
-            reg = r"<<c(?P<data>.)>>"
+            reg = r"<a3<c(?P<data>.)>a3>"
             if i < len(value) - 1:
                 ndata = re.sub(reg, "\g<data>", ndata)
             else:
@@ -125,26 +125,26 @@ def preproc(filepath, dictionary, mode, force=False):
     with open(filepath, "r") as file:
         try:
             data = file.read()
-        except:
+        except Exception as ex:
             return
 
-    if "<<reconos_preproc>>" not in data and not force:
+    if "<a3<artico3_preproc>a3>" not in data and not force:
         return
     else:
-        data = re.sub(r"<<reconos_preproc>>", "", data)
+        data = re.sub(r"<a3<artico3_preproc>a3>", "", data)
 
-    # generate syntax: <<generate for KEY(OPTIONAL = CONDITION)>> ... <<end generate>>
+    # generate syntax: <a3<generate for KEY(OPTIONAL = CONDITION)>a3> ... <a3<end generate>a3>
     # used to automatically generate several lines of code
-    reg = r"<<generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?>>\n?(?P<data>.*?)<<end generate>>"
+    reg = r"<a3<generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?>a3>\n?(?P<data>.*?)<a3<end generate>a3>"
     data = re.sub(reg, _gen_preproc([dictionary]), data, 0, re.DOTALL)
 
-    # if syntax: <<if KEY OPERATOR VALUE>> ... <<end if>>
+    # if syntax: <a3<if KEY OPERATOR VALUE>a3> ... <a3<end if>a3>
     # used to conditionally include or exclude code fragments
-    reg = r"<<if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)>>\n?(?P<data>.*?)<<end if>>"
+    reg = r"<a3<if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)>a3>\n?(?P<data>.*?)<a3<end if>a3>"
     data = re.sub(reg, _if_preproc(dictionary), data, 0, re.DOTALL)
 
     # global keys not inside generate
-    reg = r"<<(?P<key>[A-Za-z0-9_]+)(?:\|(?P<format>.*))?>>"
+    reg = r"<a3<(?P<key>[A-Za-z0-9_]+)(?:\|(?P<format>.*))?>a3>"
     def repl(m):
         if m.group("key") in dictionary:
             if m.group("format") is None:
@@ -157,6 +157,8 @@ def preproc(filepath, dictionary, mode, force=False):
         else:
             return m.string[m.start():m.end()]
     data = re.sub(reg, repl, data)
+    #~ print(data)
+    #~ input()
 
     if mode == "print":
         print(data)
@@ -171,7 +173,7 @@ def preproc(filepath, dictionary, mode, force=False):
 #   dictionary - dictionary containing all keys
 #
 def precopy(filepath, dictionary, link):
-    reg = r"^<<generate_for_(?P<key>[A-Za-z0-9_]+)>>"
+    reg = r"^<a3<generate_for_(?P<key>[A-Za-z0-9_]+)>a3>"
     m = re.match(reg, shutil2.basename(filepath))
 
     if m is None:
@@ -195,7 +197,7 @@ def precopy(filepath, dictionary, link):
 def prefile(filepath, dictionary):
     old = shutil2.basename(filepath)
 
-    reg = r"<<(?P<key>[A-Za-z0-9_]+)>>"
+    reg = r"<a3<(?P<key>[A-Za-z0-9_]+)>a3>"
     def repl(m):
         if m.group("key") in dictionary:
             return str(dictionary[m.group("key")])
@@ -220,7 +222,7 @@ def prefile(filepath, dictionary):
 def predirectory(dirpath, dirs, dictionary):
     old = shutil2.basename(dirpath)
 
-    reg = r"<<(?P<key>[A-Za-z0-9_]+)>>"
+    reg = r"<a3<(?P<key>[A-Za-z0-9_]+)>a3>"
     def repl(m):
         if m.group("key") in dictionary:
             return str(dictionary[m.group("key")])

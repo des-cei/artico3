@@ -9,6 +9,8 @@
 #               the required modules and making the necessary connections.
 #
 
+<a3<artico3_preproc>a3>
+
 variable script_file
 set script_file "export.tcl"
 
@@ -167,27 +169,19 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
 # APPLICATION CONFIGURATION
 
-    # Create instances of custom peripherals
+    # Create instance of ARTICo3 infrastructure and apply custom configuration
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:artico3_shuffler:1.0 artico3_shuffler_0
+    set_property -dict [list CONFIG.C_MAX_SLOTS <a3<NUM_SLOTS>a3>] [get_bd_cells artico3_shuffler_0]
+    set_property -dict [list CONFIG.C_PIPE_DEPTH <a3<PIPE_DEPTH>a3>] [get_bd_cells artico3_shuffler_0]
+    set_property -dict [list CONFIG.C_CLK_GATE_BUFFER <a3<CLK_BUFFER>a3>] [get_bd_cells artico3_shuffler_0]
+    set_property -dict [list CONFIG.C_RST_BUFFER <a3<RST_BUFFER>a3>] [get_bd_cells artico3_shuffler_0]
 
-    # TODO: this part has to be parsed to generate as many instances as required
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_0
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_1
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_2
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_3
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_4
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_5
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_6
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_7
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_8
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_9
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_10
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_11
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_12
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_13
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_14
-    #~ create_bd_cell -type ip -vlnv cei.upm.es:artico3:a3_dummy:1.0 a3_dummy_15
+    # Create instances of hardware kernels
+    <a3<generate for SLOTS>a3>
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
+    <a3<end generate>a3>
 
+    # Create other instances
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:test_axi4full:1.0 test_axi4full_0
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:test_axi4lite:1.0 test_axi4lite_0
 
@@ -257,23 +251,9 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
 
     # Connect ARTICo3 slots
-    # TODO: this part has to be parsed to generate as many instances as required
-    connect_bd_intf_net -intf_net artico3_slot0 [get_bd_intf_pins artico3_shuffler_0/m00_artico3] [get_bd_intf_pins a3_dummy_0/s_artico3]
-    connect_bd_intf_net -intf_net artico3_slot1 [get_bd_intf_pins artico3_shuffler_0/m01_artico3] [get_bd_intf_pins a3_dummy_1/s_artico3]
-    connect_bd_intf_net -intf_net artico3_slot2 [get_bd_intf_pins artico3_shuffler_0/m02_artico3] [get_bd_intf_pins a3_dummy_2/s_artico3]
-    connect_bd_intf_net -intf_net artico3_slot3 [get_bd_intf_pins artico3_shuffler_0/m03_artico3] [get_bd_intf_pins a3_dummy_3/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot4 [get_bd_intf_pins artico3_shuffler_0/m04_artico3] [get_bd_intf_pins a3_dummy_4/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot5 [get_bd_intf_pins artico3_shuffler_0/m05_artico3] [get_bd_intf_pins a3_dummy_5/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot6 [get_bd_intf_pins artico3_shuffler_0/m06_artico3] [get_bd_intf_pins a3_dummy_6/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot7 [get_bd_intf_pins artico3_shuffler_0/m07_artico3] [get_bd_intf_pins a3_dummy_7/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot8 [get_bd_intf_pins artico3_shuffler_0/m08_artico3] [get_bd_intf_pins a3_dummy_8/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot9 [get_bd_intf_pins artico3_shuffler_0/m09_artico3] [get_bd_intf_pins a3_dummy_9/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot10 [get_bd_intf_pins artico3_shuffler_0/m10_artico3] [get_bd_intf_pins a3_dummy_10/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot11 [get_bd_intf_pins artico3_shuffler_0/m11_artico3] [get_bd_intf_pins a3_dummy_11/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot12 [get_bd_intf_pins artico3_shuffler_0/m12_artico3] [get_bd_intf_pins a3_dummy_12/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot13 [get_bd_intf_pins artico3_shuffler_0/m13_artico3] [get_bd_intf_pins a3_dummy_13/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot14 [get_bd_intf_pins artico3_shuffler_0/m14_artico3] [get_bd_intf_pins a3_dummy_14/s_artico3]
-    #~ connect_bd_intf_net -intf_net artico3_slot15 [get_bd_intf_pins artico3_shuffler_0/m15_artico3] [get_bd_intf_pins a3_dummy_15/s_artico3]
+    <a3<generate for SLOTS>a3>
+    connect_bd_intf_net -intf_net artico3_slot<a3<id>a3> [get_bd_intf_pins artico3_shuffler_0/m<a3<id>a3>_artico3] [get_bd_intf_pins a3_slot_<a3<id>a3>/s_artico3]
+    <a3<end generate>a3>
 
     # Generate memory-mapped segments for custom peripherals
     create_bd_addr_seg -range 1M -offset 0x7aa00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {artico3_shuffler_0/s00_axi/reg0}] SEG0
