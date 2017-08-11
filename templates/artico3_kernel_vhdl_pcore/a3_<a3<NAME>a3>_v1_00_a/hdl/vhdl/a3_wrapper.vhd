@@ -23,17 +23,19 @@
 -- targeting ARTICo3-enabled platforms                                     --
 -----------------------------------------------------------------------------
 
+<a3<artico3_preproc>a3>
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity wrapper is
+entity a3_wrapper is
     generic (
-        C_ARTICO3_DATA_WIDTH : integer := 32;       -- Data bus width (in bits)
-        C_ARTICO3_ADDR_WIDTH : integer := 16;       -- Address bus width (in bits)
-        C_MAX_MEM            : integer := 16*2**10; -- Total memory size (in bytes) inside the compute unit
-        C_NUM_MEM            : integer := 2;        -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
-        C_NUM_REG            : integer := 16        -- Number of registers inside the compute unit
+        C_ARTICO3_DATA_WIDTH : integer := 32;               -- Data bus width (in bits)
+        C_ARTICO3_ADDR_WIDTH : integer := 16;               -- Address bus width (in bits)
+        C_MAX_MEM            : integer := <a3<MEMBYTES>a3>; -- Total memory size (in bytes) inside the compute unit
+        C_NUM_MEM            : integer := <a3<MEMBANKS>a3>; -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
+        C_NUM_REG            : integer := 16                -- Number of registers inside the compute unit
     );
     port (
         s_artico3_aclk    : in  std_logic;
@@ -47,9 +49,9 @@ entity wrapper is
         s_artico3_wdata   : in  std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0); -- ARTICo3 write data bus
         s_artico3_rdata   : out std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0)  -- ARTICo3 read data bus
     );
-end wrapper;
+end a3_wrapper;
 
-architecture behavioral of wrapper is
+architecture behavioral of a3_wrapper is
 
     ----------------
     -- User Logic --
@@ -124,15 +126,39 @@ begin
     -- User logic --
     ----------------
 
-    -- TODO: replace this with custom logic with access to memory port B
+<a3<if NAME=="dummy">a3>
     rst_logic <= (others => '1');
     en_logic <= (others => '0');
     we_logic <= (others => '0');
     addr_logic <= (others => (others => '0'));
     din_logic <= (others => (others => '0'));
-
-    -- TODO: replace this with custom logic to generate READY signal (processing is finished, data can be collected)
     s_artico3_ready <= '1';
+<a3<end if>a3>
+
+<a3<if NAME!="dummy">a3>
+    kernel_i: entity work.<a3<NAME>a3>
+    port map (
+        clk         => s_artico3_aclk,
+<a3<=if RST_POL=="high"=>a3>
+        reset       => not s_artico3_aresetn,
+<a3<=end if=>a3>
+<a3<=if RST_POL=="low"=>a3>
+        reset       => s_artico3_aresetn,
+<a3<=end if=>a3>
+        start       => s_artico3_start,
+        ready       => s_artico3_ready,
+
+<a3<generate for MEMBANKS>a3>
+        bram_<a3<bid>a3>_clk  => open,
+        bram_<a3<bid>a3>_rst  => rst_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_en   => en_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_we   => we_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_addr => std_logic_vector(add_logic(<a3<bid>a3>)),
+        bram_<a3<bid>a3>_din  => din_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_dout => dout_logic(<a3<bid>a3>)
+<a3<end generate>a3>
+    );
+<a3<end if>a3>
 
     -------------------------------
     -- Configurable memory banks --
