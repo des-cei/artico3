@@ -285,6 +285,8 @@ create_artico3_interfaces $ip_repo
 load_artico3_interfaces $ip_repo
 
 import_pcore $ip_repo artico3_shuffler_v1_00_a ""
+import_pcore $ip_repo test_axi4full_v1_00_a ""
+import_pcore $ip_repo test_axi4lite_v1_00_a ""
 
 # Import all required ARTICo3 kernels
 <a3<generate for SLOTS>a3>

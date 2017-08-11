@@ -181,21 +181,31 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
 <a3<end generate>a3>
 
+    # Create other instances
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:test_axi4full:1.0 test_axi4full_0
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:test_axi4lite:1.0 test_axi4lite_0
+
     # Required to avoid problems with AXI Interconnect
     set_property -dict [list CONFIG.C_S_AXI_ID_WIDTH {12}] [get_bd_cells artico3_shuffler_0]
+    set_property -dict [list CONFIG.C_S_AXI_ID_WIDTH {12}] [get_bd_cells test_axi4full_0]
+
+    # Set memory map size inside AXI4-Full peripheral
+    set_property -dict [list CONFIG.C_MEMORY_SIZE {65536}] [get_bd_cells test_axi4full_0]
 
     # Create and configure new AXI Interconnects
     create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_a3ctrl
-    set_property -dict [ list CONFIG.NUM_MI {1} CONFIG.NUM_SI {1}] [get_bd_cells axi_a3ctrl]
+    set_property -dict [ list CONFIG.NUM_MI {2} CONFIG.NUM_SI {1}] [get_bd_cells axi_a3ctrl]
     create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_a3data
-    set_property -dict [ list CONFIG.NUM_MI {1} CONFIG.NUM_SI {1}] [get_bd_cells axi_a3data]
+    set_property -dict [ list CONFIG.NUM_MI {2} CONFIG.NUM_SI {1}] [get_bd_cells axi_a3data]
 
     # Connect AXI interfaces
     connect_bd_intf_net -intf_net axi_a3ctrl_S00_AXI [get_bd_intf_pins axi_a3ctrl/S00_AXI] [get_bd_intf_pins processing_system7_0/M_AXI_GP0]
     connect_bd_intf_net -intf_net axi_a3ctrl_M00_AXI [get_bd_intf_pins axi_a3ctrl/M00_AXI] [get_bd_intf_pins artico3_shuffler_0/s00_axi]
+    connect_bd_intf_net -intf_net axi_a3ctrl_M01_AXI [get_bd_intf_pins axi_a3ctrl/M01_AXI] [get_bd_intf_pins test_axi4lite_0/S_AXI]
 
     connect_bd_intf_net -intf_net axi_a3data_S00_AXI [get_bd_intf_pins axi_a3data/S00_AXI] [get_bd_intf_pins processing_system7_0/M_AXI_GP1]
     connect_bd_intf_net -intf_net axi_a3data_M00_AXI [get_bd_intf_pins axi_a3data/M00_AXI] [get_bd_intf_pins artico3_shuffler_0/s01_axi]
+    connect_bd_intf_net -intf_net axi_a3data_M01_AXI [get_bd_intf_pins axi_a3data/M01_AXI] [get_bd_intf_pins test_axi4full_0/S_AXI]
 
     # Connect clocks
     connect_bd_net [get_bd_pins processing_system7_0/FCLK_CLK0] \
@@ -203,12 +213,16 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
                         [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] \
                         [get_bd_pins axi_a3ctrl/ACLK] \
                         [get_bd_pins axi_a3ctrl/M00_ACLK] \
+                        [get_bd_pins axi_a3ctrl/M01_ACLK] \
                         [get_bd_pins axi_a3ctrl/S00_ACLK] \
                         [get_bd_pins processing_system7_0/M_AXI_GP1_ACLK] \
                         [get_bd_pins axi_a3data/ACLK] \
                         [get_bd_pins axi_a3data/M00_ACLK] \
+                        [get_bd_pins axi_a3data/M01_ACLK] \
                         [get_bd_pins axi_a3data/S00_ACLK] \
-                        [get_bd_pins artico3_shuffler_0/s_axi_aclk]
+                        [get_bd_pins artico3_shuffler_0/s_axi_aclk] \
+                        [get_bd_pins test_axi4full_0/S_AXI_ACLK] \
+                        [get_bd_pins test_axi4lite_0/S_AXI_ACLK]
 
     # Connect resets
     connect_bd_net [get_bd_pins reset_0/ext_reset_in] [get_bd_pins processing_system7_0/FCLK_RESET0_N]
@@ -216,13 +230,17 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     connect_bd_net [get_bd_pins reset_0/Interconnect_aresetn] \
                         [get_bd_pins axi_a3ctrl/ARESETN] \
                         [get_bd_pins axi_a3ctrl/M00_ARESETN] \
+                        [get_bd_pins axi_a3ctrl/M01_ARESETN] \
                         [get_bd_pins axi_a3ctrl/S00_ARESETN] \
                         [get_bd_pins axi_a3data/ARESETN] \
                         [get_bd_pins axi_a3data/M00_ARESETN] \
+                        [get_bd_pins axi_a3data/M01_ARESETN] \
                         [get_bd_pins axi_a3data/S00_ARESETN]
 
     connect_bd_net [get_bd_pins reset_0/peripheral_aresetn] \
-                        [get_bd_pins artico3_shuffler_0/s_axi_aresetn]
+                        [get_bd_pins artico3_shuffler_0/s_axi_aresetn] \
+                        [get_bd_pins test_axi4full_0/S_AXI_ARESETN] \
+                        [get_bd_pins test_axi4lite_0/S_AXI_ARESETN]
 
     # Connect interrupts
     create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0
@@ -239,6 +257,8 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     # Generate memory-mapped segments for custom peripherals
     create_bd_addr_seg -range 1M -offset 0x7aa00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {artico3_shuffler_0/s00_axi/reg0}] SEG0
     create_bd_addr_seg -range 1M -offset 0x8aa00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {artico3_shuffler_0/s01_axi/reg0}] SEG1
+    create_bd_addr_seg -range 64K -offset 0x7ab00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {test_axi4lite_0/S_AXI/reg0}] SEG2
+    create_bd_addr_seg -range 64K -offset 0x8ab00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {test_axi4full_0/S_AXI/reg0}] SEG3
 
 # END
 
