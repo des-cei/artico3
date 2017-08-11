@@ -45,14 +45,17 @@ def get_parser(prj):
 def get_dict(prj):
     dictionary = {}
     dictionary["NUM_SLOTS"] = prj.shuffler.slots
+    dictionary["PIPE_DEPTH"] = prj.shuffler.stages
+    dictionary["CLK_BUFFER"] = "NO_BUFFER" if prj.shuffler.clkbuf == "none" else prj.shuffler.clkbuf.upper()
+    dictionary["RST_BUFFER"] = "NO_BUFFER" if prj.shuffler.rstbuf == "none" else prj.shuffler.rstbuf.upper()
     dictionary["TOOL"] = prj.impl.xil[0]
     dictionary["SLOTS"] = []
     for slot in prj.slots:
         if slot.kerns:
             d = {}
             d["_e"] = slot
-            d["corename"] = slot.kerns[0].get_corename()
-            d["coreversion"] = slot.kerns[0].get_coreversion()
+            d["KernCoreName"] = slot.kerns[0].get_corename()
+            d["KernCoreVersion"] = slot.kerns[0].get_coreversion()
             d["id"] = slot.id
             dictionary["SLOTS"].append(d)
     return dictionary
