@@ -89,8 +89,6 @@ entity shuffler is
         -------------------
         -- ARTICo3 ports --
         -------------------
-
-        -- NOTE: this definition is for Vivado IP Integrator based designs
         
         <a3<generate for SLOTS>a3>
         -- SLOT #<a3<id>a3> --
@@ -576,8 +574,6 @@ begin
     ------------------------
     -- ARTICo3 interfaces --
     ------------------------
-
-    -- NOTE: the following port connections are required when targeting Vivado IP Integrator designs
 
     <a3<generate for SLOTS>a3>
     -- SLOT #<a3<id>a3> --
