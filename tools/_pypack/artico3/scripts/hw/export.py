@@ -110,11 +110,12 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["RST_POL"] = kernel.rstpol
         dictionary["MEMBYTES"] = kernel.membytes
-        dictionary["MEMBANKS"] = []
+        dictionary["MEMBANKS"] = kernel.membanks
+        dictionary["BANKS"] = []
         for i in range(kernel.membanks):
             d = {}
             d["bid"] = i
-            dictionary["MEMBANKS"].append(d)
+            dictionary["BANKS"].append(d)
         dictionary["REGRW"] = kernel.regrw
         dictionary["REGRO"] = kernel.regro
         dictionary["SOURCES"] = [src]
