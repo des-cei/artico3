@@ -15,9 +15,9 @@ use ieee.numeric_std.all;
 
 entity addvector is
     generic (
-        C_NUM_DATA   : natural := 2048; -- Number of elements to be added (array size)
+        C_NUM_DATA   : natural := 1024; -- Number of elements to be added (array size)
         C_DATA_WIDTH : natural := 32;   -- Data bus width (for ARTICo3 in Zynq, use 32 bits)
-        C_ADDR_WIDTH : natural := 32    -- Address bus width (for ARTICo3 in Zynq, use 32 bits)
+        C_ADDR_WIDTH : natural := 16    -- Address bus width (for ARTICo3 in Zynq, use 16 bits)
     );
     port (
         -- Global signals
@@ -68,26 +68,26 @@ architecture behavioral of addvector is
 begin
 
     -- Signal connections
-    bram_a_clk  <= clk;
-    bram_a_rst  <= reset;
-    bram_a_en   <= read_en;
-    bram_a_we   <= '0';
-    bram_a_addr <= std_logic_vector(read_addr);
-    bram_a_din  <= (others => '0');
+    bram_0_clk  <= clk;
+    bram_0_rst  <= reset;
+    bram_0_en   <= read_en;
+    bram_0_we   <= '0';
+    bram_0_addr <= std_logic_vector(read_addr);
+    bram_0_din  <= (others => '0');
 
-    bram_b_clk  <= clk;
-    bram_b_rst  <= reset;
-    bram_b_en   <= read_en;
-    bram_b_we   <= '0';
-    bram_b_addr <= std_logic_vector(read_addr);
-    bram_b_din  <= (others => '0');
+    bram_1_clk  <= clk;
+    bram_1_rst  <= reset;
+    bram_1_en   <= read_en;
+    bram_1_we   <= '0';
+    bram_1_addr <= std_logic_vector(read_addr);
+    bram_1_din  <= (others => '0');
 
-    bram_c_clk  <= clk;
-    bram_c_rst  <= reset;
-    bram_c_en   <= write_en;
-    bram_c_we   <= write_en;
-    bram_c_addr <= std_logic_vector(write_addr);
-    bram_c_din  <= std_logic_vector(unsigned(bram_a_dout) + unsigned(bram_b_dout));
+    bram_2_clk  <= clk;
+    bram_2_rst  <= reset;
+    bram_2_en   <= write_en;
+    bram_2_we   <= write_en;
+    bram_2_addr <= std_logic_vector(write_addr);
+    bram_2_din  <= std_logic_vector(unsigned(bram_0_dout) + unsigned(bram_1_dout));
 
     -- Control FSM
     process(clk,reset)
