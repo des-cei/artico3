@@ -177,9 +177,9 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     set_property -dict [list CONFIG.C_RST_BUFFER <a3<RST_BUFFER>a3>] [get_bd_cells artico3_shuffler_0]
 
     # Create instances of hardware kernels
-    <a3<generate for SLOTS>a3>
+<a3<generate for SLOTS>a3>
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
-    <a3<end generate>a3>
+<a3<end generate>a3>
 
     # Create other instances
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:test_axi4full:1.0 test_axi4full_0
@@ -251,9 +251,9 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
 
     # Connect ARTICo3 slots
-    <a3<generate for SLOTS>a3>
+<a3<generate for SLOTS>a3>
     connect_bd_intf_net -intf_net artico3_slot<a3<id>a3> [get_bd_intf_pins artico3_shuffler_0/m<a3<id>a3>_artico3] [get_bd_intf_pins a3_slot_<a3<id>a3>/s_artico3]
-    <a3<end generate>a3>
+<a3<end generate>a3>
 
     # Generate memory-mapped segments for custom peripherals
     create_bd_addr_seg -range 1M -offset 0x7aa00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs {artico3_shuffler_0/s00_axi/reg0}] SEG0

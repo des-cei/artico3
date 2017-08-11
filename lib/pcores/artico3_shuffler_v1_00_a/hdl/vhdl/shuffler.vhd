@@ -90,7 +90,7 @@ entity shuffler is
         -- ARTICo3 ports --
         -------------------
         
-        <a3<generate for SLOTS>a3>
+<a3<generate for SLOTS>a3>
         -- SLOT #<a3<id>a3> --
         m<a3<id>a3>_artico3_aclk    : out std_logic;
         m<a3<id>a3>_artico3_aresetn : out std_logic;
@@ -102,7 +102,7 @@ entity shuffler is
         m<a3<id>a3>_artico3_addr    : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
         m<a3<id>a3>_artico3_wdata   : out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
         m<a3<id>a3>_artico3_rdata   : in  std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
-        <a3<end generate>a3>
+<a3<end generate>a3>
         
         ---------------------
         -- Interface ports --
@@ -575,7 +575,7 @@ begin
     -- ARTICo3 interfaces --
     ------------------------
 
-    <a3<generate for SLOTS>a3>
+<a3<generate for SLOTS>a3>
     -- SLOT #<a3<id>a3> --
     m<a3<id>a3>_artico3_aclk <= artico3_aclk(<a3<id>a3>);
     m<a3<id>a3>_artico3_aresetn <= artico3_aresetn(<a3<id>a3>);
@@ -587,7 +587,7 @@ begin
     m<a3<id>a3>_artico3_addr <= artico3_addr(<a3<id>a3>);
     m<a3<id>a3>_artico3_wdata <= artico3_wdata(<a3<id>a3>);
     artico3_rdata(<a3<id>a3>) <= m<a3<id>a3>_artico3_rdata;
-    <a3<end generate>a3>
+<a3<end generate>a3>
 
     -----------------------
     -- Enable generation --
