@@ -108,6 +108,16 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary = {}
         dictionary["NAME"] = kernel.name.lower()
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
+        dictionary["RST_POL"] = kernel.rstpol
+        dictionary["MEMBYTES"] = kernel.membytes
+        dictionary["MEMBANKS"] = kernel.membanks
+        dictionary["BANKS"] = []
+        for i in range(kernel.membanks):
+            d = {}
+            d["bid"] = i
+            dictionary["BANKS"].append(d)
+        dictionary["REGRW"] = kernel.regrw
+        dictionary["REGRO"] = kernel.regro
         dictionary["SOURCES"] = [src]
         incl = shutil2.listfiles(src, True)
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]

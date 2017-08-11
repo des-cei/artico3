@@ -102,12 +102,22 @@ def _gen_preproc(scope):
 #
 #   d - dictionary including the used keys
 #
-def _if_preproc(d):
+def _if_preproc(scope):
     def _gen_(m):
         eval_string="{} {} {}".format(m.group("key"), m.group("comp"), m.group("value"))
 
+        d = scope[0]
+
         if eval(eval_string, d):
-            return m.group("data")
+            local = {}
+            nscope = scope + [local]
+
+            od = r"<a3<" + r"=" * len(scope)
+            cd = r"=" * len(scope) + r">a3>"
+            reg = od + r"if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)" + cd + r"\n?(?P<data>.*?)" + od + r"end if" + cd
+
+            return re.sub(reg, _if_preproc(nscope), m.group("data"), 0, re.DOTALL)
+
         else:
             return ""
 
@@ -141,7 +151,7 @@ def preproc(filepath, dictionary, mode, force=False):
     # if syntax: <a3<if KEY OPERATOR VALUE>a3> ... <a3<end if>a3>
     # used to conditionally include or exclude code fragments
     reg = r"<a3<if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)>a3>\n?(?P<data>.*?)<a3<end if>a3>"
-    data = re.sub(reg, _if_preproc(dictionary), data, 0, re.DOTALL)
+    data = re.sub(reg, _if_preproc([dictionary]), data, 0, re.DOTALL)
 
     # global keys not inside generate
     reg = r"<a3<(?P<key>[A-Za-z0-9_]+)(?:\|(?P<format>.*))?>a3>"

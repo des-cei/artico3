@@ -18,6 +18,7 @@ Author      : Christoph Rüthing, University of Paderborn
 ------------------------------------------------------------------------
 """
 
+import math
 import sys
 import re
 import configparser
@@ -62,14 +63,18 @@ class Slot:
 class Kernel:
     """Class to store information of an ARTICo\u00b3 kernel."""
 
-    def __init__(self, name, hwsrc):
+    def __init__(self, name, hwsrc, membytes, membanks, regrw, regro, rstpol):
         self.name, self.hwsrc = name, hwsrc
+        self.membytes, self.membanks = membytes, membanks
+        self.regrw, self.regro = regrw, regro
+        self.rstpol = rstpol
         pass
 
     def __repr__(self):
         msg = ("<ARTICo\u00b3 Kernel> "
-               "name={},hwsrc={}")
-        return msg.format(self.name, self.hwsrc)
+               "name={},hwsrc={},mem=({},{}),reg=({},{})")
+        return msg.format(self.name, self.hwsrc, self.membytes,
+            self.membanks, self.regrw, self.regro)
 
     def get_corename(self):
         return "a3_" + self.name.lower()
@@ -219,17 +224,55 @@ class Project:
                 log.error("ARTICo\u00b3 accelerators must have a name")
 
             name = match.group("name")
+
             if cfg.has_option(kernel, "Replicas"):
                 replicas = int(cfg.get(kernel, "Replicas"))
             else:
                 log.warning("Number of replicas not specified, assuming 1")
                 replicas = 1
+
             if cfg.has_option(kernel, "HwSource"):
                 hwsrc = cfg.get(kernel, "HwSource")
             else:
                 hwsrc = None
 
-            kernel = Kernel(name, hwsrc)
+            if cfg.has_option(kernel, "MemBytes"):
+                membytes = int(cfg.get(kernel, "MemBytes"))
+            else:
+                log.warning("Local memory size for kernel not specified, assuming 16kB")
+                membytes = 16 * (2 ** 10)
+
+            if cfg.has_option(kernel, "MemBanks"):
+                membanks = int(cfg.get(kernel, "MemBanks"))
+            else:
+                log.warning("Number of local memory banks not specified, assuming 2")
+                membanks = 2
+
+            # NOTE: the following points are enforced by this fix.
+            #         1. An odd number of banks are supported
+            #         2. Each bank will have an integer number of 32-bit words
+            membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
+
+            if cfg.has_option(kernel, "RegRW"):
+                regrw = int(cfg.get(kernel, "RegRW"))
+            else:
+                log.warning("Number of local R/W registers not specified, assuming 4")
+                regrw = 4
+
+            if cfg.has_option(kernel, "RegRO"):
+                regro = int(cfg.get(kernel, "RegRO"))
+            else:
+                log.warning("Number of local Read Only registers not specified, assuming 4")
+                regro = 4
+
+            if cfg.has_option(kernel, "RstPol"):
+                rstpol = cfg.get(kernel, "RstPol")
+            else:
+                log.warning("Reset polarity for accelerator not found, setting active low")
+                rstpol = "low"
+
+            kernel = Kernel(name, hwsrc, membytes, membanks, regrw,
+                regro, rstpol)
             self.kerns.append(kernel)
             for i in range(replicas):
                 slot = Slot()
@@ -245,7 +288,7 @@ class Project:
             log.error("Configured more ARTICo\u00b3 accelerators than slots")
             sys.exit(1)
         else:
-            kernel = Kernel("dummy", "vhdl")
+            kernel = Kernel("dummy", "vhdl", 4096, 2, 2, 2, "low")
             self.kerns.append(kernel)
             for i in range(Slot._id, self.shuffler.slots):
                 slot = Slot()
@@ -256,4 +299,10 @@ class Project:
         for kernel in self.kerns:
             if kernel.hwsrc is None:
                 log.error("ARTICo\u00b3 accelerators must have a source")
+                sys.exit(1)
+            if kernel.membytes > (64 * (2 ** 10)):
+                log.error("ARTICo\u00b3 accelerators cannot have more than 64kB of local memory")
+                sys.exit(1)
+            if kernel.rstpol not in ("high", "low"):
+                log.error("ARTICo\u00b3 accelerators must set reset polarity properly")
                 sys.exit(1)

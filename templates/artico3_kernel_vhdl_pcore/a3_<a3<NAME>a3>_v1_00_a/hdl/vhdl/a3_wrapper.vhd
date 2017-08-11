@@ -23,17 +23,19 @@
 -- targeting ARTICo3-enabled platforms                                     --
 -----------------------------------------------------------------------------
 
+<a3<artico3_preproc>a3>
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity wrapper is
+entity a3_wrapper is
     generic (
-        C_ARTICO3_DATA_WIDTH : integer := 32;       -- Data bus width (in bits)
-        C_ARTICO3_ADDR_WIDTH : integer := 16;       -- Address bus width (in bits)
-        C_MAX_MEM            : integer := 16*2**10; -- Total memory size (in bytes) inside the compute unit
-        C_NUM_MEM            : integer := 2;        -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
-        C_NUM_REG            : integer := 16        -- Number of registers inside the compute unit
+        C_ARTICO3_DATA_WIDTH : integer := 32;               -- Data bus width (in bits)
+        C_ARTICO3_ADDR_WIDTH : integer := 16;               -- Address bus width (in bits)
+        C_MAX_MEM            : integer := <a3<MEMBYTES>a3>; -- Total memory size (in bytes) inside the compute unit
+        C_NUM_MEM            : integer := <a3<MEMBANKS>a3>; -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
+        C_NUM_REG            : integer := 16                -- Number of registers inside the compute unit
     );
     port (
         s_artico3_aclk    : in  std_logic;
@@ -47,9 +49,9 @@ entity wrapper is
         s_artico3_wdata   : in  std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0); -- ARTICo3 write data bus
         s_artico3_rdata   : out std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0)  -- ARTICo3 read data bus
     );
-end wrapper;
+end a3_wrapper;
 
-architecture behavioral of wrapper is
+architecture behavioral of a3_wrapper is
 
     ----------------
     -- User Logic --
@@ -63,7 +65,7 @@ architecture behavioral of wrapper is
     -------------------------------
 
     type mem_data_t is array (0 to C_NUM_MEM-1) of std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
-    type mem_addr_t is array (0 to C_NUM_MEM-1) of unsigned(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+    type mem_addr_t is array (0 to C_NUM_MEM-1) of std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
     signal mem_out    : mem_data_t;                             -- Output data in memory banks
     signal rst_logic  : std_logic_vector(C_NUM_MEM-1 downto 0); -- Reset signal from user logic to PORTB of memory banks (currently unused)
     signal en_logic   : std_logic_vector(C_NUM_MEM-1 downto 0); -- Enable signal from user logic to PORTB of memory banks
@@ -124,15 +126,38 @@ begin
     -- User logic --
     ----------------
 
-    -- TODO: replace this with custom logic with access to memory port B
+<a3<if NAME=="dummy">a3>
     rst_logic <= (others => '1');
     en_logic <= (others => '0');
     we_logic <= (others => '0');
     addr_logic <= (others => (others => '0'));
     din_logic <= (others => (others => '0'));
-
-    -- TODO: replace this with custom logic to generate READY signal (processing is finished, data can be collected)
     s_artico3_ready <= '1';
+<a3<end if>a3>
+
+<a3<if NAME!="dummy">a3>
+    kernel_i: entity work.<a3<NAME>a3>
+    port map (
+        clk         => s_artico3_aclk,
+<a3<=if RST_POL=="low"=>a3>
+        reset       => s_artico3_aresetn,
+<a3<=end if=>a3>
+<a3<=if RST_POL!="low"=>a3>
+        reset       => not s_artico3_aresetn,
+<a3<=end if=>a3>
+<a3<generate for BANKS>a3>
+        bram_<a3<bid>a3>_clk  => open,
+        bram_<a3<bid>a3>_rst  => rst_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_en   => en_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_we   => we_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_addr => addr_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_din  => din_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_dout => dout_logic(<a3<bid>a3>),
+<a3<end generate>a3>
+        start       => s_artico3_start,
+        ready       => s_artico3_ready
+    );
+<a3<end if>a3>
 
     -------------------------------
     -- Configurable memory banks --
@@ -148,7 +173,7 @@ begin
         signal rst_a  : std_logic;
         signal en_a   : std_logic;
         signal we_a   : std_logic;
-        signal addr_a : unsigned(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+        signal addr_a : std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
         signal din_a  : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
         signal dout_a : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
 
@@ -157,7 +182,7 @@ begin
         signal rst_b  : std_logic;
         signal en_b   : std_logic;
         signal we_b   : std_logic;
-        signal addr_b : unsigned(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+        signal addr_b : std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
         signal din_b  : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
         signal dout_b : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
 
@@ -168,7 +193,7 @@ begin
         rst_a <= not s_artico3_aresetn;
         en_a <= (s_artico3_en and s_artico3_mode) when (unsigned(s_artico3_addr) >= MEM_POS*i) and (unsigned(s_artico3_addr) < MEM_POS*(i+1)) else '0';
         we_a <= s_artico3_we and s_artico3_mode;
-        addr_a <= (unsigned(s_artico3_addr) - MEM_POS*i) when s_artico3_en = '1' else
+        addr_a <= std_logic_vector(unsigned(s_artico3_addr) - MEM_POS*i) when s_artico3_en = '1' else
                   (others => '0');
         din_a <= s_artico3_wdata;
         mem_out(i) <= dout_a;
@@ -195,14 +220,14 @@ begin
             rst_a  => rst_a,
             en_a   => en_a,
             we_a   => we_a,
-            addr_a => std_logic_vector(addr_a),
+            addr_a => addr_a,
             din_a  => din_a,
             dout_a => dout_a,
             clk_b  => clk_b,
             rst_b  => rst_b,
             en_b   => en_b,
             we_b   => we_b,
-            addr_b => std_logic_vector(addr_b),
+            addr_b => addr_b,
             din_b  => din_b,
             dout_b => dout_b
         );
