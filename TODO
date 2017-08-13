@@ -2,3 +2,4 @@
 2. Complete shuffler functionality (error monitors)
 3. Add support for HLS-based ARTICo3 kernels
 4. Implement runtime library to access basic ARTICo3 functionality
+5. Add optional support for ARTICo3 kernel registers in HLS-based accelerators
