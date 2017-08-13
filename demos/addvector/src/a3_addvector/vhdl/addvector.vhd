@@ -49,7 +49,9 @@ entity addvector is
         bram_2_we   : out std_logic;
         bram_2_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
         bram_2_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
-        bram_2_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0)
+        bram_2_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        -- Data counter (not used in this example, size fixed for being integer)
+        values      : in  std_logic_vector(31 downto 0)
     );
 end addvector;
 
