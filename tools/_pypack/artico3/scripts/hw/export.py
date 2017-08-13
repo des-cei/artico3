@@ -48,12 +48,10 @@ def get_dict(prj):
     dictionary["PIPE_DEPTH"] = prj.shuffler.stages
     dictionary["CLK_BUFFER"] = "NO_BUFFER" if prj.shuffler.clkbuf == "none" else prj.shuffler.clkbuf.upper()
     dictionary["RST_BUFFER"] = "NO_BUFFER" if prj.shuffler.rstbuf == "none" else prj.shuffler.rstbuf.upper()
-    dictionary["TOOL"] = prj.impl.xil[0]
     dictionary["SLOTS"] = []
     for slot in prj.slots:
         if slot.kerns:
             d = {}
-            d["_e"] = slot
             d["KernCoreName"] = slot.kerns[0].get_corename()
             d["KernCoreVersion"] = slot.kerns[0].get_coreversion()
             d["id"] = slot.id
@@ -107,7 +105,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
     if kernel.hwsrc == "vhdl":
         dictionary = {}
         dictionary["NAME"] = kernel.name.lower()
-        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
+        dictionary["HWSRC"] = kernel.hwsrc
         dictionary["RST_POL"] = kernel.rstpol
         dictionary["MEMBYTES"] = kernel.membytes
         dictionary["MEMBANKS"] = kernel.membanks
@@ -118,6 +116,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             dictionary["BANKS"].append(d)
         dictionary["REGRW"] = kernel.regrw
         dictionary["REGRO"] = kernel.regro
+        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
         incl = shutil2.listfiles(src, True)
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
@@ -126,45 +125,74 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir, link)
 
     elif kernel.hwsrc == "hls":
-        log.error("Feature not supported (HLS)")
-        sys.exit(1)
-        #~ tmp = tempfile.TemporaryDirectory()
+        tmp = tempfile.TemporaryDirectory()
 
-        #~ dictionary = {}
-        #~ dictionary["PART"] = prj.impl.part
-        #~ dictionary["NAME"] = kernel.name.lower()
-        #~ src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
-        #~ dictionary["SOURCES"] = [srcs]
-        #~ files = shutil2.listfiles(src, True)
-        #~ dictionary["FILES"] = [{"File": _} for _ in files]
+        dictionary = {}
+        dictionary["PART"] = prj.impl.part
+        dictionary["NAME"] = kernel.name.lower()
+        dictionary["HWSRC"] = kernel.hwsrc
+        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
+        dictionary["SOURCES"] = [srcs]
+        files = shutil2.listfiles(src, True)
+        dictionary["FILES"] = [{"File": _} for _ in files]
+        
+        # Get info from user defined ports
+        with open(kernel.name.lower() + ".cpp") as fp:
+            data = fp.read()
+        reg = r"A3_KERNEL\((?P<ports>.+)\)"
+        match = re.search(reg, data)
+        dictionary["ARGS"] = match.group("ports") 
+        
+        # Generate list with sorted input/output ports
+        args = []
+        for arg in match.group("ports").split(","):
+            args.append(arg.split())
+        args.sort()            
+        dictionary["PORTS"] = []
+        for i in range(len(args)):
+            d = {}
+            d["pid"] = args[i][1]
+            d["bid"] = i
+            dictionary["PORTS"].append(d)
+            
+        # Get info from the number of memory elements in each bank
+        dictionary["MEMPOS"] = (kernel.membytes / kernel.membanks) / 4
 
-        #~ log.info("Generating temporary HLS project in " + tmp.name + " ...")
-        #~ prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name) # TODO: create this template
+        log.info("Generating temporary HLS project in " + tmp.name + " ...")
+        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
+        
+        # Fix header file (parser generates excesive \n that need to be removed)
+        with open("artico3.h") as fp:
+            data = fp.read()
+        def repl(match):
+            return ",\\\n" + match.group("data")
+        reg = r",\\[\n]+(?P<data>\s*uint32_t values\))"
+        data = re.sub(reg, repl, data, 0, re.DOTALL)
+        with open("artico3.h", "w") as fp:
+            fp.write(data)
 
-        #~ log.info("Starting Vivado HLS ...")
+        log.info("Starting Vivado HLS ...")
 
-        #~ # NOTE: for some reason, using the subprocess module as in the
-        #~ #       original RDK does not work (does not recognize source and,
-        #~ #       therefore, Vivado is not started).
-        #~ subprocess.run("""
-            #~ bash -c "source /opt/Xilinx/Vivado/{1}/settings64.sh &&
-            #~ cd {0} &&
-            #~ vivado_hls -f script_csynth.tcl"
-            #~ """.format(hwdir, prj.impl.xil[1]), shell=True, check=True)
+        # NOTE: for some reason, using the subprocess module as in the
+        #       original RDK does not work (does not recognize source and,
+        #       therefore, Vivado is not started).
+        subprocess.run("""
+            bash -c "source /opt/Xilinx/Vivado/{1}/settings64.sh &&
+            cd {0} &&
+            vivado_hls -f csynth.tcl"
+            """.format(hwdir, prj.impl.xil[1]), shell=True, check=True)
 
-        #~ dictionary = {}
-        #~ dictionary["NAME"] = kernel.name.lower()
-        #~ src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
-        #~ dictionary["SOURCES"] = [src]
-        #~ incl = shutil2.listfiles(src, True)
-        #~ dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
+        src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
+        dictionary["SOURCES"] = [src]
+        incl = shutil2.listfiles(src, True)
+        dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
 
-        #~ log.info("Generating export files ...")
-        #~ prj.apply_template("artico3_kernel_hls_pcore_vhdl", dictionary, hwdir)
+        log.info("Generating export files ...")
+        prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir)
 
-        #~ shutil2.rmtree("/tmp/test")
-        #~ shutil2.mkdir("/tmp/test")
-        #~ shutil2.copytree(tmp.name, "/tmp/test")
+        shutil2.rmtree("/tmp/test")
+        shutil2.mkdir("/tmp/test")
+        shutil2.copytree(tmp.name, "/tmp/artico3_hls")
 
 def _export_hw(prj, hwdir, link):
     '''
