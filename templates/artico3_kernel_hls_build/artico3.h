@@ -10,6 +10,9 @@
 
 #include <stdint.h>
 
+#define a3in_t
+#define a3out_t
+
 #define A3_KERNEL(<a3<ARGS>a3>) void <a3<NAME>a3>(\
 <a3<generate for PORTS>a3>
         uint32_t <a3<pid>a3>[<a3<MEMPOS>a3>],\

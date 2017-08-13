@@ -132,20 +132,19 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["PART"] = prj.impl.part
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
+        dictionary["MEMBYTES"] = kernel.membytes
+        dictionary["MEMBANKS"] = kernel.membanks
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
         files = shutil2.listfiles(src, True)
         dictionary["FILES"] = [{"File": _} for _ in files]
 
-        log.info("Generating temporary HLS project in " + tmp.name + " ...")
-        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
-
         # Get info from user defined ports
-        with open(shutil2.join(tmp.name, kernel.name.lower()) + ".cpp") as fp:
+        with open(shutil2.join(src, kernel.name.lower()) + ".cpp") as fp:
             data = fp.read()
         reg = r"A3_KERNEL\((?P<ports>.+)\)"
         match = re.search(reg, data)
-        dictionary["ARGS"] = match.group("ports")
+        dictionary["ARGS"] = re.sub(r"a3\w+_t", "", match.group("ports")).strip()
 
         # Generate list with sorted input/output ports
         args = []
@@ -162,9 +161,8 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         # Get info from the number of memory elements in each bank
         dictionary["MEMPOS"] = int((kernel.membytes / kernel.membanks) / 4)
 
-        # Perform additional parsing
-        template.preproc(shutil2.join(tmp.name, "directives.tcl"), dictionary, "overwrite", force=True)
-        template.preproc(shutil2.join(tmp.name, "artico3.h"), dictionary, "overwrite", force=True)
+        log.info("Generating temporary HLS project in " + tmp.name + " ...")
+        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
 
         # Fix header file (parser generates excesive \n that need to be removed)
         with open(shutil2.join(tmp.name, "artico3.h")) as fp:

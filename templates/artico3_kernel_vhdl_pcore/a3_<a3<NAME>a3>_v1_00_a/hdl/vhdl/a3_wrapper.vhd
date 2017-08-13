@@ -171,7 +171,7 @@ begin
         ap_done       => s_artico3_ready,
         ap_idle       => open,
         ap_ready      => open,
-<a3<generate for BANKS>a3>
+<a3<generate for PORTS>a3>
         bram_<a3<bid>a3>_Clk_A  => open,
         bram_<a3<bid>a3>_Rst_A  => rst_logic(<a3<bid>a3>),
         bram_<a3<bid>a3>_EN_A   => en_logic(<a3<bid>a3>),
