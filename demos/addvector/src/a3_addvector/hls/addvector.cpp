@@ -14,7 +14,7 @@
 
 #define VALUES (1024)
 
-A3_KERNEL(a3in_t a, a3in_t b, a3out_t c){
+A3_KERNEL(a3in_t a, a3in_t b, a3out_t c) {
 
     unsigned int i;
 
