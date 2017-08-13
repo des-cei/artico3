@@ -17,6 +17,7 @@ under the terms of the GNU Public License, version 2.
 """
 
 import sys
+import re
 import argparse
 import tempfile
 import subprocess
@@ -132,43 +133,47 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
-        dictionary["SOURCES"] = [srcs]
+        dictionary["SOURCES"] = [src]
         files = shutil2.listfiles(src, True)
         dictionary["FILES"] = [{"File": _} for _ in files]
-        
+
+        log.info("Generating temporary HLS project in " + tmp.name + " ...")
+        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
+
         # Get info from user defined ports
-        with open(kernel.name.lower() + ".cpp") as fp:
+        with open(shutil2.join(tmp.name, kernel.name.lower()) + ".cpp") as fp:
             data = fp.read()
         reg = r"A3_KERNEL\((?P<ports>.+)\)"
         match = re.search(reg, data)
-        dictionary["ARGS"] = match.group("ports") 
-        
+        dictionary["ARGS"] = match.group("ports")
+
         # Generate list with sorted input/output ports
         args = []
         for arg in match.group("ports").split(","):
             args.append(arg.split())
-        args.sort()            
+        args.sort()
         dictionary["PORTS"] = []
         for i in range(len(args)):
             d = {}
             d["pid"] = args[i][1]
             d["bid"] = i
             dictionary["PORTS"].append(d)
-            
-        # Get info from the number of memory elements in each bank
-        dictionary["MEMPOS"] = (kernel.membytes / kernel.membanks) / 4
 
-        log.info("Generating temporary HLS project in " + tmp.name + " ...")
-        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
-        
+        # Get info from the number of memory elements in each bank
+        dictionary["MEMPOS"] = int((kernel.membytes / kernel.membanks) / 4)
+
+        # Perform additional parsing
+        template.preproc(shutil2.join(tmp.name, "directives.tcl"), dictionary, "overwrite", force=True)
+        template.preproc(shutil2.join(tmp.name, "artico3.h"), dictionary, "overwrite", force=True)
+
         # Fix header file (parser generates excesive \n that need to be removed)
-        with open("artico3.h") as fp:
+        with open(shutil2.join(tmp.name, "artico3.h")) as fp:
             data = fp.read()
         def repl(match):
             return ",\\\n" + match.group("data")
         reg = r",\\[\n]+(?P<data>\s*uint32_t values\))"
         data = re.sub(reg, repl, data, 0, re.DOTALL)
-        with open("artico3.h", "w") as fp:
+        with open(shutil2.join(tmp.name, "artico3.h"), "w") as fp:
             fp.write(data)
 
         log.info("Starting Vivado HLS ...")
@@ -190,8 +195,8 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         log.info("Generating export files ...")
         prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir)
 
-        shutil2.rmtree("/tmp/test")
-        shutil2.mkdir("/tmp/test")
+        shutil2.rmtree("/tmp/artico3_hls")
+        shutil2.mkdir("/tmp/artico3_hls")
         shutil2.copytree(tmp.name, "/tmp/artico3_hls")
 
 def _export_hw(prj, hwdir, link):

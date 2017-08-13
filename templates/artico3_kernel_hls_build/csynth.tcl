@@ -1,3 +1,10 @@
+#
+# ARTICo3 HLS kernel C synthesis script
+#
+# Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+# Date   : August 2017
+#
+
 <a3<artico3_preproc>a3>
 
 open_project hls
