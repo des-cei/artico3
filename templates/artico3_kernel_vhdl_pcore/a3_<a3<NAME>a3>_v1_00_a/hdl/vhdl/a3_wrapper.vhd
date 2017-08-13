@@ -127,24 +127,28 @@ begin
     ----------------
 
 <a3<if NAME=="dummy">a3>
-    rst_logic <= (others => '1');
-    en_logic <= (others => '0');
-    we_logic <= (others => '0');
-    addr_logic <= (others => (others => '0'));
-    din_logic <= (others => (others => '0'));
+    rst_logic       <= (others => '1');
+    en_logic        <= (others => '0');
+    we_logic        <= (others => '0');
+    addr_logic      <= (others => (others => '0'));
+    din_logic       <= (others => (others => '0'));
     s_artico3_ready <= '1';
 <a3<end if>a3>
 
 <a3<if NAME!="dummy">a3>
+
+<a3<=if HWSRC=="vhdl"=>a3>
     kernel_i: entity work.<a3<NAME>a3>
     port map (
         clk         => s_artico3_aclk,
-<a3<=if RST_POL=="low"=>a3>
+<a3<==if RST_POL=="low"==>a3>
         reset       => s_artico3_aresetn,
-<a3<=end if=>a3>
-<a3<=if RST_POL!="low"=>a3>
+<a3<==end if==>a3>
+<a3<==if RST_POL!="low"==>a3>
         reset       => not s_artico3_aresetn,
-<a3<=end if=>a3>
+<a3<==end if==>a3>
+        start       => s_artico3_start,
+        ready       => s_artico3_ready,
 <a3<generate for BANKS>a3>
         bram_<a3<bid>a3>_clk  => open,
         bram_<a3<bid>a3>_rst  => rst_logic(<a3<bid>a3>),
@@ -154,9 +158,32 @@ begin
         bram_<a3<bid>a3>_din  => din_logic(<a3<bid>a3>),
         bram_<a3<bid>a3>_dout => dout_logic(<a3<bid>a3>),
 <a3<end generate>a3>
-        start       => s_artico3_start,
-        ready       => s_artico3_ready
+        values      => std_logic_vector(to_unsigned(data_cnt, 32))
     );
+<a3<=end if=>a3>
+
+<a3<=if HWSRC=="hls"=>a3>
+    kernel_i: entity work.<a3<NAME>a3>
+    port map (
+        ap_clk        => s_artico3_aclk,
+        ap_rst        => not s_artico3_aresetn,
+        ap_start      => s_artico3_start,
+        ap_done       => s_artico3_ready,
+        ap_idle       => open,
+        ap_ready      => open,
+<a3<generate for BANKS>a3>
+        bram_<a3<bid>a3>_Clk_A  => open,
+        bram_<a3<bid>a3>_Rst_A  => rst_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_EN_A   => en_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_WEN_A  => we_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_Addr_A => addr_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_Din_A  => din_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_Dout_A => dout_logic(<a3<bid>a3>),
+<a3<end generate>a3>
+        values      => std_logic_vector(to_unsigned(data_cnt, 32))
+    );
+<a3<=end if=>a3>
+
 <a3<end if>a3>
 
     -------------------------------
