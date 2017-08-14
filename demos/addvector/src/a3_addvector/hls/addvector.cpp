@@ -5,7 +5,7 @@
  * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
  * Date   : August 2017
  *
- * Hardware Thread (HLS)
+ * Hardware kernel (HLS)
  * Core processing function
  *
  */
@@ -24,7 +24,6 @@
  */
 
 A3_KERNEL(a3in_t a, a3in_t b, a3out_t c) {
-
     unsigned int i;
 
 //  for (i = 0; i < values/2; i++) {
