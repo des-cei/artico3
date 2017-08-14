@@ -31,11 +31,11 @@ use ieee.numeric_std.all;
 
 entity a3_wrapper is
     generic (
-        C_ARTICO3_DATA_WIDTH : integer := 32;               -- Data bus width (in bits)
-        C_ARTICO3_ADDR_WIDTH : integer := 16;               -- Address bus width (in bits)
+        C_ARTICO3_DATA_WIDTH : integer := 32;    -- Data bus width (in bits)
+        C_ARTICO3_ADDR_WIDTH : integer := 16;    -- Address bus width (in bits)
         C_MAX_MEM            : integer := <a3<MEMBYTES>a3>; -- Total memory size (in bytes) inside the compute unit
-        C_NUM_MEM            : integer := <a3<MEMBANKS>a3>; -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
-        C_NUM_REG            : integer := 16                -- Number of registers inside the compute unit
+        C_NUM_MEM            : integer := <a3<MEMBANKS>a3>;     -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
+        C_NUM_REG            : integer := 16     -- Number of registers inside the compute unit
     );
     port (
         s_artico3_aclk    : in  std_logic;
@@ -57,9 +57,19 @@ architecture behavioral of a3_wrapper is
     -- User Logic --
     ----------------
 
-    -- User-defined elements are to be placed here
+<a3<if NAME!="dummy">a3>
+<a3<=if HWSRC=="hls"=>a3>
+    -- HLS control signals
+    signal ap_start      : std_logic;
+    signal ap_done       : std_logic;
 
-
+    -- HLS memory signals
+<a3<generate for PORTS>a3>
+    signal bram_<a3<bid>a3>_WEN_A  : std_logic_vector(3 downto 0);
+    signal bram_<a3<bid>a3>_Addr_A : std_logic_vector(31 downto 0);
+<a3<end generate>a3>
+<a3<=end if=>a3>
+<a3<end if>a3>
     -------------------------------
     -- Configurable memory banks --
     -------------------------------
@@ -127,24 +137,29 @@ begin
     ----------------
 
 <a3<if NAME=="dummy">a3>
-    rst_logic <= (others => '1');
-    en_logic <= (others => '0');
-    we_logic <= (others => '0');
-    addr_logic <= (others => (others => '0'));
-    din_logic <= (others => (others => '0'));
+    -- Dummy hardware kernel (no user logic)
+    rst_logic       <= (others => '1');
+    en_logic        <= (others => '0');
+    we_logic        <= (others => '0');
+    addr_logic      <= (others => (others => '0'));
+    din_logic       <= (others => (others => '0'));
     s_artico3_ready <= '1';
 <a3<end if>a3>
-
 <a3<if NAME!="dummy">a3>
+<a3<=if HWSRC=="vhdl"=>a3>
+    -- VHDL-based hardware kernel
     kernel_i: entity work.<a3<NAME>a3>
     port map (
         clk         => s_artico3_aclk,
-<a3<=if RST_POL=="low"=>a3>
+<a3<==if RST_POL=="low"==>a3>
         reset       => s_artico3_aresetn,
-<a3<=end if=>a3>
-<a3<=if RST_POL!="low"=>a3>
+<a3<==end if==>a3>
+<a3<==if RST_POL!="low"==>a3>
         reset       => not s_artico3_aresetn,
-<a3<=end if=>a3>
+<a3<==end if==>a3>
+        start       => s_artico3_start,
+        ready       => s_artico3_ready,
+
 <a3<generate for BANKS>a3>
         bram_<a3<bid>a3>_clk  => open,
         bram_<a3<bid>a3>_rst  => rst_logic(<a3<bid>a3>),
@@ -154,9 +169,57 @@ begin
         bram_<a3<bid>a3>_din  => din_logic(<a3<bid>a3>),
         bram_<a3<bid>a3>_dout => dout_logic(<a3<bid>a3>),
 <a3<end generate>a3>
-        start       => s_artico3_start,
-        ready       => s_artico3_ready
+        values      => std_logic_vector(to_unsigned(data_cnt, 32))
     );
+<a3<=end if=>a3>
+<a3<=if HWSRC=="hls"=>a3>
+    -- HLS-based hardware kernel
+    kernel_i: entity work.<a3<NAME>a3>
+    port map (
+        ap_clk        => s_artico3_aclk,
+        ap_rst_n      => s_artico3_aresetn,
+        ap_start      => ap_start,
+        ap_done       => ap_done,
+        ap_idle       => open,
+        ap_ready      => open,
+
+<a3<generate for PORTS>a3>
+        bram_<a3<bid>a3>_Clk_A  => open,
+        bram_<a3<bid>a3>_Rst_A  => rst_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_EN_A   => en_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_WEN_A  => bram_<a3<bid>a3>_WEN_A,
+        bram_<a3<bid>a3>_Addr_A => bram_<a3<bid>a3>_Addr_A,
+        bram_<a3<bid>a3>_Din_A  => din_logic(<a3<bid>a3>),
+        bram_<a3<bid>a3>_Dout_A => dout_logic(<a3<bid>a3>),
+<a3<end generate>a3>
+        values      => std_logic_vector(to_unsigned(data_cnt, 32))
+    );
+
+    -- Adapt HLS memory signals
+<a3<generate for PORTS>a3>
+    we_logic(<a3<bid>a3>)   <= bram_<a3<bid>a3>_WEN_A(0) or bram_<a3<bid>a3>_WEN_A(1) or bram_<a3<bid>a3>_WEN_A(2) or bram_<a3<bid>a3>_WEN_A(3);
+    addr_logic(<a3<bid>a3>) <= std_logic_vector(resize(shift_right(unsigned(bram_<a3<bid>a3>_Addr_A), 2), C_ARTICO3_ADDR_WIDTH));
+<a3<end generate>a3>
+    -- Additional control for HLS control signals (handshake protocol)
+    process(s_artico3_aclk)
+    begin
+        if s_artico3_aclk'event and s_artico3_aclk = '1' then
+            if s_artico3_aresetn = '0' then
+                ap_start <= '0';
+                s_artico3_ready <= '0';
+            else
+                if s_artico3_start = '1' then
+                    ap_start <= '1';
+                    s_artico3_ready <= '0';
+                end if;
+                if ap_done = '1' then
+                    ap_start <= '0';
+                    s_artico3_ready <= '1';
+                end if;
+            end if;
+        end if;
+    end process;
+<a3<=end if=>a3>
 <a3<end if>a3>
 
     -------------------------------

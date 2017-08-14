@@ -17,6 +17,7 @@ under the terms of the GNU Public License, version 2.
 """
 
 import sys
+import re
 import argparse
 import tempfile
 import subprocess
@@ -48,12 +49,10 @@ def get_dict(prj):
     dictionary["PIPE_DEPTH"] = prj.shuffler.stages
     dictionary["CLK_BUFFER"] = "NO_BUFFER" if prj.shuffler.clkbuf == "none" else prj.shuffler.clkbuf.upper()
     dictionary["RST_BUFFER"] = "NO_BUFFER" if prj.shuffler.rstbuf == "none" else prj.shuffler.rstbuf.upper()
-    dictionary["TOOL"] = prj.impl.xil[0]
     dictionary["SLOTS"] = []
     for slot in prj.slots:
         if slot.kerns:
             d = {}
-            d["_e"] = slot
             d["KernCoreName"] = slot.kerns[0].get_corename()
             d["KernCoreVersion"] = slot.kerns[0].get_coreversion()
             d["id"] = slot.id
@@ -107,7 +106,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
     if kernel.hwsrc == "vhdl":
         dictionary = {}
         dictionary["NAME"] = kernel.name.lower()
-        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
+        dictionary["HWSRC"] = kernel.hwsrc
         dictionary["RST_POL"] = kernel.rstpol
         dictionary["MEMBYTES"] = kernel.membytes
         dictionary["MEMBANKS"] = kernel.membanks
@@ -118,6 +117,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             dictionary["BANKS"].append(d)
         dictionary["REGRW"] = kernel.regrw
         dictionary["REGRO"] = kernel.regro
+        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
         incl = shutil2.listfiles(src, True)
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
@@ -126,45 +126,78 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir, link)
 
     elif kernel.hwsrc == "hls":
-        log.error("Feature not supported (HLS)")
-        sys.exit(1)
-        #~ tmp = tempfile.TemporaryDirectory()
+        tmp = tempfile.TemporaryDirectory()
 
-        #~ dictionary = {}
-        #~ dictionary["PART"] = prj.impl.part
-        #~ dictionary["NAME"] = kernel.name.lower()
-        #~ src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
-        #~ dictionary["SOURCES"] = [srcs]
-        #~ files = shutil2.listfiles(src, True)
-        #~ dictionary["FILES"] = [{"File": _} for _ in files]
+        dictionary = {}
+        dictionary["PART"] = prj.impl.part
+        dictionary["NAME"] = kernel.name.lower()
+        dictionary["HWSRC"] = kernel.hwsrc
+        dictionary["MEMBYTES"] = kernel.membytes
+        src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
+        dictionary["SOURCES"] = [src]
+        files = shutil2.listfiles(src, True)
+        dictionary["FILES"] = [{"File": _} for _ in files]
 
-        #~ log.info("Generating temporary HLS project in " + tmp.name + " ...")
-        #~ prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name) # TODO: create this template
+        # Get info from user defined ports
+        with open(shutil2.join(src, kernel.name.lower()) + ".cpp") as fp:
+            data = fp.read()
+        reg = r"A3_KERNEL\((?P<ports>.+)\)"
+        match = re.search(reg, data)
+        dictionary["ARGS"] = re.sub(r"a3\w+_t", "", match.group("ports")).strip()
 
-        #~ log.info("Starting Vivado HLS ...")
+        # Generate list with sorted input/output ports
+        args = []
+        for arg in match.group("ports").split(","):
+            args.append(arg.split())
+        args.sort()
+        dictionary["PORTS"] = []
+        for i in range(len(args)):
+            d = {}
+            d["pid"] = args[i][1]
+            d["bid"] = i
+            dictionary["PORTS"].append(d)
 
-        #~ # NOTE: for some reason, using the subprocess module as in the
-        #~ #       original RDK does not work (does not recognize source and,
-        #~ #       therefore, Vivado is not started).
-        #~ subprocess.run("""
-            #~ bash -c "source /opt/Xilinx/Vivado/{1}/settings64.sh &&
-            #~ cd {0} &&
-            #~ vivado_hls -f script_csynth.tcl"
-            #~ """.format(hwdir, prj.impl.xil[1]), shell=True, check=True)
+        # Get info from the number of memory elements in each bank
+        dictionary["MEMBANKS"] = len(dictionary["PORTS"])
+        if dictionary["MEMBANKS"] != kernel.membanks:
+            log.warning("Inconsistent use of MemBanks (.cfg) and A3_KERNEL (.cpp), will generate run-time errors")
+        dictionary["MEMPOS"] = int((kernel.membytes / kernel.membanks) / 4)
 
-        #~ dictionary = {}
-        #~ dictionary["NAME"] = kernel.name.lower()
-        #~ src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
-        #~ dictionary["SOURCES"] = [src]
-        #~ incl = shutil2.listfiles(src, True)
-        #~ dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
+        log.info("Generating temporary HLS project in " + tmp.name + " ...")
+        prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
 
-        #~ log.info("Generating export files ...")
-        #~ prj.apply_template("artico3_kernel_hls_pcore_vhdl", dictionary, hwdir)
+        # Fix header file (parser generates excesive \n that need to be removed)
+        with open(shutil2.join(tmp.name, "artico3.h")) as fp:
+            data = fp.read()
+        def repl(match):
+            return ",\\\n" + match.group("data")
+        reg = r",\\[\n]+(?P<data>\s*uint32_t values\))"
+        data = re.sub(reg, repl, data, 0, re.DOTALL)
+        with open(shutil2.join(tmp.name, "artico3.h"), "w") as fp:
+            fp.write(data)
 
-        #~ shutil2.rmtree("/tmp/test")
-        #~ shutil2.mkdir("/tmp/test")
-        #~ shutil2.copytree(tmp.name, "/tmp/test")
+        log.info("Starting Vivado HLS ...")
+
+        # NOTE: for some reason, using the subprocess module as in the
+        #       original RDK does not work (does not recognize source and,
+        #       therefore, Vivado is not started).
+        subprocess.run("""
+            bash -c "source /opt/Xilinx/Vivado/{1}/settings64.sh &&
+            cd {0} &&
+            vivado_hls -f csynth.tcl"
+            """.format(tmp.name, prj.impl.xil[1]), shell=True, check=True)
+
+        src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
+        dictionary["SOURCES"] = [src]
+        incl = shutil2.listfiles(src, True)
+        dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
+
+        log.info("Generating export files ...")
+        prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir)
+
+        shutil2.rmtree("/tmp/artico3_hls")
+        shutil2.mkdir("/tmp/artico3_hls")
+        shutil2.copytree(tmp.name, "/tmp/artico3_hls")
 
 def _export_hw(prj, hwdir, link):
     '''

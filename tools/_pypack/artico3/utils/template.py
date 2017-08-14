@@ -59,7 +59,7 @@ def _gen_preproc(scope):
             # recursively processing nested generates which use equal signs to
             # indicate the nesting, e.g. <a3<= ... =>a3>
             od = "<a3<" + "=" * len(scope)
-            cd = "=" * len(scope) + ">a3>"
+            cd = "=" * len(scope) + ">a3>[\n]"
             reg = od + r"generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?" + cd + r"\n?(?P<data>.*?)" + od + r"end generate" + cd
             ndata = re.sub(reg, _gen_preproc(nscope), m.group("data"), 0, re.DOTALL)
 
@@ -113,7 +113,7 @@ def _if_preproc(scope):
             nscope = scope + [local]
 
             od = r"<a3<" + r"=" * len(scope)
-            cd = r"=" * len(scope) + r">a3>"
+            cd = r"=" * len(scope) + r">a3>[\n]"
             reg = od + r"if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)" + cd + r"\n?(?P<data>.*?)" + od + r"end if" + cd
 
             return re.sub(reg, _if_preproc(nscope), m.group("data"), 0, re.DOTALL)
@@ -141,16 +141,16 @@ def preproc(filepath, dictionary, mode, force=False):
     if "<a3<artico3_preproc>a3>" not in data and not force:
         return
     else:
-        data = re.sub(r"<a3<artico3_preproc>a3>", "", data)
+        data = re.sub(r"<a3<artico3_preproc>a3>[\n]", "", data)
 
     # generate syntax: <a3<generate for KEY(OPTIONAL = CONDITION)>a3> ... <a3<end generate>a3>
     # used to automatically generate several lines of code
-    reg = r"<a3<generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?>a3>\n?(?P<data>.*?)<a3<end generate>a3>"
+    reg = r"<a3<generate for (?P<key>[A-Za-z0-9_]*?)(?:\((?P<cond>.*?)\))?>a3>\n?(?P<data>.*?)<a3<end generate>a3>[\n]"
     data = re.sub(reg, _gen_preproc([dictionary]), data, 0, re.DOTALL)
 
     # if syntax: <a3<if KEY OPERATOR VALUE>a3> ... <a3<end if>a3>
     # used to conditionally include or exclude code fragments
-    reg = r"<a3<if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)>a3>\n?(?P<data>.*?)<a3<end if>a3>"
+    reg = r"<a3<if (?P<key>[A-Za-z0-9_]*?)(?P<comp>[<>=!]*?)(?P<value>[A-Za-z0-9_\"]*?)>a3>\n?(?P<data>.*?)<a3<end if>a3>[\n]"
     data = re.sub(reg, _if_preproc([dictionary]), data, 0, re.DOTALL)
 
     # global keys not inside generate
