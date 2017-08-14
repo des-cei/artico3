@@ -7,6 +7,7 @@ LDFLAGS += -static <a3<LDFLAGS>a3>
 MKDIRP = mkdir -p
 
 OBJS = <a3<generate for OBJS>a3><a3<Source>a3> <a3<end generate>a3>
+
 BUILD_OBJS = $(OBJS:%=_build/%)
 
 all: $(BUILD_OBJS)
