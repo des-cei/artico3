@@ -1,5 +1,3 @@
-1. Modify dmaproxy driver to check all possible addresses inside the device tree
+1. Implement runtime library to access basic ARTICo3 functionality
 2. Complete shuffler functionality (error monitors)
-3. Add support for HLS-based ARTICo3 kernels
-4. Implement runtime library to access basic ARTICo3 functionality
-5. Add optional support for ARTICo3 kernel registers in HLS-based accelerators
+3. Add optional support for ARTICo3 kernel registers in HLS-based accelerators

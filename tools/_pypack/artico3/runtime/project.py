@@ -268,7 +268,7 @@ class Project:
             if cfg.has_option(kernel, "RstPol"):
                 rstpol = cfg.get(kernel, "RstPol")
             else:
-                log.warning("Reset polarity for accelerator not found, setting active low")
+                log.warning("Reset polarity for accelerator not found, setting active low for AXI compatibility")
                 rstpol = "low"
 
             kernel = Kernel(name, hwsrc, membytes, membanks, regrw,

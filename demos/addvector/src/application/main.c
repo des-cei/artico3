@@ -199,8 +199,14 @@ int main(int argc, char *argv[]) {
     // Wait until ARTICo3 is ready
     gettimeofday(&t0, NULL);
 
-    while (!artico3[10]) ;
-    printf("Ready register -> %08x\n", artico3[10]);
+    uint32_t ready = 0;
+    for (i = 0; i < slots; i++) {
+        ready |= 1 << i;
+    }
+    printf("Expected ready -> %08x\n", ready);
+
+    while ((artico3[10] & ready) != ready) ;
+    printf("Ready register -> %08x | Masked -> %08x\n", artico3[10], artico3[10] & ready);
 
     gettimeofday(&tf, NULL);
     t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);

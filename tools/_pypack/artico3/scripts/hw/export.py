@@ -133,7 +133,6 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
         dictionary["MEMBYTES"] = kernel.membytes
-        dictionary["MEMBANKS"] = kernel.membanks
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
         files = shutil2.listfiles(src, True)
@@ -159,6 +158,9 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             dictionary["PORTS"].append(d)
 
         # Get info from the number of memory elements in each bank
+        dictionary["MEMBANKS"] = len(dictionary["PORTS"])
+        if dictionary["MEMBANKS"] != kernel.membanks:
+            log.warning("Inconsistent use of MemBanks (.cfg) and A3_KERNEL (.cpp), will generate run-time errors")
         dictionary["MEMPOS"] = int((kernel.membytes / kernel.membanks) / 4)
 
         log.info("Generating temporary HLS project in " + tmp.name + " ...")
@@ -183,7 +185,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             bash -c "source /opt/Xilinx/Vivado/{1}/settings64.sh &&
             cd {0} &&
             vivado_hls -f csynth.tcl"
-            """.format(hwdir, prj.impl.xil[1]), shell=True, check=True)
+            """.format(tmp.name, prj.impl.xil[1]), shell=True, check=True)
 
         src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
         dictionary["SOURCES"] = [src]
