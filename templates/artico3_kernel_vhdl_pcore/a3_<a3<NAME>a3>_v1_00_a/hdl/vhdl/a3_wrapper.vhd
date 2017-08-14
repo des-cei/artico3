@@ -57,19 +57,19 @@ architecture behavioral of a3_wrapper is
     -- User Logic --
     ----------------
 
-    -- User-defined elements are to be placed here
 <a3<if NAME!="dummy">a3>
 <a3<=if HWSRC=="hls"=>a3>
+    -- HLS control signals
     signal ap_start      : std_logic;
     signal ap_done       : std_logic;
 
+    -- HLS memory signals
 <a3<generate for PORTS>a3>
     signal bram_<a3<bid>a3>_WEN_A  : std_logic_vector(3 downto 0);
     signal bram_<a3<bid>a3>_Addr_A : std_logic_vector(31 downto 0);
 <a3<end generate>a3>
 <a3<=end if=>a3>
 <a3<end if>a3>
-
     -------------------------------
     -- Configurable memory banks --
     -------------------------------
@@ -145,9 +145,7 @@ begin
     din_logic       <= (others => (others => '0'));
     s_artico3_ready <= '1';
 <a3<end if>a3>
-
 <a3<if NAME!="dummy">a3>
-
 <a3<=if HWSRC=="vhdl"=>a3>
     -- VHDL-based hardware kernel
     kernel_i: entity work.<a3<NAME>a3>
@@ -174,7 +172,6 @@ begin
         values      => std_logic_vector(to_unsigned(data_cnt, 32))
     );
 <a3<=end if=>a3>
-
 <a3<=if HWSRC=="hls"=>a3>
     -- HLS-based hardware kernel
     kernel_i: entity work.<a3<NAME>a3>
@@ -203,7 +200,6 @@ begin
     we_logic(<a3<bid>a3>)   <= bram_<a3<bid>a3>_WEN_A(0) or bram_<a3<bid>a3>_WEN_A(1) or bram_<a3<bid>a3>_WEN_A(2) or bram_<a3<bid>a3>_WEN_A(3);
     addr_logic(<a3<bid>a3>) <= std_logic_vector(resize(shift_right(unsigned(bram_<a3<bid>a3>_Addr_A), 2), C_ARTICO3_ADDR_WIDTH));
 <a3<end generate>a3>
-
     -- Additional control for HLS control signals (handshake protocol)
     process(s_artico3_aclk)
     begin
@@ -223,9 +219,7 @@ begin
             end if;
         end if;
     end process;
-
 <a3<=end if=>a3>
-
 <a3<end if>a3>
 
     -------------------------------
