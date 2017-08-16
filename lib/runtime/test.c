@@ -1,10 +1,16 @@
 #include <stdio.h>
+#include <sys/time.h>
+#include <time.h>
 #include "artico3_hw.h"
 
+#define BLOCKS (300)
 #define VALUES (1024)
 
 int main(int argc, char *argv[]) {
     unsigned int i, errors;
+    struct timeval t0, tf;
+    float t;
+
     volatile a3data_t *a = NULL;
     volatile a3data_t *b = NULL;
     volatile a3data_t *c = NULL;
@@ -14,20 +20,26 @@ int main(int argc, char *argv[]) {
     artico3_kernel_create("dummy", 4096, 2, 2, 2);
     artico3_kernel_create("addvector", 16384, 3, 3, 3);
 
-    a = artico3_alloc(3 * VALUES * sizeof *a, "addvector", "a", 1);
-    b = artico3_alloc(3 * VALUES * sizeof *b, "addvector", "b", 1);
-    c = artico3_alloc(3 * VALUES * sizeof *c, "addvector", "c", 0);
+    a = artico3_alloc(BLOCKS * VALUES * sizeof *a, "addvector", "a", 1);
+    b = artico3_alloc(BLOCKS * VALUES * sizeof *b, "addvector", "b", 1);
+    c = artico3_alloc(BLOCKS * VALUES * sizeof *c, "addvector", "c", 0);
 
-    for (i = 0; i < (VALUES * 3); i++) {
-        a[i] = i;
-        b[i] = i + 2;
+    srand(time(NULL));
+    for (i = 0; i < (BLOCKS * VALUES); i++) {
+        a[i] = rand();//i;
+        b[i] = rand();//i + 2;
+        c[i] = 0;
     }
 
-    artico3_kernel_execute("addvector", 3, 1);
+    gettimeofday(&t0, NULL);
+    artico3_kernel_execute("addvector", (BLOCKS * VALUES), VALUES);
+    gettimeofday(&tf, NULL);
+    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    printf("Kernel execution : %.6f ms\n", t);
 
     errors = 0;
-    for (i = 0; i < (VALUES * 3); i++) {
-        if ((i % VALUES) < 4) printf("%4d | %08x\n", i, c[i]);
+    for (i = 0; i < (BLOCKS * VALUES); i++) {
+        if ((i % VALUES) < 2) printf("%6d | %08x\n", i, c[i]);
         if (c[i] != a[i] + b[i]) errors++;
     }
     printf("Found %d errors\n", errors);

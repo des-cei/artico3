@@ -152,16 +152,12 @@ void artico3_exit();
 
 // Kernel management
 int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regrw, size_t regro);
-int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
 int artico3_kernel_release(const char *name);
+int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
 
 // Memory allocation
 void *artico3_alloc(size_t size, const char *kname, const char *pname, uint8_t dir);
 int artico3_free(const char *kname, const char *pname);
-
-// Data transfers
-int artico3_send(uint8_t id, size_t accelerators, size_t round, size_t rounds);
-int artico3_recv(uint8_t id, size_t accelerators, size_t round, size_t rounds);
 
 // Hardware management
 

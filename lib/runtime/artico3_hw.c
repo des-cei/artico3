@@ -196,6 +196,8 @@ err_uio:
  */
 void artico3_exit() {
 
+    // TODO: add clock gating, and garbage cleaning
+
     // Release allocated memory in Shuffler structure
     free(shuffler.slots);
     a3_print_debug("[artico3-hw] free()   -> shuffler.slots\n");
@@ -216,14 +218,17 @@ void artico3_exit() {
 
 
 int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regrw, size_t regro) {
-    unsigned int i;
+    unsigned int index, i;
     struct a3_kernel *kernel = NULL;
 
     // Search first available ID; if none, return with error
-    for (i = 0; i < A3_MAXKERNS; i++) {
-        if (kernels[i] == NULL) break;
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (kernels[index] == NULL) break;
     }
-    if (i == A3_MAXKERNS) return -EBUSY;
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        return -EBUSY;
+    }
 
     // Allocate memory for kernel info
     kernel = malloc(sizeof *kernel);
@@ -240,8 +245,8 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         return -ENOMEM;
     }
     strcpy(kernel->name, name);
-    kernel->id = i + 1;
-    kernel->membytes = ceil(((float)membytes / (float)membanks) / 4) * 4 * membanks; // Fix to ensure all banks have integer number of 32-bit words
+    kernel->id = index + 1;
+    kernel->membytes = ceil(((float)membytes / (float)membanks) / sizeof (a3data_t)) * sizeof (a3data_t) * membanks; // Fix to ensure all banks have integer number of 32-bit words
     kernel->membanks = membanks;
     kernel->regrw = regrw;
     kernel->regro = regro;
@@ -258,54 +263,56 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         free(kernel);
         return -ENOMEM;
     }
-    unsigned int j;
-    for (j = 0; j < kernel->membanks; j++) {
-        kernel->inputs[j] = NULL;
-        kernel->outputs[j] = NULL;
+    for (i = 0; i < kernel->membanks; i++) {
+        kernel->inputs[i] = NULL;
+        kernel->outputs[i] = NULL;
     }
     a3_print_debug("[artico3-hw] created <a3_kernel> name=%s,id=%x,membytes=%d,membanks=%d,regrw=%d,regro=%d\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regrw, kernel->regro);
 
     // Store kernel configuration in kernel list
-    kernels[i] = kernel;
+    kernels[index] = kernel;
 
     return 0;
 }
 
-
-// IMPORTANT: NEEDS TO BE THREAD SAFE!!!, MAYBE A MUTEX IS REQUIRED TO ACCESS SHUFFLER DATA
-int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Gets current number of available hardware accelerators for a given
+ * kernel ID tag.
+ *
+ * @id : current kernel ID
+ *
+ * Returns : number of accelerators on success, error code otherwise
+ *
+ */
+int artico3_hw_get_naccs(uint8_t id) {
     unsigned int i;
+    int accelerators;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
 
-    uint8_t id;
-    uint32_t ready;
-    size_t accelerators;
-    size_t rounds;
-
-    // Search for kernel in kernel list
-    for (i = 0; i < A3_MAXKERNS; i++) {
-        if (strcmp(kernels[i]->name, name) == 0) break;
-    }
-    if (i == A3_MAXKERNS) return -ENODEV;
-
-    // Get kernel ID
-    id = kernels[i]->id;
-    a3_print_debug("[artico3-hw] artico3_kernel_execute() step 1 -> <a3_kernel> name=%s,id=%d\n", name, id);
+    uint8_t aux_id;
+    uint8_t aux_tmr;
+    uint8_t aux_dmr;
 
     // Get current shadow registers
     id_reg = shuffler.id_reg;
     tmr_reg = shuffler.tmr_reg;
     dmr_reg = shuffler.dmr_reg;
 
-    // Compute number of equivalent accelerators (assumes correct Shuffler configuration ALWAYS, e.g. no TMR groups with less than 3 elements)
+    // Compute number of equivalent accelerators
+    // NOTE: this assumes correct Shuffler configuration ALWAYS, e.g.
+    //           - no DMR groups with less than 2 elements
+    //           - no TMR groups with less than 3 elements
+    //           - ...
     accelerators = 0;
     while (id_reg) {
-        uint8_t aux_id  = id_reg  & 0xf;
-        uint8_t aux_tmr = tmr_reg & 0xf;
-        uint8_t aux_dmr = dmr_reg & 0xf;
+        aux_id  = id_reg  & 0xf;
+        aux_tmr = tmr_reg & 0xf;
+        aux_dmr = dmr_reg & 0xf;
         if (aux_id == id) {
             if (aux_tmr) {
                 for (i = 1; i < A3_MAXSLOTS; i++) {
@@ -332,17 +339,35 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         dmr_reg >>= 4;
     }
     if (!accelerators) {
-        a3_print_error("[artico3-hw] <a3_kernel> name=%s,id=%d has no accelerators loaded\n", name, id);
+        a3_print_error("[artico3-hw] no accelerators found with ID %x\n", id);
         return -ENODEV;
     }
-    a3_print_debug("[artico3-hw] artico3_kernel_execute() step 2 -> <a3_kernel> accelerators=%d\n", accelerators);
 
-    // Given current configuration, compute number of rounds
-    rounds = ceil((float)gsize / (float)(lsize * accelerators));
-    a3_print_debug("[artico3-hw] artico3_kernel_execute() step 3 -> <a3_kernel> gsize=%d,lsize=%d,rounds=%d\n", gsize, lsize, rounds);
+    return accelerators;
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Gets, for the current accelerator setup, the expected mask to be used
+ * when checking the ready register in the Data Shuffler.
+ *
+ * @id : current kernel ID
+ *
+ * Return : ready mask on success, 0 otherwise
+ *
+ */
+uint32_t artico3_hw_get_readymask(uint8_t id) {
+    unsigned int i;
+
+    uint32_t ready;
+    uint64_t id_reg;
+
+    // Get current shadow registers
+    id_reg = shuffler.id_reg;
 
     // Compute expected ready flag
-    id_reg = shuffler.id_reg;
     ready = 0;
     i = 0;
     while (id_reg) {
@@ -350,47 +375,231 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         i++;
         id_reg >>= 4;
     }
-    a3_print_debug("[artico3-hw] artico3_kernel_execute() step 4 -> <a3_kernel> ready=%08x\n", ready);
+
+    return ready;
+}
+
+
+int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
+    unsigned int acc, port;
+    unsigned int nports;
+
+    struct dmaproxy_token token;
+    a3data_t *mem = NULL;
+
+    uint32_t blksize;
+
+    // Get number of input ports
+    nports = 0;
+    for (port = 0; port < kernels[id - 1]->membanks; port++) {
+        if (!kernels[id - 1]->inputs[port]) {
+            nports = port;
+            break;
+        }
+    }
+    if (!nports) {
+        a3_print_error("[artico3-hw] no input ports found for kernel %x\n", id);
+        return -ENODEV;
+    }
+
+    // Compute block size (32-bit words per accelerator)
+    blksize = nports * ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) / (sizeof (a3data_t)));
+
+    // Allocate DMA physical memory
+    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
+
+    // Copy inputs to physical memory (TODO: could it be possible to avoid this step?)
+    for (acc = 0; acc < naccs; acc++) {
+        for (port = 0; port < nports; port++) {        
+            // When finishing, there could be more accelerators than rounds left
+            if ((round + acc) < nrounds) {
+                size_t size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;
+                size_t offset = round * size;
+                uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                uint32_t idx_dat = (acc * size) + offset;
+                memcpy(&mem[idx_mem], &kernels[id - 1]->inputs[port]->data[idx_dat], size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] round %3d | acc %d | i_port %d | mem %4d | dat %6d | size %4d\n", round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+            }
+        }
+    }
+
+    // Configure ARTICo3
+    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
+    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
+    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
+    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
+    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
+    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
+    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
+
+    // Start DMA transfer
+    token.memaddr = mem;
+    token.memoff = 0x00000000;
+    token.hwaddr = (void *)A3_SLOTADDR;
+    token.hwoff = id << 16;
+    token.size = naccs * blksize * sizeof *mem;
+    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_MEM2HW, &token);
+
+    // Release allocated DMA memory
+    munmap(mem, naccs * blksize * sizeof *mem);
+
+    return 0;
+}
+
+
+int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
+    unsigned int acc, port;
+    unsigned int nports;
+
+    struct dmaproxy_token token;
+    a3data_t *mem = NULL;
+
+    uint32_t blksize;
+
+    // Get number of input ports
+    nports = 0;
+    for (port = 0; port < kernels[id - 1]->membanks; port++) {
+        if (!kernels[id - 1]->outputs[port]) {
+            nports = port;
+            break;
+        }
+    }
+    if (!nports) {
+        a3_print_error("[artico3-hw] no output ports found for kernel %x\n", id);
+        return -ENODEV;
+    }
+
+    // Compute block size (32-bit words per accelerator)
+    blksize = nports * ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) / (sizeof (a3data_t)));
+
+    // Allocate DMA physical memory
+    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
+
+    // Configure ARTICo3
+    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
+    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
+    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
+    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
+    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
+    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
+    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
+
+    // Start DMA transfer
+    token.memaddr = mem;
+    token.memoff = 0x00000000;
+    token.hwaddr = (void *)A3_SLOTADDR;
+    token.hwoff = (id << 16) + (kernels[id - 1]->membytes - (blksize * sizeof (a3data_t)));
+    token.size = naccs * blksize * sizeof *mem;
+    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_HW2MEM, &token);
+
+    // Copy outputs from physical memory (TODO: could it be possible to avoid this step?)
+    for (acc = 0; acc < naccs; acc++) {
+        for (port = 0; port < nports; port++) {        
+            // When finishing, there could be more accelerators than rounds left
+            if ((round + acc) < nrounds) {
+                size_t size = (kernels[id - 1]->outputs[port]->size / sizeof (a3data_t)) / nrounds;
+                size_t offset = round * size;
+                uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                uint32_t idx_dat = (acc * size) + offset;
+                memcpy(&kernels[id - 1]->outputs[port]->data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+            }
+        }
+    }
+
+    // Release allocated DMA memory
+    munmap(mem, naccs * blksize * sizeof *mem);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 execute hardware kernel
+ *
+ * @name  : name of the hardware kernel to execute
+ * @gsize : global work size (total amount of work to be done)
+ * @lsize : local work size (work that can be done by one accelerator)
+ *
+ * Return : 0 on success, error code otherwisw
+ *
+ */
+int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
+    unsigned int index, round, nrounds;
+    int naccs;
+
+    uint8_t id;
+    uint32_t readymask;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel ID
+    id = kernels[index]->id;
+
+    // Given current configuration, compute number of rounds
+    if (gsize % lsize) {
+        a3_print_error("[artico3-hw] gsize (%d) not integer multiple of lsize (%d)\n", gsize, lsize);
+        return -EINVAL;
+    }
+    nrounds = gsize / lsize;
+    
+    a3_print_debug("[artico3-hw] executing kernel \"%s\" [gsize=%d,lsize=%d,rounds=%d]\n", name, gsize, lsize, nrounds);
 
     // Iterate over number of rounds
-    for (i = 0; i < rounds; i++) {
+    round = 0;
+    while (round < nrounds) {
 
-        // TODO: move equivalent accelerator computation here, and modify
-        //       for loop so that the number of accelerators/rounds is
-        //       updated after each iteration of the loop.
+        // For each iteration, compute number of (equivalent) accelerators,
+        // and the corresponding expected mask to check the ready register.
+        naccs = artico3_hw_get_naccs(id);
+        readymask = artico3_hw_get_readymask(id);
 
         // Send data
-        artico3_send(id, accelerators, i, rounds);
+        artico3_send(id, naccs, round, nrounds);
 
         // Wait until transfer is complete
-        while ((artico3_hw[A3_READY_REG] & ready) != ready) ;
+        while ((artico3_hw[A3_READY_REG] & readymask) != readymask) ;
 
         // Receive data
-        artico3_recv(id, accelerators, i, rounds);
+        artico3_recv(id, naccs, round, nrounds);
+
+        // Update the round index
+        round += naccs;
 
     }
-    a3_print_debug("[artico3-hw] artico3_kernel_execute() step 5 -> <a3_kernel> end\n");
 
     return 0;
 }
 
 
 int artico3_kernel_release(const char *name) {
-    unsigned int i;
+    unsigned int index;
 
     // Search for kernel in kernel list
-    for (i = 0; i < A3_MAXKERNS; i++) {
-        if (strcmp(kernels[i]->name, name) == 0) break;
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (strcmp(kernels[index]->name, name) == 0) break;
     }
-    if (i == A3_MAXKERNS) return -ENODEV;
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        return -ENODEV;
+    }
 
     // Free allocated memory
-    free(kernels[i]->name);
-    free(kernels[i]);
+    free(kernels[index]->outputs);
+    free(kernels[index]->inputs);
+    free(kernels[index]->name);
+    free(kernels[index]);
     a3_print_debug("[artico3-hw] released <a3_kernel> name=%s\n", name);
 
     // Set kernel list entry as empty
-    kernels[i] = NULL;
+    kernels[index] = NULL;
 
     return 0;
 }
@@ -499,143 +708,6 @@ int artico3_free(const char *kname, const char *pname) {
 
     // Free port memory
     free(port);
-
-    return 0;
-}
-
-
-int artico3_send(uint8_t id, size_t accelerators, size_t round, size_t rounds) {
-    uint32_t blksize;
-    size_t nports = 0;
-    struct dmaproxy_token token;
-    a3data_t *mem = NULL;
-    unsigned int i, j;
-
-    // Get number of input ports
-    for (i = 0; i < kernels[id - 1]->membanks; i++) {
-        if (!kernels[id - 1]->inputs[i]) {
-            nports = i;
-            break;
-        }
-    }
-    if (!nports) {
-        return -ENODEV;
-    }
-    printf("Ports : %d\n", nports);
-
-    // Compute block size (32-bit words per accelerator)
-    blksize = ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) * nports) / (sizeof (a3data_t));
-
-    // Allocate DMA physical memory
-    mem = mmap(NULL, blksize * accelerators * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
-
-    // Copy inputs to physical memory (TODO: could it be possible to avoid this step?)
-    for (i = 0; i < nports; i++) {
-        for (j = 0; j < accelerators; j++) {
-            // TODO: this part requires handling in case size/rounds is not integer!!
-            uint32_t i_mem = (i * blksize / nports) + (j * blksize);
-            uint32_t i_dat = (j * ((kernels[id-1]->inputs[i]->size / rounds) / accelerators) + (round * (kernels[id-1]->inputs[i]->size / rounds))) / 4;
-            uint32_t cpsize = (kernels[id-1]->inputs[i]->size / rounds) / accelerators;
-            printf("port %d | acc %d | i_mem %6d | i_dat %6d | cpsize %6d\n", i, j, i_mem, i_dat, cpsize);
-            a3data_t *data = &kernels[id - 1]->inputs[i]->data[i_dat];
-            memcpy(&mem[i_mem], data, cpsize);
-            printf("data %p %d\n", &kernels[id - 1]->inputs[i]->data[i_dat], data[0]);
-        }
-    }
-
-    // Configure ARTICo3
-    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
-    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
-    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
-    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
-    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
-    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
-    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
-
-    // Start DMA transfer
-    token.memaddr = mem;
-    token.memoff = 0x00000000;
-    token.hwaddr = (void *)A3_SLOTADDR;
-    token.hwoff = id << 16;
-    token.size = blksize * accelerators * sizeof *mem;
-    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_MEM2HW, &token);
-
-    // Release allocated DMA memory
-    munmap(mem,  blksize * accelerators * sizeof *mem);
-
-    // DEBUG
-    for (i = 0; i < 11; i++) {
-        a3_print_debug("[artico3-hw] artico3_hw[%2d] : %08x\n", i, artico3_hw[i]);
-    }
-    // DEBUG
-
-    return 0;
-}
-int artico3_recv(uint8_t id, size_t accelerators, size_t round, size_t rounds) {
-    uint32_t blksize;
-    size_t nports = 0;
-    struct dmaproxy_token token;
-    a3data_t *mem = NULL;
-    unsigned int i, j;
-
-    // Get number of input ports
-    for (i = 0; i < kernels[id - 1]->membanks; i++) {
-        if (!kernels[id - 1]->outputs[i]) {
-            nports = i;
-            break;
-        }
-    }
-    if (!nports) {
-        return -ENODEV;
-    }
-    printf("Ports : %d\n", nports);
-
-    // Compute block size (32-bit words per accelerator)
-    blksize = ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) * nports) / (sizeof (a3data_t));
-
-    // Allocate DMA physical memory
-    mem = mmap(NULL, blksize * accelerators * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
-
-    // Configure ARTICo3
-    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
-    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
-    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
-    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
-    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
-    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
-    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
-
-    // Start DMA transfer
-    token.memaddr = mem;
-    token.memoff = 0x00000000;
-    token.hwaddr = (void *)A3_SLOTADDR;
-    token.hwoff = (id << 16) + (kernels[id - 1]->membanks - nports) * kernels[id - 1]->membytes / kernels[id - 1]->membanks;
-    token.size = blksize * accelerators * sizeof *mem;
-    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_HW2MEM, &token);
-
-    // Copy outputs from physical memory (TODO: could it be possible to avoid this step?)
-    for (i = 0; i < nports; i++) {
-        for (j = 0; j < accelerators; j++) {
-            // TODO: this part requires handling in case size/rounds is not integer!!
-            uint32_t i_mem = (i * blksize / nports) + (j * blksize);
-            uint32_t i_dat = (j * ((kernels[id-1]->outputs[i]->size / rounds) / accelerators) + (round * (kernels[id-1]->outputs[i]->size / rounds))) / 4;
-            uint32_t cpsize = (kernels[id-1]->outputs[i]->size / rounds) / accelerators;
-            printf("port %d | acc %d | i_mem %6d | i_dat %6d | cpsize %6d\n", i, j, i_mem, i_dat, cpsize);
-            a3data_t *data = &kernels[id - 1]->outputs[i]->data[i_dat];
-            memcpy(data, &mem[i_mem], cpsize);
-            printf("data[0] %d\n", data[0]);
-            printf("data %p %d\n", &kernels[id - 1]->outputs[i]->data[i_dat], data[0]);
-        }
-    }
-
-    // Release allocated DMA memory
-    munmap(mem,  blksize * accelerators * sizeof *mem);
-
-    // DEBUG
-    for (i = 0; i < 11; i++) {
-        a3_print_debug("[artico3-hw] artico3_hw[%2d] : %08x\n", i, artico3_hw[i]);
-    }
-    // DEBUG
 
     return 0;
 }
