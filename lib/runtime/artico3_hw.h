@@ -8,32 +8,33 @@
  *
  */
 
+//~ <a3<artico3_preproc>a3>
+
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
 
-#include <stdlib.h>
-#include <stdint.h>
-
-// TODO: make this configurable
-#define a3_print_debug(msg, args...) printf(msg, ##args)
-#define a3_print_error(msg, args...) printf(msg, ##args)
-
-typedef uint32_t a3data_t;
+/*
+ * ARTICo3 hardware configuration parameters
+ *
+ */
+#define A3_MAXSLOTS (4)   // TODO: make this using a3dk parser (<a3<NUM_SLOTS>a3>)
+#define A3_MAXKERNS (0xF) // TODO: maybe make it configurable? Would also require additional VHDL parsing in Shuffler...
+#define A3_SLOTADDR (0x8aa00000)
 
 
 /*
  * ARTICo3 infrastructure register offsets (in 32-bit words)
  *
  */
-#define A3_ID_REG_LOW     (0x00000000 >> 2)
-#define A3_ID_REG_HIGH    (0x00000004 >> 2)
-#define A3_TMR_REG_LOW    (0x00000008 >> 2)
-#define A3_TMR_REG_HIGH   (0x0000000c >> 2)
-#define A3_DMR_REG_LOW    (0x00000010 >> 2)
-#define A3_DMR_REG_HIGH   (0x00000014 >> 2)
-#define A3_BLOCK_SIZE_REG (0x00000018 >> 2)
-#define A3_CLOCK_GATE_REG (0x0000001c >> 2)
-#define A3_READY_REG      (0x00000028 >> 2)
+#define A3_ID_REG_LOW     (0x00000000 >> 2) // ID register (low)
+#define A3_ID_REG_HIGH    (0x00000004 >> 2) // ID register (high)
+#define A3_TMR_REG_LOW    (0x00000008 >> 2) // TMR register (low)
+#define A3_TMR_REG_HIGH   (0x0000000c >> 2) // TMR register (high)
+#define A3_DMR_REG_LOW    (0x00000010 >> 2) // DMR register (low)
+#define A3_DMR_REG_HIGH   (0x00000014 >> 2) // DMR register (high)
+#define A3_BLOCK_SIZE_REG (0x00000018 >> 2) // Block size register
+#define A3_CLOCK_GATE_REG (0x0000001c >> 2) // Clock gating register
+#define A3_READY_REG      (0x00000028 >> 2) // Ready register
 
 
 /*
@@ -43,10 +44,10 @@ typedef uint32_t a3data_t;
  * @data : virtual memory of input
  *
  */
-struct a3_kport {
+struct a3port_t {
     char *name;
     size_t size;
-    a3data_t *data;
+    void *data;
 };
 
 
@@ -63,15 +64,15 @@ struct a3_kport {
  * @outputs  : output port configuration for this kernel
  *
  */
-struct a3_kernel {
+struct a3kernel_t {
     char *name;
     uint8_t id;
     size_t membytes;
     size_t membanks;
     size_t regrw;
     size_t regro;
-    struct a3_kport **inputs;
-    struct a3_kport **outputs;
+    struct a3port_t **inputs;
+    struct a3port_t **outputs;
 };
 
 
@@ -87,7 +88,7 @@ struct a3_kernel {
  * S_READ  : reading data from hardware kernel to main memory
  *
  */
-enum a3_state_t {S_EMPTY, S_IDLE, S_LOAD, S_WRITE, S_RUN, S_READY, S_READ};
+enum a3state_t {S_EMPTY, S_IDLE, S_LOAD, S_WRITE, S_RUN, S_READY, S_READ};
 
 
 /*
@@ -97,9 +98,9 @@ enum a3_state_t {S_EMPTY, S_IDLE, S_LOAD, S_WRITE, S_RUN, S_READY, S_READ};
  * @state  : current state of this slot (see a3_state_t)
  *
  */
-struct a3_slot {
-    struct a3_kernel *kernel;
-    enum a3_state_t state;
+struct a3slot_t {
+    struct a3kernel_t *kernel;
+    enum a3state_t state;
 };
 
 
@@ -114,52 +115,45 @@ struct a3_slot {
  * @slots       : array of slot entities for current implementation
  *
  */
-struct a3_shuffler {
+struct a3shuffler_t {
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
     uint32_t blksize_reg;
     uint32_t clkgate_reg;
-    struct a3_slot *slots;
+    struct a3slot_t *slots;
 };
 
 
 /*
- * ARTICo3 init function
+ * ARTICo3 low-level hardware function
  *
- * This function sets up the basic software entities required to manage
- * the ARTICo3 low-level functionality (DMA transfers, kernel and slot
- * distributions, etc.).
+ * Gets current number of available hardware accelerators for a given
+ * kernel ID tag.
  *
- * Return : 0 if initialization finished successfully, error otherwise
+ * @id : current kernel ID
+ *
+ * Returns : number of accelerators on success, error code otherwise
+ *
  */
-int artico3_init();
+int artico3_hw_get_naccs(uint8_t id);
 
 
 /*
- * ARTICo3 exit function
+ * ARTICo3 low-level hardware function
  *
- * This function cleans the software entities created by artico3_init().
+ * Gets, for the current accelerator setup, the expected mask to be used
+ * when checking the ready register in the Data Shuffler.
  *
- */
-void artico3_exit();
-
-
-/*
- * TODO: ADDITIONAL FUNCTIONS
+ * @id : current kernel ID
+ *
+ * Return : ready mask on success, 0 otherwise
  *
  */
+uint32_t artico3_hw_get_readymask(uint8_t id);
 
-// Kernel management
-int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regrw, size_t regro);
-int artico3_kernel_release(const char *name);
-int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
 
-// Memory allocation
-void *artico3_alloc(size_t size, const char *kname, const char *pname, uint8_t dir);
-int artico3_free(const char *kname, const char *pname);
-
-// Hardware management
+void artico3_hw_print_regs();
 
 
 #endif /* _ARTICO3_HW_H_ */
