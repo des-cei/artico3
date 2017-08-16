@@ -1,19 +1,29 @@
 1. Implement runtime library to access basic ARTICo3 functionality
-2. Create setup script to generate basic Linux-based system with ARTICo3 support (*)
+
+    a. Use multiple threads to enable multiple kernel execution (maybe
+       using one thread per artico3_kernel_execute call).
+    b. Making the library multitask-capable (make calls from different
+       applications to execute multiple kernels) is not planned.
+
+
+2. Create setup script to generate basic Linux-based system with ARTICo3 support
+
+   Can start from modified ReconOS + Pynq setup script
+
+   1) Compile DMA proxy driver and ARTICo3 device tree overlay:
+          cd linux/drivers/dmaproxy && make ARCH=arm CROSS_COMPILE=(...) KDIR=(...)
+          dtc -I dts -O dtb -@ -o artico3.dtbo templates/artico3_devicetree_overlay/artico3.dts
+
+   2) Edit /etc/init.d/rcS:
+          echo "++ Loading ARTICo3 device tree overlay..."
+          mkdir /sys/kernel/config/device-tree/overlays/artico3
+          echo artico3.dtbo > /sys/kernel/config/device-tree/overlays/artico3/path
+
+          echo "++ Loading DMA proxy driver..."
+          modprobe mdmaproxy
+
+
 3. Complete shuffler functionality (error monitors)
+
+
 4. Add optional support for ARTICo3 kernel registers in HLS-based accelerators
-
-
-(*) Can start from modified ReconOS + Pynq setup script
-
-    1) Compile DMA proxy driver and ARTICo3 device tree overlay:
-           cd linux/drivers/dmaproxy && make ARCH=arm CROSS_COMPILE=(...) KDIR=(...)
-           dtc -I dts -O dtb -@ -o artico3.dtbo templates/artico3_devicetree_overlay/artico3.dts
-
-    2) Edit /etc/init.d/rcS:
-           echo "++ Loading ARTICo3 device tree overlay..."
-           mkdir /sys/kernel/config/device-tree/overlays/artico3
-           echo artico3.dtbo > /sys/kernel/config/device-tree/overlays/artico3/path
-
-           echo "++ Loading DMA proxy driver..."
-           modprobe mdmaproxy
