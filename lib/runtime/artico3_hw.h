@@ -8,7 +8,7 @@
  *
  */
 
-//~ <a3<artico3_preproc>a3>
+<a3<artico3_preproc>a3>
 
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
@@ -17,7 +17,7 @@
  * ARTICo3 hardware configuration parameters
  *
  */
-#define A3_MAXSLOTS (4)   // TODO: make this using a3dk parser (<a3<NUM_SLOTS>a3>)
+#define A3_MAXSLOTS (<a3<NUM_SLOTS>a3>)
 #define A3_MAXKERNS (0xF) // TODO: maybe make it configurable? Would also require additional VHDL parsing in Shuffler...
 #define A3_SLOTADDR (0x8aa00000)
 
@@ -153,6 +153,13 @@ int artico3_hw_get_naccs(uint8_t id);
 uint32_t artico3_hw_get_readymask(uint8_t id);
 
 
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Prints the current ARTICo3 configuration by directly accessing the
+ * configuration registers in the Data Shuffler.
+ *
+ */
 void artico3_hw_print_regs();
 
 

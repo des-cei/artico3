@@ -15,8 +15,19 @@
 
 #include <stdio.h>
 
-// TODO: make this configurable
+// If not defined by command line, disable debug
+#ifndef A3_DEBUG
+#define A3_DEBUG 0
+#endif
+
+// Debug messages
+#if A3_DEBUG
 #define a3_print_debug(msg, args...) printf(msg, ##args)
+#else
+#define a3_print_debug(msg, args...)
+#endif
+
+// Error messages
 #define a3_print_error(msg, args...) printf(msg, ##args)
 
 #endif /* _ARTICO3_DBG_H_ */

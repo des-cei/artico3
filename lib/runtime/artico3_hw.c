@@ -130,6 +130,13 @@ uint32_t artico3_hw_get_readymask(uint8_t id) {
 }
 
 
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Prints the current ARTICo3 configuration by directly accessing the
+ * configuration registers in the Data Shuffler.
+ *
+ */
 void artico3_hw_print_regs() {
     a3_print_debug("ARTICo3 configuration\n");
     a3_print_debug("  [REG] %-6s | %08x%08x\n", "id", artico3_hw[A3_ID_REG_HIGH], artico3_hw[A3_ID_REG_LOW]);

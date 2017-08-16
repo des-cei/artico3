@@ -2,7 +2,7 @@
 
 CC = $(CROSS_COMPILE)gcc
 CFLAGS += -Wall -I <a3<REPO_REL>a3> -I lib/include <a3<CFLAGS>a3>
-LDFLAGS += -static <a3<LDFLAGS>a3>
+LDFLAGS += -static -lm <a3<LDFLAGS>a3>
 
 MKDIRP = mkdir -p
 

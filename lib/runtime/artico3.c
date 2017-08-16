@@ -26,7 +26,7 @@
 #include <sys/mman.h>  // mmap()
 #include <sys/ioctl.h> // ioctl()
 
-#include "../../linux/drivers/dmaproxy/dmaproxy.h" // TODO: use Makefile
+#include "dmaproxy.h"
 #include "artico3.h"
 #include "artico3_hw.h"
 #include "artico3_dbg.h"
@@ -48,7 +48,7 @@ uint32_t *artico3_hw = NULL;
 static int a3slots_fd;
 
 struct a3shuffler_t shuffler = {
-    .id_reg      = 0x0000000000000111,
+    .id_reg      = 0x0000000000000000,
     .tmr_reg     = 0x0000000000000000,
     .dmr_reg     = 0x0000000000000000,
     .blksize_reg = 0x00000000,
@@ -175,7 +175,7 @@ int artico3_init() {
     for (i = 0; i < A3_MAXSLOTS; i++) {
         clkgate |= 1 << i;
     }
-    artico3_hw[A3_CLOCK_GATE_REG] = clkgate;
+    artico3_hw[A3_CLOCK_GATE_REG] = clkgate; // (TODO: move all uses of artico3_hw to artico3_hw.c)
 
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
@@ -206,7 +206,7 @@ err_mmap:
  */
 void artico3_exit() {
 
-    // Disable clocks in reconfigurable region
+    // Disable clocks in reconfigurable region (TODO: move all uses of artico3_hw to artico3_hw.c)
     artico3_hw[A3_CLOCK_GATE_REG] = 0x00000000;
 
     // Release allocated memory for kernel list
@@ -300,7 +300,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         kernel->outputs[i] = NULL;
     }
 
-    a3_print_debug("[artico3-hw] created <a3_kernel> name=%s,id=%x,membytes=%d,membanks=%d,regrw=%d,regro=%d\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regrw, kernel->regro);
+    a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%d,membanks=%d,regrw=%d,regro=%d)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regrw, kernel->regro);
 
     // Store kernel configuration in kernel list
     kernels[index] = kernel;
@@ -347,7 +347,7 @@ int artico3_kernel_release(const char *name) {
     free(kernels[index]->inputs);
     free(kernels[index]->name);
     free(kernels[index]);
-    a3_print_debug("[artico3-hw] released <a3_kernel> name=%s\n", name);
+    a3_print_debug("[artico3-hw] released kernel (name=%s)\n", name);
 
     // Set kernel list entry as empty
     kernels[index] = NULL;
@@ -415,7 +415,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
         }
     }
 
-    // Configure ARTICo3
+    // Configure ARTICo3 (TODO: move all uses of artico3_hw to artico3_hw.c)
     artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
     artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
     artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
@@ -485,7 +485,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
         return -ENOMEM;
     }
 
-    // Configure ARTICo3
+    // Configure ARTICo3 (TODO: move all uses of artico3_hw to artico3_hw.c)
     artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
     artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
     artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
@@ -521,10 +521,10 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    return 0;
-
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
+
+    return 0;
 }
 
 
@@ -566,7 +566,7 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
     }
     nrounds = gsize / lsize;
 
-    a3_print_debug("[artico3-hw] executing kernel \"%s\" [gsize=%d,lsize=%d,rounds=%d]\n", name, gsize, lsize, nrounds);
+    a3_print_debug("[artico3-hw] executing kernel \"%s\" (gsize=%d,lsize=%d,rounds=%d)\n", name, gsize, lsize, nrounds);
 
     // Iterate over number of rounds
     round = 0;
@@ -580,7 +580,7 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         // Send data
         artico3_send(id, naccs, round, nrounds);
 
-        // Wait until transfer is complete
+        // Wait until transfer is complete (TODO: move all uses of artico3_hw to artico3_hw.c)
         while ((artico3_hw[A3_READY_REG] & readymask) != readymask) ;
 
         // Receive data
@@ -760,6 +760,40 @@ int artico3_free(const char *kname, const char *pname) {
     free(port->data);
     free(port->name);
     free(port);
+
+    return 0;
+}
+
+
+// TODO: add documentation to this function
+int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
+    unsigned int index;
+
+    uint8_t id;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Update ARTICo3 configuration registers
+    shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
+    shuffler.id_reg |= (uint64_t)id << (4 * slot);
+
+    shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
+    shuffler.tmr_reg |= (uint64_t)tmr << (4 * slot);
+
+    shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
+    shuffler.dmr_reg |= (uint64_t)dmr << (4 * slot);
+
+    a3_print_debug("[artico3-hw] loaded accelerator \"%s\" on slot %d\n", name, slot);
 
     return 0;
 }
