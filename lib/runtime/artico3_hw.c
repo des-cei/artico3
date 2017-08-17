@@ -34,7 +34,7 @@ extern struct a3shuffler_t shuffler;
  */
 int artico3_hw_get_naccs(uint8_t id) {
     unsigned int i;
-    int accelerators;
+    int naccs;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
@@ -58,7 +58,7 @@ int artico3_hw_get_naccs(uint8_t id) {
      */
 
     // Compute number of equivalent accelerators
-    accelerators = 0;
+    naccs = 0;
     while (id_reg) {
         aux_id  = id_reg  & 0xf;
         aux_tmr = tmr_reg & 0xf;
@@ -82,18 +82,18 @@ int artico3_hw_get_naccs(uint8_t id) {
                     }
                 }
             }
-            accelerators++;
+            naccs++;
         }
         id_reg >>= 4;
         tmr_reg >>= 4;
         dmr_reg >>= 4;
     }
-    if (!accelerators) {
+    if (!naccs) {
         a3_print_error("[artico3-hw] no accelerators found with ID %x\n", id);
         return -ENODEV;
     }
 
-    return accelerators;
+    return naccs;
 }
 
 
