@@ -136,8 +136,8 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     create_bd_design "design_1"
     update_compile_order -fileset sources_1
 
-    # Add reconos repository
-    set_property  ip_repo_paths  $artico3_ip_dir [current_project]
+    # Add artico3 repository
+    set_property  ip_repo_paths $artico3_ip_dir [current_project]
     update_ip_catalog
 
     # Add system reset module
