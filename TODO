@@ -1,9 +1,14 @@
-1. Implement runtime library to access basic ARTICo3 functionality
+1. Implement runtime library as a kernel module, instead of as user-space code,
+   so that multiple applications can use the ARTICo3 infrastructure simultaneously
 
-    a. Use multiple threads to enable multiple kernel execution (maybe
-       using one thread per artico3_kernel_execute call).
-    b. Making the library multitask-capable (make calls from different
-       applications to execute multiple kernels) is not planned.
+   Seems "relatively easy" to achieve, the only big issue appears to be
+   memory management/copy between user-space variables and DMA memory
+   (in the current version, this is achieved by memcpy(malloc(), mmap())
+   or memcpy(mmap(), malloc())).
+
+   IDEAS:
+       - Use kthreads instead of pthreads
+       - Use ioctl() to implement each of the functions in artico3.c
 
 
 2. Create setup script to generate basic Linux-based system with ARTICo3 support
