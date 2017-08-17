@@ -163,4 +163,48 @@ uint32_t artico3_hw_get_readymask(uint8_t id);
 void artico3_hw_print_regs();
 
 
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Sets up a data transfer by writing to the ARTICo3 configuration
+ * registers (ID, TMR, DMR, block size).
+ *
+ * @blksize : block size (32-bit words to be sent to each accelerator)
+ *
+ */
+void artico3_hw_setup_transfer(uint32_t blksize);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Checks if a processing round is finished. The configuration of the
+ * specific round is passed using the expected ready mask.
+ *
+ * @readymask : expected ready register contents (mask)
+ *
+ * Return : 0 when still working, 1 when finished
+ *
+ */
+int artico3_hw_transfer_isdone(uint32_t readymask);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Enables the clock in the reconfigurable region (ARTICo3 slots).
+ *
+ */
+void artico3_hw_enable_clk();
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Disables the clock in the reconfigurable region (ARTICo3 slots).
+ *
+ */
+void artico3_hw_disable_clk();
+
+
 #endif /* _ARTICO3_HW_H_ */

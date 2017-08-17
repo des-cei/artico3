@@ -146,3 +146,70 @@ void artico3_hw_print_regs() {
     a3_print_debug("  [REG] %-6s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
     a3_print_debug("  [REG] %-6s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
 }
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Sets up a data transfer by writing to the ARTICo3 configuration
+ * registers (ID, TMR, DMR, block size).
+ *
+ * @blksize : block size (32-bit words to be sent to each accelerator)
+ *
+ */
+void artico3_hw_setup_transfer(uint32_t blksize) {
+    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
+    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
+    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
+    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
+    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
+    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
+    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Checks if a processing round is finished. The configuration of the
+ * specific round is passed using the expected ready mask.
+ *
+ * @readymask : expected ready register contents (mask)
+ *
+ * Return : 0 when still working, 1 when finished
+ *
+ */
+int artico3_hw_transfer_isdone(uint32_t readymask) {
+    return ((artico3_hw[A3_READY_REG] & readymask) == readymask) ? 1 : 0;
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Enables the clock in the reconfigurable region (ARTICo3 slots).
+ *
+ */
+void artico3_hw_enable_clk() {
+    unsigned int i;
+    uint32_t clkgate;
+
+    // Enable clocks in reconfigurable region (TODO: change if a more precise power management is required)
+    clkgate = 0;
+    for (i = 0; i < A3_MAXSLOTS; i++) {
+        clkgate |= 1 << i;
+    }
+    artico3_hw[A3_CLOCK_GATE_REG] = clkgate;
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Disables the clock in the reconfigurable region (ARTICo3 slots).
+ *
+ */
+void artico3_hw_disable_clk() {
+    // Disable clocks in reconfigurable region
+    artico3_hw[A3_CLOCK_GATE_REG] = 0x00000000;
+}

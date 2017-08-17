@@ -70,7 +70,7 @@ void artico3_exit();
  *
  */
 
-// TODO: add documentation to this function
+// TODO: add documentation for this function
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr);
 
 /*

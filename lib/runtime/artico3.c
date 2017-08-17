@@ -170,12 +170,8 @@ int artico3_init() {
     }
     a3_print_debug("[artico3-hw] kernels=%p\n", kernels);
 
-    // Enable clocks in reconfigurable region (TODO: change if a more precise power management is required)
-    uint32_t clkgate = 0;
-    for (i = 0; i < A3_MAXSLOTS; i++) {
-        clkgate |= 1 << i;
-    }
-    artico3_hw[A3_CLOCK_GATE_REG] = clkgate; // (TODO: move all uses of artico3_hw to artico3_hw.c)
+    // Enable clocks in reconfigurable region
+    artico3_hw_enable_clk();
 
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
@@ -206,8 +202,8 @@ err_mmap:
  */
 void artico3_exit() {
 
-    // Disable clocks in reconfigurable region (TODO: move all uses of artico3_hw to artico3_hw.c)
-    artico3_hw[A3_CLOCK_GATE_REG] = 0x00000000;
+    // Disable clocks in reconfigurable region
+    artico3_hw_disable_clk();
 
     // Release allocated memory for kernel list
     free(kernels);
@@ -415,14 +411,8 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
         }
     }
 
-    // Configure ARTICo3 (TODO: move all uses of artico3_hw to artico3_hw.c)
-    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
-    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
-    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
-    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
-    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
-    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
-    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
+    // Set up data transfer
+    artico3_hw_setup_transfer(blksize);
 
     // Start DMA transfer
     token.memaddr = mem;
@@ -485,14 +475,8 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
         return -ENOMEM;
     }
 
-    // Configure ARTICo3 (TODO: move all uses of artico3_hw to artico3_hw.c)
-    artico3_hw[A3_ID_REG_LOW]     = shuffler.id_reg & 0xFFFFFFFF;          // ID register low
-    artico3_hw[A3_ID_REG_HIGH]    = (shuffler.id_reg >> 32) & 0xFFFFFFFF;  // ID register high
-    artico3_hw[A3_TMR_REG_LOW]    = shuffler.tmr_reg & 0xFFFFFFFF;         // TMR register low
-    artico3_hw[A3_TMR_REG_HIGH]   = (shuffler.tmr_reg >> 32) & 0xFFFFFFFF; // TMR register high
-    artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
-    artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
-    artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
+    // Set up data transfer
+    artico3_hw_setup_transfer(blksize);
 
     // Start DMA transfer
     token.memaddr = mem;
@@ -580,8 +564,8 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         // Send data
         artico3_send(id, naccs, round, nrounds);
 
-        // Wait until transfer is complete (TODO: move all uses of artico3_hw to artico3_hw.c)
-        while ((artico3_hw[A3_READY_REG] & readymask) != readymask) ;
+        // Wait until transfer is complete
+        while (!artico3_hw_transfer_isdone(readymask)) ;
 
         // Receive data
         artico3_recv(id, naccs, round, nrounds);
@@ -765,7 +749,7 @@ int artico3_free(const char *kname, const char *pname) {
 }
 
 
-// TODO: add documentation to this function
+// TODO: add documentation for this function
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
     unsigned int index;
 
