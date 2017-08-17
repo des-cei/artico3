@@ -353,6 +353,7 @@ int artico3_kernel_release(const char *name) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
@@ -555,10 +556,10 @@ void *_artico3_kernel_execute(void *data) {
     round = 0;
     while (round < nrounds) {
 
-        // Increase "running" count
         pthread_mutex_lock(&mutex);
+
+        // Increase "running" count
         running++;
-        pthread_mutex_unlock(&mutex);
 
         // For each iteration, compute number of (equivalent) accelerators,
         // and the corresponding expected mask to check the ready register.
@@ -568,8 +569,12 @@ void *_artico3_kernel_execute(void *data) {
         // Send data
         artico3_send(id, naccs, round, nrounds);
 
+        pthread_mutex_unlock(&mutex);
+
         // Wait until transfer is complete
         while (!artico3_hw_transfer_isdone(readymask)) ;
+
+        pthread_mutex_lock(&mutex);
 
         // Receive data
         artico3_recv(id, naccs, round, nrounds);
@@ -578,8 +583,8 @@ void *_artico3_kernel_execute(void *data) {
         round += naccs;
 
         // Decrease "running" count
-        pthread_mutex_lock(&mutex);
         running--;
+
         pthread_mutex_unlock(&mutex);
 
     }
@@ -608,6 +613,7 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
@@ -656,6 +662,7 @@ int artico3_kernel_wait(const char *name) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
@@ -689,6 +696,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, kname) == 0) break;
     }
     if (index == A3_MAXKERNS) {
@@ -807,6 +815,7 @@ int artico3_free(const char *kname, const char *pname) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, kname) == 0) break;
     }
     if (index == A3_MAXKERNS) {
@@ -816,13 +825,19 @@ int artico3_free(const char *kname, const char *pname) {
 
     // Search for port in port lists
     for (p = 0; p < kernels[index]->membanks; p++) {
-        if (strcmp(kernels[index]->inputs[p]->name, pname) == 0) {
-            port = kernels[index]->inputs[p];
-            break;
+        if (kernels[index]->inputs[p]) {
+            if (strcmp(kernels[index]->inputs[p]->name, pname) == 0) {
+                port = kernels[index]->inputs[p];
+                kernels[index]->inputs[p] = NULL;
+                break;
+            }
         }
-        else if (strcmp(kernels[index]->outputs[p]->name, pname) == 0) {
-            port = kernels[index]->outputs[p];
-            break;
+        if (kernels[index]->outputs[p]) {
+            if (strcmp(kernels[index]->outputs[p]->name, pname) == 0) {
+                port = kernels[index]->outputs[p];
+                kernels[index]->outputs[p] = NULL;
+                break;
+            }
         }
     }
     if (p == kernels[index]->membanks) {
@@ -847,6 +862,7 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
