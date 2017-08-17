@@ -15,11 +15,14 @@
 
    Can start from modified ReconOS + Pynq setup script
 
-   1) Compile DMA proxy driver and ARTICo3 device tree overlay:
+   1) Remove references to ReconOS + move dtc repository cloning to the
+      beginning, because it is needed by U-Boot
+
+   2) Compile DMA proxy driver and ARTICo3 device tree overlay:
           cd linux/drivers/dmaproxy && make ARCH=arm CROSS_COMPILE=(...) KDIR=(...)
           dtc -I dts -O dtb -@ -o artico3.dtbo templates/artico3_devicetree_overlay/artico3.dts
 
-   2) Edit /etc/init.d/rcS:
+   3) Edit /etc/init.d/rcS:
           echo "++ Loading ARTICo3 device tree overlay..."
           mkdir /sys/kernel/config/device-tree/overlays/artico3
           echo artico3.dtbo > /sys/kernel/config/device-tree/overlays/artico3/path
