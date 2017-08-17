@@ -138,13 +138,13 @@ uint32_t artico3_hw_get_readymask(uint8_t id) {
  *
  */
 void artico3_hw_print_regs() {
-    a3_print_debug("ARTICo3 configuration\n");
-    a3_print_debug("  [REG] %-6s | %08x%08x\n", "id", artico3_hw[A3_ID_REG_HIGH], artico3_hw[A3_ID_REG_LOW]);
-    a3_print_debug("  [REG] %-6s | %08x%08x\n", "tmr", artico3_hw[A3_TMR_REG_HIGH], artico3_hw[A3_TMR_REG_LOW]);
-    a3_print_debug("  [REG] %-6s | %08x%08x\n", "dmr", artico3_hw[A3_DMR_REG_HIGH], artico3_hw[A3_DMR_REG_LOW]);
-    a3_print_debug("  [REG] %-6s | %08x\n", "block", artico3_hw[A3_BLOCK_SIZE_REG]);
-    a3_print_debug("  [REG] %-6s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
-    a3_print_debug("  [REG] %-6s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
+    a3_print_debug("[artico3-hw] current configuration:\n");
+    a3_print_debug("    [REG] %-6s | %08x%08x\n", "id", artico3_hw[A3_ID_REG_HIGH], artico3_hw[A3_ID_REG_LOW]);
+    a3_print_debug("    [REG] %-6s | %08x%08x\n", "tmr", artico3_hw[A3_TMR_REG_HIGH], artico3_hw[A3_TMR_REG_LOW]);
+    a3_print_debug("    [REG] %-6s | %08x%08x\n", "dmr", artico3_hw[A3_DMR_REG_HIGH], artico3_hw[A3_DMR_REG_LOW]);
+    a3_print_debug("    [REG] %-6s | %08x\n", "block", artico3_hw[A3_BLOCK_SIZE_REG]);
+    a3_print_debug("    [REG] %-6s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
+    a3_print_debug("    [REG] %-6s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
 }
 
 
