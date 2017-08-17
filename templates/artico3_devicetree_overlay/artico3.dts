@@ -1,0 +1,22 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target = <&amba_pl>;
+        __overlay__ {
+            artico3_shuffler_0: artico3_shuffler@7aa00000 {
+                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+                interrupt-parent = <&intc>;
+                interrupts = <0 29 1>;
+                reg = <0x7aa00000 0x100000>;
+            };
+            artico3_slots_0: artico3_slots@8aa00000 {
+                compatible = "cei.upm,proxy-cdma-1.00.a";
+                reg = <0x8aa00000 0x100000>;
+                dmas = <&dmac_s 0>;
+                dma-names = "ps-dma";
+            };
+        };
+    };
+};
