@@ -357,7 +357,7 @@ int artico3_kernel_release(const char *name) {
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
         return -ENODEV;
     }
 
@@ -429,7 +429,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 uint32_t idx_dat = (acc * size) + offset;
                 a3data_t *data = kernels[id - 1]->inputs[port]->data;
                 memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
-                a3_print_debug("[artico3-hw] round %3d | acc %d | i_port %d | mem %4d | dat %6d | size %4d\n", round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | i_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
@@ -520,7 +520,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 uint32_t idx_dat = (acc * size) + offset;
                 a3data_t *data = kernels[id - 1]->outputs[port]->data;
                 memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
-                a3_print_debug("[artico3-hw] round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
@@ -617,8 +617,14 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
         return -ENODEV;
+    }
+
+    // Check if kernel is being executed currently
+    if (threads[index]) {
+        a3_print_error("[artico3-hw] kernel \"%s\" is already being executed\n", name);
+        return -EBUSY;
     }
 
     // Get kernel ID
@@ -666,12 +672,15 @@ int artico3_kernel_wait(const char *name) {
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
         return -ENODEV;
     }
 
     // Wait for thread completion
     pthread_join(threads[index], NULL);
+
+    // Mark thread as completed
+    threads[index] = 0;
 
     return 0;
 }
@@ -700,7 +709,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         if (strcmp(kernels[index]->name, kname) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", kname);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
         return NULL;
     }
 
@@ -819,7 +828,7 @@ int artico3_free(const char *kname, const char *pname) {
         if (strcmp(kernels[index]->name, kname) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", kname);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
         return -ENODEV;
     }
 
@@ -866,7 +875,7 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
     if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
         return -ENODEV;
     }
 
