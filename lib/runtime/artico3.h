@@ -124,6 +124,19 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
 
 
 /*
+ * ARTICo3 wait for kernel completion
+ *
+ * This function waits until the kernel has finished.
+ *
+ * @name : hardware kernel to wait for
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_wait(const char *name);
+
+
+/*
  * MEMORY MANAGEMENT
  *
  */

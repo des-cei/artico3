@@ -58,6 +58,7 @@ int main(int argc, char *argv[]) {
     sw = malloc(blocks * VALUES * sizeof *sw);
 
     // Initialize data buffers
+    printf("Initializing data buffers...\n");
     srand(time(NULL));
     for (i = 0; i < (blocks * VALUES); i++) {
         a[i] = rand();
@@ -66,13 +67,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Execute kernel
+    printf("Executing kernel...\n");
     gettimeofday(&t0, NULL);
     artico3_kernel_execute("addvector", (blocks * VALUES), VALUES);
+    artico3_kernel_wait("addvector");
     gettimeofday(&tf, NULL);
     t_hw = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
     printf("Kernel execution : %.6f ms\n", t_hw);
 
     // Execute software reference
+    printf("Executing software...\n");
     gettimeofday(&t0, NULL);
     for (i = 0; i < (blocks * VALUES); i++) {
         sw[i] = a[i] + b[i];
@@ -83,6 +87,7 @@ int main(int argc, char *argv[]) {
     printf("Speedup : %.6f\n", t_sw / t_hw);
 
     // Check results vs. software reference
+    printf("Checking results...\n");
     errors = 0;
     for (i = 0; i < (blocks * VALUES); i++) {
         if (((i % VALUES) < 4) && ((i / VALUES) < 4)) printf("%6d | %08x\n", i, c[i]);

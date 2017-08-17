@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <math.h>      // ceil(), requires -lm in LDFLAGS
+#include <pthread.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -42,6 +43,10 @@
  * @shuffler   : current ARTICo3 infrastructure configuration
  * @kernels    : current kernel list
  *
+ * @threads    : array of delegate scheduling threads
+ * @mutex      : synchronization primitive for accessing @running
+ * @running    : number of hardware kernels currently running (write/run/read)
+ *
  */
 static int artico3_fd;
 uint32_t *artico3_hw = NULL;
@@ -55,8 +60,11 @@ struct a3shuffler_t shuffler = {
     .clkgate_reg = 0x00000000,
     .slots       = NULL,
 };
-
 static struct a3kernel_t **kernels = NULL;
+
+static pthread_t *threads = NULL;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static int running = 0;
 
 
 /*
@@ -170,6 +178,14 @@ int artico3_init() {
     }
     a3_print_debug("[artico3-hw] kernels=%p\n", kernels);
 
+    // Initialize delegate threads
+    threads = malloc(A3_MAXKERNS * sizeof *threads);
+    if (!threads) {
+        a3_print_error("[artico3-hw] malloc() failed\n");
+        ret = -ENOMEM;
+        goto err_malloc_threads;
+    }
+
     // Enable clocks in reconfigurable region
     artico3_hw_enable_clk();
 
@@ -177,6 +193,9 @@ int artico3_init() {
     artico3_hw_print_regs();
 
     return 0;
+
+err_malloc_threads:
+    free(kernels);
 
 err_malloc_kernels:
     free(shuffler.slots);
@@ -204,6 +223,9 @@ void artico3_exit() {
 
     // Disable clocks in reconfigurable region
     artico3_hw_disable_clk();
+
+    // Release allocated memory for delegate threads
+    free(threads);
 
     // Release allocated memory for kernel list
     free(kernels);
@@ -513,6 +535,60 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
 
 /*
+ * ARTICo3 delegate scheduling thread
+ *
+ */
+void *_artico3_kernel_execute(void *data) {
+    unsigned int round, nrounds;
+    int naccs;
+
+    uint8_t id;
+    uint32_t readymask;
+
+    // Get kernel invocation data
+    unsigned int *tdata = data;
+    id = tdata[0];
+    nrounds = tdata[1];
+    free(tdata);
+
+    // Iterate over number of rounds
+    round = 0;
+    while (round < nrounds) {
+
+        // Increase "running" count
+        pthread_mutex_lock(&mutex);
+        running++;
+        pthread_mutex_unlock(&mutex);
+
+        // For each iteration, compute number of (equivalent) accelerators,
+        // and the corresponding expected mask to check the ready register.
+        naccs = artico3_hw_get_naccs(id);
+        readymask = artico3_hw_get_readymask(id);
+
+        // Send data
+        artico3_send(id, naccs, round, nrounds);
+
+        // Wait until transfer is complete
+        while (!artico3_hw_transfer_isdone(readymask)) ;
+
+        // Receive data
+        artico3_recv(id, naccs, round, nrounds);
+
+        // Update the round index
+        round += naccs;
+
+        // Decrease "running" count
+        pthread_mutex_lock(&mutex);
+        running--;
+        pthread_mutex_unlock(&mutex);
+
+    }
+
+    return NULL;
+}
+
+
+/*
  * ARTICo3 execute hardware kernel
  *
  * This function executes an ARTICo3 kernel in the current application.
@@ -525,11 +601,10 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
  *
  */
 int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
-    unsigned int index, round, nrounds;
-    int naccs;
+    unsigned int index, nrounds;
+    int ret;
 
     uint8_t id;
-    uint32_t readymask;
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -552,32 +627,47 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
 
     a3_print_debug("[artico3-hw] executing kernel \"%s\" (gsize=%d,lsize=%d,rounds=%d)\n", name, gsize, lsize, nrounds);
 
-    // Iterate over number of rounds
-    round = 0;
-    while (round < nrounds) {
-
-        // For each iteration, compute number of (equivalent) accelerators,
-        // and the corresponding expected mask to check the ready register.
-        naccs = artico3_hw_get_naccs(id);
-        readymask = artico3_hw_get_readymask(id);
-
-        // Send data
-        artico3_send(id, naccs, round, nrounds);
-
-        // Wait until transfer is complete
-        while (!artico3_hw_transfer_isdone(readymask)) ;
-
-        // Receive data
-        artico3_recv(id, naccs, round, nrounds);
-
-        // Update the round index
-        round += naccs;
-
+    // Launch delegate thread to manage work scheduling/dispatching
+    unsigned int *tdata = malloc(2 * sizeof *tdata);
+    tdata[0] = id;
+    tdata[1] = nrounds;
+    ret = pthread_create(&threads[index], NULL, _artico3_kernel_execute, tdata);
+    if (ret) {
+        a3_print_error("[artico3-hw] could not launch delegate scheduler thread for kernel \"%s\"\n", name);
+        return -ret;
     }
 
     return 0;
 }
 
+
+/*
+ * ARTICo3 wait for kernel completion
+ *
+ * This function waits until the kernel has finished.
+ *
+ * @name : hardware kernel to wait for
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_wait(const char *name) {
+    unsigned int index;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name %s\n", name);
+        return -ENODEV;
+    }
+
+    // Wait for thread completion
+    pthread_join(threads[index], NULL);
+
+    return 0;
+}
 
 /*
  * ARTICo3 allocate buffer memory
@@ -767,15 +857,30 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
     // Get kernel id
     id = kernels[index]->id;
 
-    // Update ARTICo3 configuration registers
-    shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
-    shuffler.id_reg |= (uint64_t)id << (4 * slot);
+    while (1) {
+        pthread_mutex_lock(&mutex);
 
-    shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
-    shuffler.tmr_reg |= (uint64_t)tmr << (4 * slot);
+        // Only change configuration when no kernel is being executed
+        if (!running) {
 
-    shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
-    shuffler.dmr_reg |= (uint64_t)dmr << (4 * slot);
+            // Update ARTICo3 configuration registers
+            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.id_reg |= (uint64_t)id << (4 * slot);
+
+            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.tmr_reg |= (uint64_t)tmr << (4 * slot);
+
+            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.dmr_reg |= (uint64_t)dmr << (4 * slot);
+
+            // Exit infinite loop
+            break;
+
+        }
+
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_mutex_unlock(&mutex);
 
     a3_print_debug("[artico3-hw] loaded accelerator \"%s\" on slot %d\n", name, slot);
 
