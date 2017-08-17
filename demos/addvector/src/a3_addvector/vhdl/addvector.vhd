@@ -5,7 +5,7 @@
 -- Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
 -- Date   : June 2017                                     --
 --                                                        --
--- Hardware Thread (HDL)                                  --
+-- Hardware kernel (HDL)                                  --
 -- Core processing function                               --
 ------------------------------------------------------------
 

@@ -287,7 +287,7 @@ class Project:
         if Slot._id > self.shuffler.slots:
             log.error("Configured more ARTICo\u00b3 accelerators than slots")
             sys.exit(1)
-        else:
+        elif Slot._id < self.shuffler.slots:
             kernel = Kernel("dummy", "vhdl", 4096, 2, 2, 2, "low")
             self.kerns.append(kernel)
             for i in range(Slot._id, self.shuffler.slots):
