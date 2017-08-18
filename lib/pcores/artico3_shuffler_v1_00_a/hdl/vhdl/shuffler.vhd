@@ -1053,7 +1053,7 @@ begin
                         red_araddr <= (others => '0');
                     end if;
                 -- If not capturing, the system is moving data
-                elsif red_en_base = '1' and engen_cnt_remaining /= 0 then -- TODO: verificar esta condición
+                elsif red_en_base = '1' and engen_cnt_remaining /= 0 then
                     if addr_reset = '1' then
                         red_araddr <= (others => '0');
                     else
