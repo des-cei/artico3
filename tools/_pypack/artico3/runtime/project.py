@@ -251,7 +251,9 @@ class Project:
             # NOTE: the following points are enforced by this fix.
             #         1. An odd number of banks are supported
             #         2. Each bank will have an integer number of 32-bit words
-            membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
+            if membytes != int(math.ceil((membytes / membanks) / 4) * 4 * membanks):
+                log.warning("Increasing kernel memory size to ensure integer number of 32-bit words per bank")
+                membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
 
             if cfg.has_option(kernel, "RegRW"):
                 regrw = int(cfg.get(kernel, "RegRW"))
