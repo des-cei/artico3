@@ -16,7 +16,6 @@
 --     Data counter is reset when a memory read transaction is issued      --
 --                                                                         --
 -- TODO:                                                                   --
---     Implement Read Only and Write Only registers                        --
 --     Implement Side-Channel Attack protection                            --
 --                                                                         --
 -- This template should be used to implement user-defined accelerators     --
@@ -35,7 +34,8 @@ entity a3_wrapper is
         C_ARTICO3_ADDR_WIDTH : integer := 16;    -- Address bus width (in bits)
         C_MAX_MEM            : integer := <a3<MEMBYTES>a3>; -- Total memory size (in bytes) inside the compute unit
         C_NUM_MEM            : integer := <a3<MEMBANKS>a3>;     -- Number of memory banks inside the compute unit (to allow parallel accesses from logic
-        C_NUM_REG            : integer := 16     -- Number of registers inside the compute unit
+        C_NUM_REG_RW         : integer := <a3<REGRW>a3>;     -- Number of Read/Write registers inside the compute unit
+        C_NUM_REG_RO         : integer := <a3<REGRO>a3>      -- Number of Read Only registers inside the compute unit
     );
     port (
         s_artico3_aclk    : in  std_logic;
@@ -88,6 +88,7 @@ architecture behavioral of a3_wrapper is
     -- Configurable register bank --
     --------------------------------
 
+    constant C_NUM_REG : integer := C_NUM_REG_RW + C_NUM_REG_RO;
     type reg_data_t is array (0 to C_NUM_REG-1) of std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
     signal reg_out : reg_data_t; -- Output data in register bank
 
@@ -135,6 +136,12 @@ begin
     ----------------
     -- User logic --
     ----------------
+
+    -- TODO: modify ARTICo3 toolchain and this template to enable additional
+    --       port connections in the entities (register-based interfaces).
+    --       The goal of these interfaces would be to provide 32-bit data
+    --       inputs (R/W registers) or 32-bit data outputs (RO registers).
+    --       The question is: does this make sense in this type of accelerator?
 
 <a3<if NAME=="dummy">a3>
     -- Dummy hardware kernel (no user logic)
@@ -329,17 +336,15 @@ begin
     --------------------------------
 
     register_bank: for i in 0 to C_NUM_REG-1 generate
-
-        signal reg : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0); -- Register value
-        signal we  : std_logic;                                         -- Register write enable signal
-
     begin
 
         ----------------------------
         -- Read / Write registers --
         ----------------------------
 
-        register_rw: if TRUE generate
+        rw_registers: if i < C_NUM_REG_RW generate
+            signal reg : std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0); -- Register value
+            signal we  : std_logic;                                         -- Register write enable signal
         begin
 
             -- Control signal generation
@@ -364,6 +369,18 @@ begin
                     end if;
                 end if;
             end process;
+
+        end generate;
+
+        -------------------------
+        -- Read Only registers --
+        -------------------------
+
+        ro_registers: if i >= C_NUM_REG_RW generate
+        begin
+
+            -- Dummy functionality (check TODO message in User Logic section)
+            reg_out(i) <= x"deadbeef";
 
         end generate;
 

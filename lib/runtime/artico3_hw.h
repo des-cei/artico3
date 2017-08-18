@@ -26,15 +26,17 @@
  * ARTICo3 infrastructure register offsets (in 32-bit words)
  *
  */
-#define A3_ID_REG_LOW     (0x00000000 >> 2) // ID register (low)
-#define A3_ID_REG_HIGH    (0x00000004 >> 2) // ID register (high)
-#define A3_TMR_REG_LOW    (0x00000008 >> 2) // TMR register (low)
-#define A3_TMR_REG_HIGH   (0x0000000c >> 2) // TMR register (high)
-#define A3_DMR_REG_LOW    (0x00000010 >> 2) // DMR register (low)
-#define A3_DMR_REG_HIGH   (0x00000014 >> 2) // DMR register (high)
-#define A3_BLOCK_SIZE_REG (0x00000018 >> 2) // Block size register
-#define A3_CLOCK_GATE_REG (0x0000001c >> 2) // Clock gating register
-#define A3_READY_REG      (0x00000028 >> 2) // Ready register
+#define A3_ID_REG_LOW     (0x00000000 >> 2)                 // ID register (low)
+#define A3_ID_REG_HIGH    (0x00000004 >> 2)                 // ID register (high)
+#define A3_TMR_REG_LOW    (0x00000008 >> 2)                 // TMR register (low)
+#define A3_TMR_REG_HIGH   (0x0000000c >> 2)                 // TMR register (high)
+#define A3_DMR_REG_LOW    (0x00000010 >> 2)                 // DMR register (low)
+#define A3_DMR_REG_HIGH   (0x00000014 >> 2)                 // DMR register (high)
+#define A3_BLOCK_SIZE_REG (0x00000018 >> 2)                 // Block size register
+#define A3_CLOCK_GATE_REG (0x0000001c >> 2)                 // Clock gating register
+#define A3_READY_REG      (0x00000028 >> 2)                 // Ready register
+#define A3_PMC_CYCLES_REG (0x0000002c >> 2)                 // PMC (cycles)
+#define A3_PMC_ERRORS_REG (A3_PMC_CYCLES_REG + A3_MAXSLOTS) // PMC (errors)
 
 
 /*
@@ -205,6 +207,32 @@ void artico3_hw_enable_clk();
  *
  */
 void artico3_hw_disable_clk();
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Reads the value of the "cycles" PMC.
+ *
+ * @slot : number/ID of the slot that is to be checked
+ *
+ * Return : PMC value (execution cycles)
+ *
+ */
+uint32_t artico3_hw_get_pmc_cycles(uint8_t slot);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Reads the value of the "errors" PMC.
+ *
+ * @slot : number/ID of the slot that is to be checked
+ *
+ * Return : PMC value (execution errors)
+ *
+ */
+uint32_t artico3_hw_get_pmc_errors(uint8_t slot);
 
 
 #endif /* _ARTICO3_HW_H_ */

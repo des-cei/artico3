@@ -46,8 +46,9 @@ int main(int argc, char *argv[]) {
 
     // Load accelerators
     artico3_load("addvector", 0, 0, 0);
-    artico3_load("addvector", 1, 0, 0);
-    artico3_load("addvector", 2, 0, 0);
+    artico3_load("addvector", 1, 1, 0);
+    artico3_load("addvector", 2, 1, 0);
+    artico3_load("addvector", 3, 1, 0); // This one is effectively a "dummy"
 
     // Allocate data buffers
     a = artico3_alloc(blocks * VALUES * sizeof *a, "addvector", "a", A3_P_I);

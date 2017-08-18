@@ -448,7 +448,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    // Print ARTICo3 control registers
+    // Print ARTICo3 registers
     artico3_hw_print_regs();
 
     return 0;
@@ -528,7 +528,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    // Print ARTICo3 control registers
+    // Print ARTICo3 registers
     artico3_hw_print_regs();
 
     return 0;

@@ -12,11 +12,15 @@
 --     Selective software reset to different computing units                                --
 --     Configurable reduction engine for read transactions coming from the compute units    --
 --     Accelerator state (READY signals) can be checked via interrupts or register polling  --
+--     Up to 15 different kernels supported simultaneously (4 bits, ID = 0 -> Shuffler)     --
+--     Up to 16 different reconfigurable slots (limited by register connections in          --
+--         shuffler_control.vhd (can be changed, but FPGA sizes make it a bit absurd...)    --
+--     Performance Monitor Counters                                                         --
+--         - Accelerator/slot execution cycles (reset after each execution)                 --
+--         - Accelerator/slot execution errors (reset after reading PMC register from uP)   --
 --                                                                                          --
 -- TODO:                                                                                    --
---     Implement error detection logic (error registers in voter)                           --
 --     Implement Side-Channel Attack protection                                             --
---     Generalize architecture for implementations with more than 8 posible compute units   --
 --                                                                                          --
 -- This peripheral can be attached to any Xilinx AXI4 Interconnect to implement a fully     --
 -- enabled ARTICo3 implementation in a system with a host microprocessor                    --
@@ -37,12 +41,12 @@ entity shuffler is
         -- Configuration parameters --
         ------------------------------
 
-        -- Number of software-accessible registers
+        -- Number of software-accessible registers (requires at least 8)
         -- (Note that C_S_AXI_ADDR_WIDTH has to be set accordingly)
         C_NUM_REG_RW         : integer := 10;
-        -- Number of read-only software-accessible registers
+        -- Number of read-only software-accessible registers (requires at least 2*C_MAX_SLOTS + 1)
         -- (Note that C_S_AXI_ADDR_WIDTH has to be set accordingly)
-        C_NUM_REG_RO         : integer := 10;
+        C_NUM_REG_RO         : integer := 40;
         -- Number of pipeline stages (registers) between IF and hardware accelerators
         C_PIPE_DEPTH         : integer := 3;
         -- Number of cycles required to generate a valid en signal
@@ -289,6 +293,9 @@ architecture arch of shuffler is
     signal voter_sel1          : std_logic_vector(C_MAX_SLOTS-1 downto 0);        -- Control signal to determine from which accelerator data are loaded in the second register of the voter
     signal voter_sel2          : std_logic_vector(C_MAX_SLOTS-1 downto 0);        -- Control signal to determine from which accelerator data are loaded in the third register of the voter
     signal voter_num           : integer range 0 to 3;                            -- There can be 0, 1 (Simplex), 2 (DMR) or 3 (TMR) accelerators
+    signal voter_idx0          : integer range 0 to C_MAX_SLOTS-1;                -- Index of the slot whose value is loaded in the first voter register
+    signal voter_idx1          : integer range 0 to C_MAX_SLOTS-1;                -- Index of the slot whose value is loaded in the second voter register
+    signal voter_idx2          : integer range 0 to C_MAX_SLOTS-1;                -- Index of the slot whose value is loaded in the third voter register
 
     ---------------------
     -- Reduction logic --
@@ -328,6 +335,19 @@ architecture arch of shuffler is
     ---------------------
 
     signal interrupt_s         : std_logic; -- Internal signal to generate interrupt requests to an external uP
+
+    -------------------------------
+    -- Monitoring infrastructure --
+    -------------------------------
+
+    -- Performance Monitors
+    signal pmc_cycles     : std_logic_vector((C_MAX_SLOTS*C_S_AXI_DATA_WIDTH)-1 downto 0);
+    signal pmc_cycles_en  : std_logic_vector(C_MAX_SLOTS-1 downto 0);
+
+    -- Error Monitors
+    signal pmc_errors     : std_logic_vector((C_MAX_SLOTS*C_S_AXI_DATA_WIDTH)-1 downto 0);
+    signal pmc_errors_en  : std_logic_vector(C_MAX_SLOTS-1 downto 0);
+    signal pmc_errors_rst : std_logic_vector(C_MAX_SLOTS-1 downto 0);
 
     -----------
     -- DEBUG --
@@ -420,6 +440,12 @@ architecture arch of shuffler is
 
     attribute mark_debug of interrupt_s         : signal is "TRUE";
 
+    attribute mark_debug of pmc_cycles          : signal is "TRUE";
+    attribute mark_debug of pmc_cycles_en       : signal is "TRUE";
+    attribute mark_debug of pmc_errors          : signal is "TRUE";
+    attribute mark_debug of pmc_errors_en       : signal is "TRUE";
+    attribute mark_debug of pmc_errors_rst      : signal is "TRUE";
+
 begin
 
     ---------------------
@@ -464,6 +490,9 @@ begin
         block_size_reg => block_size_reg,
         clk_gate_reg   => clk_gate_reg,
         ready_reg      => ready_reg,
+        pmc_cycles     => pmc_cycles,
+        pmc_errors     => pmc_errors,
+        pmc_errors_rst => pmc_errors_rst,
         sw_aresetn     => sw_aresetn,
 --        S_AXI_ACLK     => s00_axi_aclk,
 --        S_AXI_ARESETN  => s00_axi_aresetn,
@@ -490,7 +519,7 @@ begin
         S_AXI_RREADY   => s00_axi_rready
     );
 
-    -- Instantiation of ÄXI4 Full interface (DATA PATH)
+    -- Instantiation of AXI4 Full interface (DATA PATH)
     shuffler_data : entity work.shuffler_data
     generic map (
         C_PIPE_DEPTH         => C_PIPE_DEPTH,
@@ -891,6 +920,9 @@ begin
                 voter_reg0 <= (others => '0');
                 voter_reg1 <= (others => '0');
                 voter_reg2 <= (others => '0');
+                voter_idx0 <= 0;
+                voter_idx1 <= 0;
+                voter_idx2 <= 0;
             else
                 -- Enable voter logic only when a read transaction is being issued
                 if engen_rw = '1' then
@@ -898,6 +930,7 @@ begin
                     aux := (others => '0');
                     for i in 0 to C_MAX_SLOTS-1 loop
                         if voter_sel0(i) = '1' then
+                            voter_idx0 <= i;
                             aux := voter_data(i);
                         end if;
                     end loop;
@@ -906,6 +939,7 @@ begin
                     aux := (others => '0');
                     for i in 0 to C_MAX_SLOTS-1 loop
                         if voter_sel1(i) = '1' then
+                            voter_idx1 <= i;
                             aux := voter_data(i);
                         end if;
                     end loop;
@@ -914,6 +948,7 @@ begin
                     aux := (others => '0');
                     for i in 0 to C_MAX_SLOTS-1 loop
                         if voter_sel2(i) = '1' then
+                            voter_idx2 <= i;
                             aux := voter_data(i);
                         end if;
                     end loop;
@@ -922,6 +957,14 @@ begin
             end if;
         end if;
     end process;
+
+    -- NOTE: the implemented voter logic assumes that accelerators loaded
+    --       in slots whose ID is higher have been recently loaded and thus,
+    --       they are likely to be less error-prone. Hence, slots with
+    --       ID are given higher priority in the voting process in case
+    --       there are conflicts (e.g. all registers have different values).
+    --
+    --       PRIORITY: voter_reg2 > voter_reg1 > voter_reg0
 
     -- Voter logic
     voter_logic: process(s_axi_aclk)
@@ -932,7 +975,11 @@ begin
             if s_axi_aresetn = '0' then
                 voter_out <= (others => '0');
                 num_delay := 0;
+                pmc_errors_en <= (others => '0');
             else
+                -- PMC: by default, no error is reported
+                pmc_errors_en <= (others => '0');
+
                 -- Decisions are made based on the number of active slots (defined by the current enable signal)
                 case num_delay is
                     when 0 => -- No accelerators
@@ -951,24 +998,28 @@ begin
                             voter_out <= voter_reg0;
                         else
                             voter_out <= aux;
-                        end if;
+                            pmc_errors_en(voter_idx0) <= '1';         -- PMC: voter_reg0 /= voter_reg1 (DMR)
+                        end if;                                       --      voter_reg0 /= not voter_reg1 (SCA)
                     when 3 => -- TMR
                         -- Perform voting process
                         if voter_reg0 = voter_reg1 then
-                            if voter_reg0 = voter_reg2 then
-                                --voter_out <= voter_reg0;
-                            else
-                                --voter_out <= voter_reg0;
+                            if voter_reg0 /= voter_reg2 then
+                                pmc_errors_en(voter_idx2) <= '1';     -- PMC: voter_reg0 = voter_reg1 /= voter_reg2
                             end if;
                             voter_out <= voter_reg0;
                         else
                             if voter_reg0 = voter_reg2 then
                                 voter_out <= voter_reg0;
+                                pmc_errors_en(voter_idx1) <= '1';     -- PMC: voter_reg0 = voter_reg2 /= voter_reg1
                             else
                                 if voter_reg1 = voter_reg2 then
                                     voter_out <= voter_reg1;
+                                    pmc_errors_en(voter_idx0) <= '1'; -- PMC: voter_reg0 /= voter_reg2 = voter_reg1
                                 else
                                     voter_out <= voter_reg2;
+                                    pmc_errors_en(voter_idx0) <= '1'; -- PMC: voter_regX are all different
+                                    pmc_errors_en(voter_idx1) <= '1'; -- PMC: voter_regX are all different
+                                    pmc_errors_en(voter_idx2) <= '1'; -- PMC: voter_regX are all different
                                 end if;
                             end if;
                         end if;
@@ -1534,5 +1585,74 @@ begin
 
     -- Connect internal signal with output port
     interrupt <= interrupt_s;
+
+    -------------------------------
+    -- Monitoring infrastructure --
+    -------------------------------
+
+    -- NOTE: the ARTICo3 PMC infrastructure comprises two different types
+    --       of measurements (per slot):
+    --
+    --       1. Execution times (#cycles)
+    --       2. Computation errors (#errors)
+    --
+    --       (Execution times DO NOT include DMA data transfer times).
+    --
+    -- IMPORTANT: for this PMC infrastructure to work properly, the timing
+    --            of the START/READY signals has to be the following:
+    --
+    --                        __    __    __    __    __    __    __
+    --       s_axi_aclk    __/  \__/  \__/  \__/  \__/  \__/  \__/  \__
+    --                                     _____
+    --   artico3_start(i)  _______________/     \______________________
+    --                     _____________________
+    --   artico3_ready(i)                       \______________________
+    --
+    --                                    |<--->| 1 clock cycle
+
+    -- Performance Monitors
+    pmc_measure_cycles: process(s_axi_aclk)
+    begin
+        if s_axi_aclk'event and s_axi_aclk = '1' then
+            if s_axi_aresetn = '0' then
+                pmc_cycles <= (others => '0');
+                pmc_cycles_en <= (others => '0');
+            else
+                for i in 0 to C_MAX_SLOTS-1 loop
+                    -- Start measusing when accelerator starts
+                    if artico3_start(i) = '1' then
+                        pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH)) <= (others => '0');
+                        pmc_cycles_en(i) <= '1';
+                    -- Stop measuring when accelerator finishes
+                    elsif artico3_ready(i) = '1' then
+                        pmc_cycles_en(i) <= '0';
+                    -- Increment cycle counter for this slot
+                    elsif pmc_cycles_en(i) = '1' then
+                        pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH)) <= std_logic_vector(unsigned(pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH))) + 1);
+                    end if;
+                end loop;
+            end if;
+        end if;
+    end process;
+
+    -- Error Monitors
+    pmc_measure_errors: process(s_axi_aclk)
+    begin
+        if s_axi_aclk'event and s_axi_aclk = '1' then
+            if s_axi_aresetn = '0' then
+                pmc_errors <= (others => '0');
+            else
+                for i in 0 to C_MAX_SLOTS-1 loop
+                    -- Reset error count
+                    if pmc_errors_rst(i) = '1' then
+                        pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH)) <= (others => '0');
+                    -- Increment error count when voter enables
+                    elsif pmc_errors_en(i) = '1' then
+                        pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH)) <= std_logic_vector(unsigned(pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH))) + 1);
+                    end if;
+                end loop;
+            end if;
+        end if;
+    end process;
 
 end arch;

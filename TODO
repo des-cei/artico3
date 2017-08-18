@@ -31,7 +31,7 @@
           modprobe mdmaproxy
 
 
-3. Complete shuffler functionality (error monitors)
-
-
-4. Add optional support for ARTICo3 kernel registers in HLS-based accelerators
+3. Add optional support for ARTICo3 kernel registers in HLS-based accelerators.
+   Also, enable actual usage of these ARTICo3 kernel wrapper registers (now they
+   are just there, but the template does not generate any interconnection port
+   with the user logic).

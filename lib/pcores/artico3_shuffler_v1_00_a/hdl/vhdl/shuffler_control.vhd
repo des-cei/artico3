@@ -8,9 +8,6 @@
 --     Register-based interface                                            --
 --     Configurable register bank                                          --
 --                                                                         --
--- TODO:                                                                   --
---     Implement Read-Only registers (for error detection and correction)  --
---                                                                         --
 -- This module includes all logic required for implementing control and    --
 -- configuration in ARTICo3 Shuffler                                       --
 -----------------------------------------------------------------------------
@@ -99,7 +96,7 @@ entity shuffler_control is
         -- Control signal that can be used to check if a reduction transaction is being conducted
         red_ctrl       : out std_logic;
 
-        -- Configuration registers --
+        -- ARTICo3 registers --
 
         -- ID Register contents (ARTICo3 configuration register)
         id_reg         : out std_logic_vector((C_MAX_SLOTS*C_ARTICO3_ID_WIDTH)-1 downto 0);
@@ -113,6 +110,14 @@ entity shuffler_control is
         clk_gate_reg   : out std_logic_vector(C_MAX_SLOTS-1 downto 0);
         -- READY Register contents (ARTICo3 status register)
         ready_reg      : in  std_logic_vector(C_MAX_SLOTS-1 downto 0);
+
+        -- PMC registers --
+
+        -- Slot execution cycles
+        pmc_cycles     : in  std_logic_vector((C_MAX_SLOTS*C_S_AXI_DATA_WIDTH)-1 downto 0);
+        -- Slot execution errors
+        pmc_errors     : in  std_logic_vector((C_MAX_SLOTS*C_S_AXI_DATA_WIDTH)-1 downto 0);
+        pmc_errors_rst : out std_logic_vector(C_MAX_SLOTS-1 downto 0);
 
         -- Other signals --
 
@@ -769,9 +774,12 @@ begin
     end generate;
 
     -- Read-Only (to a master in the AXI4-Lite interface) capable registers
-    -- NOTE: these registers have to be manually introduced here, since there is no easy
-    --       way to automate the procedure (as with R/W enabled registers).
-    reg_out(C_NUM_REG_RW + 0) <= std_logic_vector(resize(unsigned(ready_reg), C_S_AXI_DATA_WIDTH));
+    -- NOTE: some of these registers have to be manually introduced here, since there
+    --       is no easy way to automate the procedure (as with R/W enabled registers).
+    --       An example of an "easy" implementation of RO registers can be seen
+    --       further down with the connections of the PMC registers (uses generate).
+    --
+    -- NOTE: moved connection of ready_reg to the ARTICo3 register section (further down)
 
     -- Multiplex register output to obtain requested value
     axi_rdata <= axi_reg_R_data when (axi_rvalid = '1' and axi_rready = '1') and (axi_rvalid_redctrl = '1' or axi_rvalid_regctrl = '1') else -- Returning data can be either the result of a reduction operation or the value in the registers of the compute units
@@ -825,15 +833,34 @@ begin
     -- Reduction mode connections
     red_ctrl <= axi_rvalid_redctrl;
 
-    -----------
-    -- DEBUG --
-    -----------
+    -----------------------
+    -- ARTICo3 registers --
+    -----------------------
 
-    -- NOTE: this connections are here for testing purposes. Final implementations might need to change this.
+    -- NOTE: this connections are here for this particular implementation. Final implementations might need to change this,
+    --       according to their specific settings regarding C_ARTICO3_ID_WIDTH, C_MAX_SLOTS, etc.
+
     id_reg         <= std_logic_vector(resize(unsigned(reg_out(1)) & unsigned(reg_out(0)), id_reg'length));
     tmr_reg        <= std_logic_vector(resize(unsigned(reg_out(3)) & unsigned(reg_out(2)), tmr_reg'length));
     dmr_reg        <= std_logic_vector(resize(unsigned(reg_out(5)) & unsigned(reg_out(4)), dmr_reg'length));
     block_size_reg <= reg_out(6);
-    clk_gate_reg   <= reg_out(7)(C_MAX_SLOTS-1 downto 0); -- NOTE: compute units are DISABLED by default. To have them ENABLED by default, change this to not reg_out(7)
+    clk_gate_reg   <= reg_out(7)(C_MAX_SLOTS-1 downto 0); -- NOTE: compute units are DISABLED by default. To have them ENABLED by default, change to "not reg_out(7)"
+
+    reg_out(C_NUM_REG_RW + 0) <= std_logic_vector(resize(unsigned(ready_reg), C_S_AXI_DATA_WIDTH));
+
+    -------------------
+    -- PMC registers --
+    -------------------
+
+    pmc_cycles_gen: for i in 0 to C_MAX_SLOTS-1 generate
+    begin
+        reg_out(C_NUM_REG_RW + 1 + i) <= pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
+    end generate;
+
+    pmc_errors_gen: for i in 0 to C_MAX_SLOTS-1 generate
+    begin
+        reg_out(C_NUM_REG_RW + 1 + C_MAX_SLOTS + i) <= pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
+        pmc_errors_rst(i) <= '1' when (unsigned(axi_araddr) = (C_NUM_REG_RW + 1 + C_MAX_SLOTS + i)) and (axi_rvalid = '1' and axi_rready = '1') else '0'; -- Reset PMC error counters after successful reads to the register.
+    end generate;
 
 end behavioral;

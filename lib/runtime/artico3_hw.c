@@ -138,13 +138,23 @@ uint32_t artico3_hw_get_readymask(uint8_t id) {
  *
  */
 void artico3_hw_print_regs() {
+    unsigned int i;
+
     a3_print_debug("[artico3-hw] current configuration:\n");
-    a3_print_debug("    [REG] %-6s | %08x%08x\n", "id", artico3_hw[A3_ID_REG_HIGH], artico3_hw[A3_ID_REG_LOW]);
-    a3_print_debug("    [REG] %-6s | %08x%08x\n", "tmr", artico3_hw[A3_TMR_REG_HIGH], artico3_hw[A3_TMR_REG_LOW]);
-    a3_print_debug("    [REG] %-6s | %08x%08x\n", "dmr", artico3_hw[A3_DMR_REG_HIGH], artico3_hw[A3_DMR_REG_LOW]);
-    a3_print_debug("    [REG] %-6s | %08x\n", "block", artico3_hw[A3_BLOCK_SIZE_REG]);
-    a3_print_debug("    [REG] %-6s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
-    a3_print_debug("    [REG] %-6s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
+    a3_print_debug("    [REG] %-8s | %08x%08x\n", "id", artico3_hw[A3_ID_REG_HIGH], artico3_hw[A3_ID_REG_LOW]);
+    a3_print_debug("    [REG] %-8s | %08x%08x\n", "tmr", artico3_hw[A3_TMR_REG_HIGH], artico3_hw[A3_TMR_REG_LOW]);
+    a3_print_debug("    [REG] %-8s | %08x%08x\n", "dmr", artico3_hw[A3_DMR_REG_HIGH], artico3_hw[A3_DMR_REG_LOW]);
+    a3_print_debug("    [REG] %-8s | %08x\n", "block", artico3_hw[A3_BLOCK_SIZE_REG]);
+    a3_print_debug("    [REG] %-8s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
+    a3_print_debug("    [REG] %-8s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
+
+    a3_print_debug("[artico3-hw] current status:\n");
+    for (i = 0; i < A3_MAXSLOTS; i++) {
+        a3_print_debug("    [PMC] %4s<%2d> | %08x cycles\n", "slot", i, artico3_hw[A3_PMC_CYCLES_REG + i]);
+    }
+    for (i = 0; i < A3_MAXSLOTS; i++) {
+        a3_print_debug("    [PMC] %4s<%2d> | %08x errors\n", "slot", i, artico3_hw[A3_PMC_ERRORS_REG + i]);
+    }
 }
 
 
@@ -212,4 +222,34 @@ void artico3_hw_enable_clk() {
 void artico3_hw_disable_clk() {
     // Disable clocks in reconfigurable region
     artico3_hw[A3_CLOCK_GATE_REG] = 0x00000000;
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Reads the value of the "cycles" PMC.
+ *
+ * @slot : number/ID of the slot that is to be checked
+ *
+ * Return : PMC value (execution cycles)
+ *
+ */
+uint32_t artico3_hw_get_pmc_cycles(uint8_t slot) {
+    return artico3_hw[A3_PMC_CYCLES_REG + slot];
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Reads the value of the "errors" PMC.
+ *
+ * @slot : number/ID of the slot that is to be checked
+ *
+ * Return : PMC value (execution errors)
+ *
+ */
+uint32_t artico3_hw_get_pmc_errors(uint8_t slot) {
+    return artico3_hw[A3_PMC_ERRORS_REG + slot];
 }
