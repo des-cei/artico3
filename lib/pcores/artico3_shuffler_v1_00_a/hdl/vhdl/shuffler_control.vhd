@@ -837,7 +837,7 @@ begin
     -- ARTICo3 registers --
     -----------------------
 
-    -- NOTE: this connections are here for this particular implementation. Final implementations might need to change this,
+    -- NOTE: this connections are here for this particular implementation. Other implementations might need to change this,
     --       according to their specific settings regarding C_ARTICO3_ID_WIDTH, C_MAX_SLOTS, etc.
 
     id_reg         <= std_logic_vector(resize(unsigned(reg_out(1)) & unsigned(reg_out(0)), id_reg'length));

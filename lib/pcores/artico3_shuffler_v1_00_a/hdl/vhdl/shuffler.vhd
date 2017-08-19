@@ -3,7 +3,7 @@
 --                                                                                          --
 -- Author: Juan Valverde <juan.valverde@upm.es>                                             --
 --         Alfonso Rodriguez <alfonso.rodriguezm@upm.es>                                    --
---         Cesar Castañares <cekafra@gmail.com>                                             --
+--         Cesar CastaÃ±ares <cekafra@gmail.com>                                             --
 --                                                                                          --
 -- Features:                                                                                --
 --     Independent AXI4-Lite (register-based) and AXI4 Full (memory-based) interfaces       --
