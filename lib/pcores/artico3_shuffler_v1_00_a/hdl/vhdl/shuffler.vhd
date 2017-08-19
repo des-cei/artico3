@@ -3,7 +3,7 @@
 --                                                                                          --
 -- Author: Juan Valverde <juan.valverde@upm.es>                                             --
 --         Alfonso Rodriguez <alfonso.rodriguezm@upm.es>                                    --
---         Cesar CastaÃ±ares <cekafra@gmail.com>                                             --
+--         Cesar Castañares <cekafra@gmail.com>                                             --
 --                                                                                          --
 -- Features:                                                                                --
 --     Independent AXI4-Lite (register-based) and AXI4 Full (memory-based) interfaces       --
@@ -421,6 +421,9 @@ architecture arch of shuffler is
     attribute mark_debug of voter_sel1          : signal is "TRUE";
     attribute mark_debug of voter_sel2          : signal is "TRUE";
     attribute mark_debug of voter_num           : signal is "TRUE";
+    attribute mark_debug of voter_idx0          : signal is "TRUE";
+    attribute mark_debug of voter_idx1          : signal is "TRUE";
+    attribute mark_debug of voter_idx2          : signal is "TRUE";
 
     attribute mark_debug of axi_red_AR_hs       : signal is "TRUE";
     attribute mark_debug of red_ctrl            : signal is "TRUE";
