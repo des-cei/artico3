@@ -740,7 +740,11 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
         // Add port to inputs
         p = 0;
-        while (kernels[index]->inputs[p]) p++;
+        while (kernels[index]->inputs[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
         kernels[index]->inputs[p] = port;
 
         // Bubble-sort inputs by name
@@ -768,7 +772,11 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
         // Add port to outputs
         p = 0;
-        while (kernels[index]->outputs[p]) p++;
+        while (kernels[index]->outputs[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
         kernels[index]->outputs[p] = port;
 
         // Bubble-sort outputs by name
@@ -795,6 +803,9 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
     // Return allocated memory
     return port->data;
+
+err_noport:
+    free(port->data);
 
 err_malloc_port_data:
     free(port->name);
