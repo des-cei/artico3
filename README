@@ -1,5 +1,29 @@
---------------------
--- ARTICo3 Primer --
---------------------
+==============
+ARTICo3 Primer
+==============
 
-TODO
+ARTICo3 is a reconfigurable computing architecture based on multiple
+hardware acceleration, and able to provide dynamic and adaptive behavior
+at runtime by trading off between its three main pillars (*):
+    - Computing Performance
+    - Energy Consumption
+    - Fault Tolerance
+
+ARTICo3 uses slot-based Dynamic and Partial Reconfiguration (DPR) to
+provide module replication, a feature that is combined with a configurable
+datapath to support different data transfer patterns (SIMD-like execution,
+nMR redundant execution).
+
+This repository contains the ARTICo3 framework, which consists of the
+basic hardware infrastructure (VHDL IP cores), as well as the runtime
+API used to execute user applications with explicit task- and data-level
+parallelism under Linux.
+
+Users can found more information on the different development stages in
+the doc/ folder.
+
+
+(*) ARTICo3 stands for Reconfigurable Architecture to enable Intelligent
+Management of Computing performance, energy Consumption and Dependability
+(in Spanish, "Arquitectura Reconfigurable para el Tratamiento Inteligente
+de Cómputo, Consumo y Confiafilidad").

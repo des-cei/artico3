@@ -1,0 +1,89 @@
+============================
+ARTICo3 Kernel Specification
+============================
+
+:Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+
+This is a guide to develop ARTICo3 kernels (hardware accelerators).
+The ARTICo3 toolchain supports kernel specification using low-level
+HDL descriptions or high-level C-based descriptions to undergo HLS.
+
+
+ARTICo3 Wrapper
+===============
+
+Either using HDL or C source code, the toolchain generates a VHDL entity
+that is connected to a standard wrapper. This wrapper provides the user
+logic with a configurable number of memory banks, each one acting as a
+single port BRAM. In addition, the wrapper provides a data counter that
+can be used from the user logic to know how many 32-bit data words have
+been written to the local memory banks.
+
+
+HDL Kernel Specification
+========================
+
+entity <kernel_name> is
+    generic (
+        C_DATA_WIDTH  : natural := 32; -- Data bus width (for ARTICo3 in Zynq, use 32 bits)
+        C_ADDR_WIDTH  : natural := 16  -- Address bus width (for ARTICo3 in Zynq, use 16 bits)
+    );
+    port (
+        -- Global signals
+        clk           : in  std_logic;
+        reset         : in  std_logic;
+        -- Control signals
+        start         : in  std_logic;
+        ready         : out std_logic;
+        -- Input data memories
+        bram_<i>_clk  : out std_logic;
+        bram_<i>_rst  : out std_logic;
+        bram_<i>_en   : out std_logic;
+        bram_<i>_we   : out std_logic;
+        bram_<i>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
+        bram_<i>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<i>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        (...)
+        -- Output data memories
+        bram_<j>_clk  : out std_logic;
+        bram_<j>_rst  : out std_logic;
+        bram_<j>_en   : out std_logic;
+        bram_<j>_we   : out std_logic;
+        bram_<j>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
+        bram_<j>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<j>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        (...)
+        -- Data counter
+        values        : in  std_logic_vector(31 downto 0)
+    );
+end <kernel_name>;
+
+
+* The naming convention for input/output memories is as follows:
+    - Input memories start at i = 0
+    - Output memories start at j = i + 1, where i is the last input bank
+
+* The timing of the START/READY pair has to be the following:
+        __    __    __    __    __    __    __    __    __    __    __
+clk   _/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \_
+                     _____                               _____
+start ______________/     \_____________________________/     \_________
+      ____________________             _______________________
+ready                     \___________/                       \_________
+
+
+C-Based HLS Kernel Specification
+================================
+
+#include "artico3.h"
+
+A3_KERNEL(a3in_t <in_0>, (...), a3in_t <in_i>, a3out_t <out_0>, (...), a3out_t <out_j>) {
+    (...)
+}
+
+
+* It is important to identify input and output ports using the flags:
+    - a3in_t for input ports
+    - a3out_t for output ports
+
+* HLS-based accelerators require the addition of the "artico3.h" header

@@ -1,0 +1,37 @@
+===================
+ARTICo3 Runtime API
+===================
+
+:Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+
+The ARTICo3 runtime API contains the basic function calls that need to
+be used by user applications to access the ARTICo3 infrastructure.
+
+
+Infrastructure
+==============
+
+artico3_init()
+artico3_exit()
+
+
+Kernel Management
+=================
+
+artico3_kernel_create()
+artico3_kernel_release()
+artico3_kernel_execute()
+artico3_kernel_wait()
+
+
+Memory Management
+=================
+
+artico3_alloc()
+artico3_free()
+
+
+Runtime Management
+==================
+
+TODO
