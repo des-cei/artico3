@@ -48,17 +48,17 @@ entity shuffler is
         -- (Note that C_S_AXI_ADDR_WIDTH has to be set accordingly)
         C_NUM_REG_RO         : integer := 40;
         -- Number of pipeline stages (registers) between IF and hardware accelerators
-        C_PIPE_DEPTH         : integer := 3;
+        C_PIPE_DEPTH         : integer := <a3<PIPE_DEPTH>a3>;
         -- Number of cycles required to generate a valid en signal
         C_EN_LATENCY         : integer := 4;
         -- Number of cycles required to vote valid data
         C_VOTER_LATENCY      : integer := 2;
         -- Maximum number of reconfigurable slots (if this value is changed, the port section of the entity needs to be modified too, as well as the ARTICo3 interface section in the architecture)
-        C_MAX_SLOTS          : integer := 16;
+        C_MAX_SLOTS          : integer := <a3<NUM_SLOTS>a3>;
         -- Clock gating configuration (valid values are "NO_BUFFER", "GLOBAL", "HORIZONTAL")
-        C_CLK_GATE_BUFFER    : string := "HORIZONTAL";
+        C_CLK_GATE_BUFFER    : string := "<a3<CLK_BUFFER>a3>";
         -- Reset buffer configuration (valid values are "NO_BUFFER", "GLOBAL", "HORIZONTAL")
-        C_RST_BUFFER         : string := "HORIZONTAL";
+        C_RST_BUFFER         : string := "<a3<RST_BUFFER>a3>";
 
         --------------------------
         -- Interface parameters --

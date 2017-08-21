@@ -169,12 +169,8 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
 # APPLICATION CONFIGURATION
 
-    # Create instance of ARTICo3 infrastructure and apply custom configuration
+    # Create instance of ARTICo3 infrastructure
     create_bd_cell -type ip -vlnv cei.upm.es:artico3:artico3_shuffler:1.0 artico3_shuffler_0
-    set_property -dict [list CONFIG.C_MAX_SLOTS <a3<NUM_SLOTS>a3>] [get_bd_cells artico3_shuffler_0]
-    set_property -dict [list CONFIG.C_PIPE_DEPTH <a3<PIPE_DEPTH>a3>] [get_bd_cells artico3_shuffler_0]
-    set_property -dict [list CONFIG.C_CLK_GATE_BUFFER <a3<CLK_BUFFER>a3>] [get_bd_cells artico3_shuffler_0]
-    set_property -dict [list CONFIG.C_RST_BUFFER <a3<RST_BUFFER>a3>] [get_bd_cells artico3_shuffler_0]
 
     # Create instances of hardware kernels
 <a3<generate for SLOTS>a3>
