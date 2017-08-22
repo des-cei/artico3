@@ -67,21 +67,15 @@ proc artico3_build_bitstream {} {
     puts "\[A3DK\] generating kernel <a3<KernCoreName>a3>"
 
     # Generate output products
-    generate_target all [get_files *<a3<KernCoreName>a3>_rlib.bd]
+    generate_target all [get_files *<a3<KernCoreName>a3>.bd]
     # Export IP user files
-    export_ip_user_files -of_objects [get_files *<a3<KernCoreName>a3>_rlib.bd] -no_script -sync -force -quiet
+    export_ip_user_files -of_objects [get_files *<a3<KernCoreName>a3>.bd] -no_script -sync -force -quiet
     # Create specific IP run
-    create_ip_run [get_files -of_objects [get_fileset sources_1] *<a3<KernCoreName>a3>_rlib.bd]
-    # Generate run list
-    set run_list {
-<a3<=generate for SLOTS=>a3>
-        <a3<KernCoreName>a3>_rlib_a3_slot_<a3<id>a3>_0_synth_1\
-<a3<=end generate=>a3>
-    }
-    # Launch module runs
-    launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] $run_list
-    # Wait for module runs to finish
-    foreach run $run_list {wait_on_run $run -quiet}
+    create_ip_run [get_files -of_objects [get_fileset sources_1] *<a3<KernCoreName>a3>.bd]
+    # Launch module run
+    launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] <a3<KernCoreName>a3>_a3_slot_0_synth_1
+    # Wait for module run to finish
+    wait_on_run <a3<KernCoreName>a3>_a3_slot_0_synth_1
 <a3<end generate>a3>
     #
     # Main system implementation
@@ -140,7 +134,7 @@ proc artico3_build_bitstream {} {
 
     # Replace black boxes by kernel logic
 <a3<=generate for SLOTS=>a3>
-    read_checkpoint -cell [get_cells -hierarchical a3_slot_<a3<id>a3>] myARTICo3.runs/<a3<KernCoreName>a3>_rlib_a3_slot_<a3<id>a3>_0_synth_1/<a3<KernCoreName>a3>_rlib_a3_slot_<a3<id>a3>_0.dcp
+    read_checkpoint -cell [get_cells -hierarchical a3_slot_<a3<id>a3>] myARTICo3.runs/<a3<KernCoreName>a3>_a3_slot_0_synth_1/<a3<KernCoreName>a3>_a3_slot_0.dcp
 <a3<=end generate=>a3>
 
     # Run implementation

@@ -257,33 +257,26 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     #
 
     # Create submodule block design
-    create_bd_design "<a3<KernCoreName>a3>_rlib"
+    create_bd_design "<a3<KernCoreName>a3>"
 
-    # Create dummy ports
-<a3<=generate for SLOTS=>a3>
-    create_bd_intf_port -mode Slave -vlnv cei.upm.es:artico3:artico3_rtl:1.0 s<a3<id>a3>_artico3
-<a3<=end generate=>a3>
+    # Create dummy port
+    create_bd_intf_port -mode Slave -vlnv cei.upm.es:artico3:artico3_rtl:1.0 s_artico3
 
-    # Create module instances (one per each slot, since there is no relocation)
-<a3<=generate for SLOTS=>a3>
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
-<a3<=end generate=>a3>
+    # Create module instance
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot"
 
-    # Connect ARTICo3 slots
-<a3<=generate for SLOTS=>a3>
-    connect_bd_intf_net -intf_net artico3_slot<a3<id>a3> [get_bd_intf_ports s<a3<id>a3>_artico3] [get_bd_intf_pins a3_slot_<a3<id>a3>/s_artico3]
-<a3<=end generate=>a3>
+    # Connect ARTICo3 slot
+    connect_bd_intf_net -intf_net artico3_slot [get_bd_intf_ports s_artico3] [get_bd_intf_pins a3_slot/s_artico3]
 
     # Update layout of block design
     regenerate_bd_layout
 
     #make wrapper file; vivado needs it to implement design
-    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>_rlib/<a3<KernCoreName>a3>_rlib.bd] -top
-    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>_rlib/hdl/<a3<KernCoreName>a3>_rlib_wrapper.vhd
+    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>/<a3<KernCoreName>a3>.bd] -top
+    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>/hdl/<a3<KernCoreName>a3>_wrapper.vhd
     update_compile_order -fileset sources_1
     update_compile_order -fileset sim_1
     save_bd_design
-
 <a3<end generate>a3>
 # END
 
