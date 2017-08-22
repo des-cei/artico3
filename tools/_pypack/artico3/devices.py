@@ -28,7 +28,9 @@ with the following data:
                    horizontal (use local buffers per clock region)
 
 In addition, users need to provide an XDC file with all low-level
-constraints required to build the system.
+constraints required to build the system. This file has to be placed in
+templates/a3_devices, and has to be named <part>.xdc being <part> the
+dictionary entry name (fpgas["<part>"] = dev).
 
 ------------------------------------------------------------------------
 """
