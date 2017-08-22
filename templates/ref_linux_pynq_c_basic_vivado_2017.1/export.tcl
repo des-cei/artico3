@@ -133,7 +133,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     # Start block design
     #
 
-    create_bd_design "design_1"
+    create_bd_design "system"
     update_compile_order -fileset sources_1
 
     # Add artico3 repository
@@ -174,7 +174,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
     # Create instances of hardware kernels
 <a3<generate for SLOTS>a3>
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<SlotCoreName>a3>:[str range <a3<SlotCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
 <a3<end generate>a3>
 
     # Required to avoid problems with AXI Interconnect
@@ -242,12 +242,57 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     regenerate_bd_layout
 
     #make wrapper file; vivado needs it to implement design
-    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/design_1/design_1.bd] -top
-    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.vhd
+    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/system/system.bd] -top
+    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/system/hdl/system_wrapper.vhd
     update_compile_order -fileset sources_1
     update_compile_order -fileset sim_1
-    set_property top design_1_wrapper [current_fileset]
+    set_property top system_wrapper [current_fileset]
     save_bd_design
+
+# KERNEL LIBRARY (Xilinx Partial Reconfiguration Flow)
+
+<a3<generate for KERNELS>a3>
+    #
+    # Kernel : <a3<KernCoreName>a3>
+    #
+
+    # Create submodule block design
+    create_bd_design "<a3<KernCoreName>a3>_rlib"
+
+    # Create dummy ports
+<a3<=generate for SLOTS=>a3>
+    create_bd_intf_port -mode Slave -vlnv cei.upm.es:artico3:artico3_rtl:1.0 s<a3<id>a3>_artico3
+<a3<=end generate=>a3>
+
+    # Create module instances (one per each slot, since there is no relocation)
+<a3<=generate for SLOTS=>a3>
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
+<a3<=end generate=>a3>
+
+    # Connect ARTICo3 slots
+<a3<=generate for SLOTS=>a3>
+    connect_bd_intf_net -intf_net artico3_slot<a3<id>a3> [get_bd_intf_ports s<a3<id>a3>_artico3] [get_bd_intf_pins a3_slot_<a3<id>a3>/s_artico3]
+<a3<=end generate=>a3>
+
+    # Update layout of block design
+    regenerate_bd_layout
+
+    #make wrapper file; vivado needs it to implement design
+    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>_rlib/<a3<KernCoreName>a3>_rlib.bd] -top
+    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>_rlib/hdl/<a3<KernCoreName>a3>_rlib_wrapper.vhd
+    update_compile_order -fileset sources_1
+    update_compile_order -fileset sim_1
+    save_bd_design
+
+<a3<end generate>a3>
+# END
+
+# LOW-LEVEL DEPENDENCIES
+
+    # Add DPR constraints
+    add_files -fileset constrs_1 -norecurse $proj_dir/<a3<PART>a3>.xdc
+
+# END
 
 }
 
