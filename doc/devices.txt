@@ -1,0 +1,32 @@
+======================
+Adding New FPGA Device
+======================
+
+:Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+
+This is a short manual on how to add custom FPGA parts to be used with
+the ARTICo3 toolchain.
+
+
+Requirements
+============
+
+In order to add a new FPGA device to the list of devices already supported
+by the ARTICo3 toolchain, developers need to follow two steps:
+
+    1. Add a new dictionary entry in tools/_pypack/artico3/devices.py
+
+        # xc7z020 (Pynq, ZedBoard, MicroZed)
+        dev = {}
+        dev["slots"] = 4
+        dev["pipe_depth"] = 3
+        dev["clk_buffer"] = "horizontal"
+        dev["rst_buffer"] = "global"
+        fpgas["xc7z020"] = dev
+
+    2. Add a new low-level constraints file in templates/artico3_devices
+       with (templates/artico3_devices/xc7z020.xdc can be used as an
+       example).
+
+    NOTE: the name of the file has to be exactly the same as the one used
+          in the dictionary entry.
