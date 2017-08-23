@@ -51,8 +51,8 @@ int main(int argc, char *argv[]) {
     artico3_load("addvector", 2, 1, 0, 1);
     artico3_load("addvector", 3, 1, 0, 1);
     gettimeofday(&tf, NULL);
-    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
-    printf("Kernel loading : %.6f ms\n", t);
+    t_hw = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    printf("Kernel loading : %.6f ms\n", t_hw);
 
     gettimeofday(&t0, NULL);
     artico3_load("addvector", 0, 0, 0, 0);
@@ -60,8 +60,8 @@ int main(int argc, char *argv[]) {
     artico3_load("addvector", 2, 1, 0, 0);
     artico3_load("addvector", 3, 1, 0, 0);
     gettimeofday(&tf, NULL);
-    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
-    printf("Kernel loading (no force): %.6f ms\n", t);
+    t_hw = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    printf("Kernel loading (no force): %.6f ms\n", t_hw);
 
     // Allocate data buffers
     a = artico3_alloc(blocks * VALUES * sizeof *a, "addvector", "a", A3_P_I);

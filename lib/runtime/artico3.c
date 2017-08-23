@@ -876,7 +876,7 @@ int artico3_free(const char *kname, const char *pname) {
 
 // TODO: add documentation for this function
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
-    unsigned int index, i;
+    unsigned int index;
     int fd;
     FILE *fp;
     char filename[128];
