@@ -162,7 +162,7 @@ int artico3_init() {
     }
     for (i = 0; i < A3_MAXSLOTS; i++) {
         shuffler.slots[i].kernel = NULL;
-        shuffler.slots[i].state  = S_EMPTY;
+        shuffler.slots[i].state = S_EMPTY;
     }
     a3_print_debug("[artico3-hw] shuffler.slots=%p\n", shuffler.slots);
 
@@ -875,10 +875,16 @@ int artico3_free(const char *kname, const char *pname) {
 
 
 // TODO: add documentation for this function
-int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
-    unsigned int index;
+int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+    unsigned int index, i;
+    int fd;
+    FILE *fp;
+    char filename[128];
+    uint32_t buffer[1024];
+    int ret;
 
     uint8_t id;
+    uint8_t reconf;
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -898,6 +904,103 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
 
         // Only change configuration when no kernel is being executed
         if (!running) {
+
+            // Check if partial reconfiguration is required
+            if (shuffler.slots[index].state == S_EMPTY) {
+                reconf = 1;
+            }
+            else {
+                if (strcmp(shuffler.slots[index].kernel->name, name) != 0) {
+                    reconf = 1;
+                }
+                else {
+                    reconf = 0;
+                }
+            }
+
+            // Even if reconfiguration is not required, it can be forced
+            reconf |= force;
+
+            // Perform DPR
+            if (reconf) {
+
+                // Set slot flag
+                shuffler.slots[index].state = S_LOAD;
+
+                // Open configuration file
+                fd = open("/sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream", O_RDWR);
+                if (fd < 0) {
+                    a3_print_error("[artico3-hw] open() /sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream failed\n");
+                    ret = -ENODEV;
+                    goto err_xdevcfg;
+                }
+
+                // Enable partial reconfiguration
+                write(fd, "1", strlen("1"));
+                a3_print_debug("[artico3-hw] DPR enabled\n");
+
+                // Close configuration file
+                close(fd);
+
+                // Open device file
+                fd = open("/dev/xdevcfg", O_RDWR);
+                if (fd < 0) {
+                    a3_print_error("[artico3-hw] open() /dev/xdevcfg failed\n");
+                    ret = -ENODEV;
+                    goto err_xdevcfg;
+                }
+
+                // Open partial bitstream file
+                sprintf(filename, "pbs/a3_%s_a3_slot_%d_partial.bin", name, slot);
+                fp = fopen(filename, "rb");
+                if (!fp) {
+                    a3_print_error("[artico3-hw] fopen() %s failed\n", filename);
+                    ret = -ENOENT;
+                    goto err_pbs;
+                }
+                a3_print_debug("[artico3-hw] opened partial bitstream file %s\n", filename);
+
+                // Read partial bitstream file and write to reconfiguration engine
+                while (!feof(fp)) {
+
+                    // Read from file
+                    ret = fread(buffer, sizeof (uint32_t), 1024, fp);
+
+                    // Write to reconfiguration engine
+                    if (ret > 0) {
+                        write(fd, buffer, ret * sizeof (uint32_t));
+                    }
+
+                }
+
+                // Close partial bitstream file
+                fclose(fp);
+
+                // Close device file
+                close(fd);
+
+                // Open configuration file
+                fd = open("/sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream", O_RDWR);
+                if (fd < 0) {
+                    a3_print_error("[artico3-hw] open() /sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream failed\n");
+                    ret = -ENODEV;
+                    goto err_xdevcfg;
+                }
+
+                // Disable partial reconfiguration
+                write(fd, "0", strlen("0"));
+                a3_print_debug("[artico3-hw] DPR disabled\n");
+
+                // Close configuration file
+                close(fd);
+
+                // Set slot flag
+                shuffler.slots[index].state = S_IDLE;
+
+            }
+
+            // Update ARTICo3 slot info
+            shuffler.slots[index].kernel = kernels[index];
 
             // Update ARTICo3 configuration registers
             shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
@@ -921,4 +1024,12 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr) {
     a3_print_debug("[artico3-hw] loaded accelerator \"%s\" on slot %d\n", name, slot);
 
     return 0;
+
+err_pbs:
+    close(fd);
+
+err_xdevcfg:
+    pthread_mutex_unlock(&mutex);
+
+    return ret;
 }

@@ -96,7 +96,7 @@ proc artico3_build_bitstream {} {
 
     # Generate static system bitstream
     file mkdir [pwd]/bitstreams
-    write_bitstream -force bitstreams/system.bit
+    write_bitstream -force -no_binary_bitfile -no_partial_bitfile -bin_file bitstreams/system
 
     # Replace slot contents by black boxes
 <a3<generate for SLOTS>a3>
@@ -136,7 +136,7 @@ proc artico3_build_bitstream {} {
     pr_verify checkpoints/system.dcp checkpoints/<a3<KernCoreName>a3>.dcp
 
     # Generate bitstream
-    write_bitstream -force bitstreams/<a3<KernCoreName>a3>.bit
+    write_bitstream -force -no_binary_bitfile -bin_file bitstreams/<a3<KernCoreName>a3>
 <a3<end generate>a3>
     # Close Vivado project
     close_project

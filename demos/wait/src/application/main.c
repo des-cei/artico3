@@ -48,12 +48,23 @@ int main(int argc, char *argv[]) {
     artico3_kernel_create("wait4s", 16384, 3, 3, 3);
 
     // Load accelerators
-    artico3_load("wait1s", 0, 1, 0);
-    artico3_load("wait1s", 1, 1, 0);
-    artico3_load("wait1s", 2, 1, 0);
+    gettimeofday(&t0, NULL);
+    artico3_load("wait1s", 0, 1, 0, 1);
+    artico3_load("wait1s", 1, 1, 0, 1);
+    artico3_load("wait1s", 2, 1, 0, 1);
+    artico3_load("wait4s", 3, 0, 0, 1);
+    gettimeofday(&tf, NULL);
+    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    printf("Kernel loading : %.6f ms\n", t);
 
-    artico3_load("wait4s", 3, 0, 1);
-    artico3_load("wait4s", 4, 0, 1);
+    gettimeofday(&t0, NULL);
+    artico3_load("wait1s", 0, 1, 0, 0);
+    artico3_load("wait1s", 1, 1, 0, 0);
+    artico3_load("wait1s", 2, 1, 0, 0);
+    artico3_load("wait4s", 3, 0, 0, 0);
+    gettimeofday(&tf, NULL);
+    t = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
+    printf("Kernel loading (no force) : %.6f ms\n", t);
 
     // Allocate data buffers
     a = artico3_alloc(blocks * VALUES * sizeof *a, "wait1s", "a", A3_P_I);
