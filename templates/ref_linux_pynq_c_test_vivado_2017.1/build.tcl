@@ -59,7 +59,7 @@ proc artico3_build_bitstream {} {
     launch_runs synth_1 -jobs [ expr [get_cpu_core_count] / 2 + 1]
     wait_on_run synth_1
 
-<a3<generate for KERNELS>a3>
+<a3<generate for KERNELS(KernCoreName!="a3_dummy")>a3>
     #
     # Kernel synthesis : <a3<KernCoreName>a3>
     #
@@ -73,9 +73,9 @@ proc artico3_build_bitstream {} {
     # Create specific IP run
     create_ip_run [get_files -of_objects [get_fileset sources_1] *<a3<KernCoreName>a3>.bd]
     # Launch module run
-    launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] <a3<KernCoreName>a3>_a3_slot_0_synth_1
+    launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] <a3<KernCoreName>a3>_slot_0_synth_1
     # Wait for module run to finish
-    wait_on_run <a3<KernCoreName>a3>_a3_slot_0_synth_1
+    wait_on_run <a3<KernCoreName>a3>_slot_0_synth_1
 <a3<end generate>a3>
     #
     # Main system implementation
@@ -90,6 +90,14 @@ proc artico3_build_bitstream {} {
     # Open implemented design
     open_run impl_1
 
+    # Save checkpoint
+    file mkdir [pwd]/checkpoints
+    write_checkpoint checkpoints/system.dcp
+
+    # Generate static system bitstream
+    file mkdir [pwd]/bitstreams
+    write_bitstream -force bitstreams/system.bit
+
     # Replace slot contents by black boxes
 <a3<generate for SLOTS>a3>
     update_design -cells [get_cells -hierarchical a3_slot_<a3<id>a3>] -black_box
@@ -99,30 +107,9 @@ proc artico3_build_bitstream {} {
     lock_design -level routing
 
     # Save checkpoint
-    file mkdir [pwd]/checkpoints
     write_checkpoint checkpoints/static.dcp
 
-    # Add buffer ports to have "blank" bitstreams
-<a3<generate for SLOTS>a3>
-    update_design -cells [get_cells -hierarchical a3_slot_<a3<id>a3>] -buffer_ports
-<a3<end generate>a3>
-
-    # Run implementation
-    opt_design
-    place_design
-    route_design
-
-    # Save checkpoint
-    write_checkpoint checkpoints/system.dcp
-
-    # Verify checkpoint compatibility
-    pr_verify checkpoints/static.dcp checkpoints/system.dcp
-
-    # Generate static system bitstream
-    file mkdir [pwd]/bitstreams
-    write_bitstream -force bitstreams/system.bit
-
-<a3<generate for KERNELS>a3>
+<a3<generate for KERNELS(KernCoreName!="a3_dummy")>a3>
     #
     # Kernel implementation : <a3<KernCoreName>a3>
     #
@@ -134,7 +121,7 @@ proc artico3_build_bitstream {} {
 
     # Replace black boxes by kernel logic
 <a3<=generate for SLOTS=>a3>
-    read_checkpoint -cell [get_cells -hierarchical a3_slot_<a3<id>a3>] myARTICo3.runs/<a3<KernCoreName>a3>_a3_slot_0_synth_1/<a3<KernCoreName>a3>_a3_slot_0.dcp
+    read_checkpoint -cell [get_cells -hierarchical a3_slot_<a3<id>a3>] myARTICo3.runs/<a3<KernCoreName>a3>_slot_0_synth_1/<a3<KernCoreName>a3>_slot_0.dcp
 <a3<=end generate=>a3>
 
     # Run implementation
@@ -146,7 +133,7 @@ proc artico3_build_bitstream {} {
     write_checkpoint checkpoints/<a3<KernCoreName>a3>.dcp
 
     # Verify checkpoint compatibility
-    pr_verify checkpoints/static.dcp checkpoints/<a3<KernCoreName>a3>.dcp
+    pr_verify checkpoints/system.dcp checkpoints/<a3<KernCoreName>a3>.dcp
 
     # Generate bitstream
     write_bitstream -force bitstreams/<a3<KernCoreName>a3>.bit
