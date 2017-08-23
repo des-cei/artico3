@@ -109,6 +109,10 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     }
 # END
 
+    # Apply custom configuration for Synthesis
+    set obj [get_runs synth_1]
+    set_property "steps.synth_design.args.flatten_hierarchy" "rebuilt" $obj
+
     # set the current synth run
     current_run -synthesis [get_runs synth_1]
 
@@ -122,9 +126,12 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     }
 # END
 
+    # Apply custom configuration for Implementation
     set obj [get_runs impl_1]
-    set_property "steps.write_bitstream.args.readback_file" "0" $obj
-    set_property "steps.write_bitstream.args.verbose" "0" $obj
+    set_property "steps.write_bitstream.args.mask_file" false $obj
+    set_property "steps.write_bitstream.args.bin_file" false $obj
+    set_property "steps.write_bitstream.args.readback_file" false $obj
+    set_property "steps.write_bitstream.args.verbose" false $obj
 
     # set the current impl run
     current_run -implementation [get_runs impl_1]
