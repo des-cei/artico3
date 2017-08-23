@@ -287,7 +287,7 @@ load_artico3_interfaces $ip_repo
 import_pcore $ip_repo artico3_shuffler_v1_00_a ""
 
 # Import all required ARTICo3 kernels
-<a3<generate for SLOTS>a3>
+<a3<generate for KERNELS>a3>
 lappend kerns_list <a3<KernCoreName>a3>_v[string map {. _} "<a3<KernCoreVersion>a3>"]
 <a3<end generate>a3>
 

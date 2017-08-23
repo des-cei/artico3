@@ -289,7 +289,7 @@ import_pcore $ip_repo test_axi4full_v1_00_a ""
 import_pcore $ip_repo test_axi4lite_v1_00_a ""
 
 # Import all required ARTICo3 kernels
-<a3<generate for SLOTS>a3>
+<a3<generate for KERNELS>a3>
 lappend kerns_list <a3<KernCoreName>a3>_v[string map {. _} "<a3<KernCoreVersion>a3>"]
 <a3<end generate>a3>
 

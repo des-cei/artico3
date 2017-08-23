@@ -49,14 +49,23 @@ def get_dict(prj):
     dictionary["PIPE_DEPTH"] = prj.shuffler.stages
     dictionary["CLK_BUFFER"] = "NO_BUFFER" if prj.shuffler.clkbuf == "none" else prj.shuffler.clkbuf.upper()
     dictionary["RST_BUFFER"] = "NO_BUFFER" if prj.shuffler.rstbuf == "none" else prj.shuffler.rstbuf.upper()
+    dictionary["PART"] = prj.shuffler.xdcpart
+    src = shutil2.join(prj.impl.repo, "templates/artico3_devices", prj.shuffler.xdcpart + ".xdc")
+    dictionary["SOURCES"] = [src]
     dictionary["SLOTS"] = []
     for slot in prj.slots:
         if slot.kerns:
             d = {}
-            d["KernCoreName"] = slot.kerns[0].get_corename()
-            d["KernCoreVersion"] = slot.kerns[0].get_coreversion()
+            d["SlotCoreName"] = slot.kerns[0].get_corename()
+            d["SlotCoreVersion"] = slot.kerns[0].get_coreversion()
             d["id"] = slot.id
             dictionary["SLOTS"].append(d)
+    dictionary["KERNELS"] = []
+    for kernel in prj.kerns:
+        d = {}
+        d["KernCoreName"] = kernel.get_corename()
+        d["KernCoreVersion"] = kernel.get_coreversion()
+        dictionary["KERNELS"].append(d)
     return dictionary
 
 def export_hw_cmd(args):

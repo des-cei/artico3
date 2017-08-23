@@ -109,6 +109,10 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     }
 # END
 
+    # Apply custom configuration for Synthesis
+    set obj [get_runs synth_1]
+    set_property "steps.synth_design.args.flatten_hierarchy" "rebuilt" $obj
+
     # set the current synth run
     current_run -synthesis [get_runs synth_1]
 
@@ -122,9 +126,12 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     }
 # END
 
+    # Apply custom configuration for Implementation
     set obj [get_runs impl_1]
-    set_property "steps.write_bitstream.args.readback_file" "0" $obj
-    set_property "steps.write_bitstream.args.verbose" "0" $obj
+    set_property "steps.write_bitstream.args.mask_file" false $obj
+    set_property "steps.write_bitstream.args.bin_file" false $obj
+    set_property "steps.write_bitstream.args.readback_file" false $obj
+    set_property "steps.write_bitstream.args.verbose" false $obj
 
     # set the current impl run
     current_run -implementation [get_runs impl_1]
@@ -133,7 +140,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     # Start block design
     #
 
-    create_bd_design "design_1"
+    create_bd_design "system"
     update_compile_order -fileset sources_1
 
     # Add artico3 repository
@@ -174,7 +181,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
     # Create instances of hardware kernels
 <a3<generate for SLOTS>a3>
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<SlotCoreName>a3>:[str range <a3<SlotCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
 <a3<end generate>a3>
 
     # Create other instances
@@ -262,12 +269,50 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     regenerate_bd_layout
 
     #make wrapper file; vivado needs it to implement design
-    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/design_1/design_1.bd] -top
-    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.vhd
+    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/system/system.bd] -top
+    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/system/hdl/system_wrapper.vhd
     update_compile_order -fileset sources_1
     update_compile_order -fileset sim_1
-    set_property top design_1_wrapper [current_fileset]
+    set_property top system_wrapper [current_fileset]
     save_bd_design
+
+# KERNEL LIBRARY (Xilinx Partial Reconfiguration Flow)
+
+<a3<generate for KERNELS(KernCoreName!="a3_dummy")>a3>
+    #
+    # Kernel : <a3<KernCoreName>a3>
+    #
+
+    # Create submodule block design
+    create_bd_design "<a3<KernCoreName>a3>"
+
+    # Create dummy port
+    create_bd_intf_port -mode Slave -vlnv cei.upm.es:artico3:artico3_rtl:1.0 s_artico3
+
+    # Create module instance
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "slot"
+
+    # Connect ARTICo3 slot
+    connect_bd_intf_net -intf_net artico3_slot [get_bd_intf_ports s_artico3] [get_bd_intf_pins slot/s_artico3]
+
+    # Update layout of block design
+    regenerate_bd_layout
+
+    #make wrapper file; vivado needs it to implement design
+    make_wrapper -files [get_files $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>/<a3<KernCoreName>a3>.bd] -top
+    add_files -norecurse $proj_dir/$proj_name.srcs/sources_1/bd/<a3<KernCoreName>a3>/hdl/<a3<KernCoreName>a3>_wrapper.vhd
+    update_compile_order -fileset sources_1
+    update_compile_order -fileset sim_1
+    save_bd_design
+<a3<end generate>a3>
+# END
+
+# LOW-LEVEL DEPENDENCIES
+
+    # Add DPR constraints
+    add_files -fileset constrs_1 -norecurse $proj_dir/<a3<PART>a3>.xdc
+
+# END
 
 }
 

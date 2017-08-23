@@ -54,6 +54,10 @@ def info(args):
     print("  Clock Buffers".ljust(20) + prj.shuffler.clkbuf)
     print("  Reset Buffers".ljust(20) + prj.shuffler.rstbuf)
     print("-" * 40)
+    print("Kernels:")
+    for kernel in prj.kerns:
+        print(kernel)
+    print("-" * 40)
     print("Slots:")
     for slot in prj.slots:
         print(slot)

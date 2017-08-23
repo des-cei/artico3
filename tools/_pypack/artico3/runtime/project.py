@@ -26,6 +26,7 @@ import logging
 
 import artico3.utils.shutil2 as shutil2
 import artico3.utils.template as template
+import artico3.devices as devices
 
 log = logging.getLogger(__name__)
 
@@ -37,13 +38,14 @@ class Shuffler:
         self.stages = 0
         self.clkbuf = "none"
         self.rstbuf = "none"
+        self.xdcpart = ""
 
     def __repr__(self):
         msg = ("<ARTICo\u00b3 Shuffler> "
                "slots={},pipeline_stages={},clock_buffers={},"
-               "reset_buffers={}")
+               "reset_buffers={},xdc={}.xdc")
         return msg.format(self.slots, self.stages, self.clkbuf,
-            self.rstbuf)
+            self.rstbuf, self.xdcpart)
 
 class Slot:
     """Class to store information of an ARTICo\u00b3 slot."""
@@ -189,31 +191,32 @@ class Project:
         log.debug(str(self))
         log.debug(str(self.impl))
 
-        self._parse_shuffler(cfg)
+        self._parse_shuffler(self.impl.part)
         self._parse_kernels(cfg)
 
-    def _parse_shuffler(self, cfg):
+        kernel = Kernel("dummy", "vhdl", 4096, 2, 2, 2, "low")
+        self.kerns.append(kernel)
+        for i in range(self.shuffler.slots):
+            slot = Slot()
+            slot.kerns.append(kernel)
+            self.slots.append(slot)
+            log.debug(str(slot))
+
+    def _parse_shuffler(self, part):
         """Parses ARTICo\u00b3 Shuffler configuration."""
 
-        if cfg.has_option("ARTICo3", "Slots"):
-            self.shuffler.slots = int(cfg.get("ARTICo3", "Slots"))
+        for device in devices.fpgas.keys():
+            if device in part:
+                self.shuffler.slots = devices.fpgas[device]["slots"];
+                self.shuffler.stages = devices.fpgas[device]["pipe_depth"]
+                self.shuffler.clkbuf = devices.fpgas[device]["clk_buffer"]
+                self.shuffler.rstbuf = devices.fpgas[device]["rst_buffer"]
+                self.shuffler.xdcpart = device
+                log.debug(str(self.shuffler))
+                break
         else:
-            log.warning("Number of ARTICo\u00b3 slots not specified, using 3")
-            self.shuffler.slots = 3
-        if cfg.has_option("ARTICo3", "PipelineStages"):
-            self.shuffler.stages = int(cfg.get("ARTICo3", "PipelineStages"))
-        else:
-            self.shuffler.stages = 0
-        if cfg.has_option("ARTICo3", "ClockBuffers"):
-            self.shuffler.clkbuf = cfg.get("ARTICo3", "ClockBuffers")
-        else:
-            self.shuffler.clkbuf = "none"
-        if cfg.has_option("ARTICo3", "ResetBuffers"):
-            self.shuffler.rstbuf = cfg.get("ARTICo3", "ResetBuffers")
-        else:
-            self.shuffler.rstbuf = "none"
-
-        log.debug(str(self.shuffler))
+            log.error("FPGA part {} not supported".format(part))
+            sys.exit(1)
 
     def _parse_kernels(self, cfg):
         """Parses ARTICo\u00b3 kernels."""
@@ -225,12 +228,6 @@ class Project:
 
             name = match.group("name")
 
-            if cfg.has_option(kernel, "Replicas"):
-                replicas = int(cfg.get(kernel, "Replicas"))
-            else:
-                log.warning("Number of replicas not specified, assuming 1")
-                replicas = 1
-
             if cfg.has_option(kernel, "HwSource"):
                 hwsrc = cfg.get(kernel, "HwSource")
             else:
@@ -239,72 +236,55 @@ class Project:
             if cfg.has_option(kernel, "MemBytes"):
                 membytes = int(cfg.get(kernel, "MemBytes"))
             else:
-                log.warning("Local memory size for kernel not specified, assuming 16kB")
+                log.warning("[{}] local memory size for kernel not specified, assuming 16kB".format(name))
                 membytes = 16 * (2 ** 10)
 
             if cfg.has_option(kernel, "MemBanks"):
                 membanks = int(cfg.get(kernel, "MemBanks"))
             else:
-                log.warning("Number of local memory banks not specified, assuming 2")
+                log.warning("[{}] number of local memory banks not specified, assuming 2".format(name))
                 membanks = 2
 
             # NOTE: the following points are enforced by this fix.
             #         1. An odd number of banks are supported
             #         2. Each bank will have an integer number of 32-bit words
             if membytes != int(math.ceil((membytes / membanks) / 4) * 4 * membanks):
-                log.warning("Increasing kernel memory size to ensure integer number of 32-bit words per bank")
+                log.warning("[{}] increasing kernel memory size to ensure integer number of 32-bit words per bank".format(name))
                 membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
 
             if cfg.has_option(kernel, "RegRW"):
                 regrw = int(cfg.get(kernel, "RegRW"))
             else:
-                log.warning("Number of local R/W registers not specified, assuming 4")
+                log.warning("[{}] number of local R/W registers not specified, assuming 4".format(name))
                 regrw = 4
 
             if cfg.has_option(kernel, "RegRO"):
                 regro = int(cfg.get(kernel, "RegRO"))
             else:
-                log.warning("Number of local Read Only registers not specified, assuming 4")
+                log.warning("[{}] number of local Read Only registers not specified, assuming 4".format(name))
                 regro = 4
 
             if cfg.has_option(kernel, "RstPol"):
                 rstpol = cfg.get(kernel, "RstPol")
             else:
-                log.warning("Reset polarity for accelerator not found, setting active low for AXI compatibility")
+                log.warning("[{}] reset polarity for accelerator not found, setting active low for AXI compatibility".format(name))
                 rstpol = "low"
 
             kernel = Kernel(name, hwsrc, membytes, membanks, regrw,
                 regro, rstpol)
             self.kerns.append(kernel)
-            for i in range(replicas):
-                slot = Slot()
-                slot.kerns.append(kernel)
-                self.slots.append(slot)
-                log.debug(str(slot))
 
 
     def _check_project(self):
         """Checks the integrity of the loaded ARTICo\u00b3 project."""
 
-        if Slot._id > self.shuffler.slots:
-            log.error("Configured more ARTICo\u00b3 accelerators than slots")
-            sys.exit(1)
-        elif Slot._id < self.shuffler.slots:
-            kernel = Kernel("dummy", "vhdl", 4096, 2, 2, 2, "low")
-            self.kerns.append(kernel)
-            for i in range(Slot._id, self.shuffler.slots):
-                slot = Slot()
-                slot.kerns.append(kernel)
-                self.slots.append(slot)
-                log.debug(str(slot))
-
         for kernel in self.kerns:
             if kernel.hwsrc is None:
-                log.error("ARTICo\u00b3 accelerators must have a source")
+                log.error("[{}] ARTICo\u00b3 accelerators must have a source".format(kernel.name))
                 sys.exit(1)
             if kernel.membytes > (64 * (2 ** 10)):
-                log.error("ARTICo\u00b3 accelerators cannot have more than 64kB of local memory")
+                log.error("[{}] ARTICo\u00b3 accelerators cannot have more than 64kB of local memory".format(kernel.name))
                 sys.exit(1)
             if kernel.rstpol not in ("high", "low"):
-                log.error("ARTICo\u00b3 accelerators must set reset polarity properly")
+                log.error("[{}] ARTICo\u00b3 accelerators must set reset polarity properly".format(kernel.name))
                 sys.exit(1)
