@@ -551,6 +551,7 @@ void *_artico3_kernel_execute(void *data) {
     id = tdata[0];
     nrounds = tdata[1];
     free(tdata);
+    a3_print_debug("[artico3-hw] delegate scheduler thread ID:%x\n", id);
 
     // Iterate over number of rounds
     round = 0;
@@ -648,6 +649,7 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
         a3_print_error("[artico3-hw] could not launch delegate scheduler thread for kernel \"%s\"\n", name);
         return -ret;
     }
+    a3_print_debug("[artico3-hw] started delegate scheduler thread for kernel \"%s\"\n", name);
 
     return 0;
 }
