@@ -1035,3 +1035,46 @@ err_xdevcfg:
 
     return ret;
 }
+
+
+// TODO: add documentation for this function
+int artico3_unload(const char *name, size_t slot) {
+    unsigned int index;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    while (1) {
+        pthread_mutex_lock(&mutex);
+
+        // Only change configuration when no kernel is being executed
+        if (!running) {
+
+            // Update ARTICo3 slot info
+            shuffler.slots[index].kernel = NULL;
+
+            // Update ARTICo3 configuration registers
+            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
+
+            // Exit infinite loop
+            break;
+
+        }
+
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+
+    a3_print_debug("[artico3-hw] removed accelerator \"%s\" from slot %d\n", name, slot);
+
+    return 0;
+}
