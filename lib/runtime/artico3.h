@@ -140,6 +140,42 @@ int artico3_kernel_wait(const char *name);
 /*
  * MEMORY MANAGEMENT
  *
+ * In the current version of the runtime library, the distribution of the
+ * memory banks inside an ARTICo3 kernel is as follows:
+ *
+ *                                          I/O examples
+ *                              3/1     2/2     1/3     3/3     4/4
+ *
+ *     ----------               i       i       i       i       i  o
+ *     0000                     |       |       |       |       |  |
+ *     ...         Bank 0       |       |       |       |       |  |
+ *     03ff                     |       |       |       |       |  |
+ *     ----------               |       |       v  o    |  o    |  |
+ *     0400                     |       |          |    |  |    |  |
+ *     ...         Bank 1       |       |          |    |  |    |  |
+ *     07ff                     |       |          |    |  |    |  |
+ *     ----------               |       v  o       |    |  |    |  |
+ *     0800                     |          |       |    |  |    |  |
+ *     ...         Bank 2       |          |       |    |  |    |  |
+ *     0bff                     |          |       |    |  |    |  |
+ *     ----------               v  o       |       |    v  |    |  |
+ *     0c00                        |       |       |       |    |  |
+ *     ...         Bank 3          |       |       |       |    |  |
+ *     1000                        |       |       |       |    |  |
+ *     ----------                  v       v       v       v    v  v
+ *
+ * This means that bank allocation/distribution starts at the lower index
+ * for input ports, and at the higher index for output ports. This can be
+ * seen in the first example, where 3 input and 1 output bank are required
+ * (the runtime uses banks 0, 1 and 2 as inputs, and 3 as output). Notice
+ * that bidirectional ports are supported, even though they are discouraged
+ * because memory banks are implemented as single-port BRAMS and therefore
+ * the performance would be decreased due to memory bottlenecks.
+ *
+ * IMPORTANT: memory bank allocation is performed automatically by the
+ *            runtime library and therefore, users cannot explicitly
+ *            specify which bank to use for which input/output port.
+ *
  */
 
 /*
