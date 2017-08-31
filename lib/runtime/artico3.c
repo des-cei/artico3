@@ -27,6 +27,8 @@
 #include <sys/mman.h>  // mmap()
 #include <sys/ioctl.h> // ioctl()
 
+#include <sys/time.h>  // struct timeval, gettimeofday()
+
 #include "dmaproxy.h"
 #include "artico3.h"
 #include "artico3_hw.h"
@@ -546,6 +548,9 @@ void *_artico3_kernel_execute(void *data) {
     uint8_t id;
     uint32_t readymask;
 
+    struct timeval t0, tf;
+    float tsend = 0, texec = 0, trecv = 0;
+
     // Get kernel invocation data
     unsigned int *tdata = data;
     id = tdata[0];
@@ -568,17 +573,26 @@ void *_artico3_kernel_execute(void *data) {
         readymask = artico3_hw_get_readymask(id);
 
         // Send data
+        gettimeofday(&t0, NULL);
         artico3_send(id, naccs, round, nrounds);
+        gettimeofday(&tf, NULL);
+        tsend += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
         pthread_mutex_unlock(&mutex);
 
         // Wait until transfer is complete
+        gettimeofday(&t0, NULL);
         while (!artico3_hw_transfer_isdone(readymask)) ;
+        gettimeofday(&tf, NULL);
+        texec += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
         pthread_mutex_lock(&mutex);
 
         // Receive data
+        gettimeofday(&t0, NULL);
         artico3_recv(id, naccs, round, nrounds);
+        gettimeofday(&tf, NULL);
+        trecv += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
         // Update the round index
         round += naccs;
@@ -589,6 +603,9 @@ void *_artico3_kernel_execute(void *data) {
         pthread_mutex_unlock(&mutex);
 
     }
+
+    // TODO: this should use artico3_print_XXX()
+    printf("[artico3-hw] delegate scheduler thread ID:%x | tsend(ms):%.3f | texec(ms):%.3f | trecv(ms):%.3f\n", id, tsend, texec, trecv);
 
     return NULL;
 }

@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     if (argc > 2) {
         rounds = atoi(argv[2]);
     }
-    rounds = ((rounds > 0) && (rounds <= ROUNDS)) ? rounds : ROUNDS;
+    rounds = (rounds > 0) ? rounds : ROUNDS;
 
     srand(time(NULL));
 
@@ -48,7 +48,8 @@ int main(int argc, char *argv[]) {
     data = malloc(values * sizeof *data);
     for (i = 0; i < values; i++) {
         //~ data[i] = rand();
-        data[i] = i + 1;
+        //~ data[i] = i + 1;
+        data[i] = 0xdeadbeef;
     }
 
     virt = malloc(values * sizeof *virt);
