@@ -1791,7 +1791,7 @@ modprobe -r mdmaproxy
 sed -i '/.*artico3_init.sh.*/d' /etc/init.d/rcS
 rm -f /opt/artico3/artico3_init.sh
 EOF
-chmod +x $WD/nfs/opt/artico3/RUNME.sh
+chmod +x $WD/nfs/opt/artico3/artico3_init.sh
 
 
 #
