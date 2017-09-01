@@ -1735,7 +1735,7 @@ dropbear -B -R
 #udhcpc -b -S
 
 echo "++ Loading DMA proxy driver..."
-/opt/artico3/RUNME.sh
+/opt/artico3/artico3_init.sh
 modprobe mdmaproxy
 
 echo "++ Loading ARTICo3 device tree overlay..."
@@ -1772,7 +1772,7 @@ cd $WD/artico3
 
 # Build ARTICo3 Linux kernel modules
 cd $WD/artico3/linux/drivers/dmaproxy
-make -j"$(nproc)"
+make -j"$(nproc)" PREFIX=$WD/nfs/opt/artico3 install
 
 # Compile ARTICo3 device tree overlay
 cd $WD/artico3/templates/artico3_devicetree_overlay
@@ -1780,17 +1780,16 @@ dtc -I dts -O dts -@ -o artico3.dtso artico3.dts
 dtc -I dts -O dtb -@ -o artico3.dtbo artico3.dts
 
 # Copy ARTICo3 files to rootfs
-cp $WD/artico3/linux/drivers/dmaproxy/mdmaproxy.ko $WD/nfs/opt/artico3
 cp $WD/artico3/templates/artico3_devicetree_overlay/artico3.dtbo $WD/nfs/lib/firmware/overlays
 
 # Create script to move kernel module to /lib/modules/...
-cat >> $WD/nfs/opt/artico3/RUNME.sh << EOF
+cat >> $WD/nfs/opt/artico3/artico3_init.sh << EOF
 mkdir -p /lib/modules/\$(uname -r)
 mv /opt/artico3/mdmaproxy.ko /lib/modules/\$(uname -r)
 modprobe mdmaproxy
 modprobe -r mdmaproxy
-sed -i '/.*RUNME.sh.*/d' /etc/init.d/rcS
-rm -f /opt/artico3/RUNME.sh
+sed -i '/.*artico3_init.sh.*/d' /etc/init.d/rcS
+rm -f /opt/artico3/artico3_init.sh
 EOF
 chmod +x $WD/nfs/opt/artico3/RUNME.sh
 
