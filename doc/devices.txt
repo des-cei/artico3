@@ -30,3 +30,30 @@ by the ARTICo3 toolchain, developers need to follow two steps:
 
     NOTE: the name of the file has to be exactly the same as the one used
           in the dictionary entry.
+
+    3. Create a new reference design:
+
+        templates/ref_<os>_<board>_<revision>_<name>_vivado_<version>
+        |--- pcores
+        |    |--- artico3_shuffler_v1_00_a
+        |    |    |--- (...)
+        |    |
+        |    |--- (...)
+        |
+        |--- <a3<generate_for_SOURCES>a3>
+        |--- build.tcl
+        |--- clean.tcl
+        |--- create_ip_library.tcl
+        |--- export.tcl
+        |--- (...)
+
+    NOTE: the folder pcores contains the required IP blocks to be used in
+          Vivado IP integrator. The usual approach is to generate symlinks
+          to the elements in lib/pcores. In the previous hierarchy, the
+          internal contents of the artico3_shuffler_v1_00_a folder have
+          been removed for the sake of readability.
+
+    NOTE: <a3<generate_for_SOURCES>a3> is an empty file that is used by
+          the ARTICo3 Developmnent Kit parser to copy all required files
+          (in this case, the specific low-level constraints file found
+          in templates/artico3_devices).
