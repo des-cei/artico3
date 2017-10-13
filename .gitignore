@@ -75,6 +75,8 @@ demos/*/*.sw*/
 demos/*/*.sim*/
 demos/*/*.hls*/
 
-templates/working_template/test
-templates/working_template/pcores.tmp
-#templates/working_template/app
+#
+# Device tree overlays (output products)
+#
+*.dtso
+*.dtbo
