@@ -47,4 +47,12 @@ dev["clk_buffer"] = "horizontal"
 dev["rst_buffer"] = "global"
 fpgas["xc7z020"] = dev
 
+# xc7z100 (Zynq MMP)
+dev = {}
+dev["slots"] = 16
+dev["pipe_depth"] = 3
+dev["clk_buffer"] = "horizontal"
+dev["rst_buffer"] = "horizontal"
+fpgas["xc7z100"] = dev
+
 """ ADD ADDITIONAL DEVICES HERE """
