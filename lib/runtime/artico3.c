@@ -393,7 +393,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     unsigned int nports;
 
     struct dmaproxy_token token;
-    a3data_t *mem = NULL;
+    volatile a3data_t *mem = NULL;
 
     uint32_t blksize;
 
@@ -430,7 +430,13 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
                 uint32_t idx_dat = (acc * size) + offset;
                 a3data_t *data = kernels[id - 1]->inputs[port]->data;
-                memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
+                //~ memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
+
+                unsigned int i;
+                for (i = 0; i < size; i++) {
+                    mem[idx_mem + i] = data[idx_dat + i];
+                }
+
                 a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | i_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
@@ -473,7 +479,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     unsigned int nports;
 
     struct dmaproxy_token token;
-    a3data_t *mem = NULL;
+    volatile a3data_t *mem = NULL;
 
     uint32_t blksize;
 
@@ -521,7 +527,13 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
                 uint32_t idx_dat = (acc * size) + offset;
                 a3data_t *data = kernels[id - 1]->outputs[port]->data;
-                memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
+                //~ memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
+
+                unsigned int i;
+                for (i = 0; i < size; i++) {
+                    data[idx_dat + i] = mem[idx_mem + i];
+                }
+                
                 a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
