@@ -210,4 +210,14 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 int artico3_free(const char *kname, const char *pname);
 
 
+/*
+ * PERFORMANCE MONITORING COUNTERS
+ *
+ */
+
+// Documentation for these functions can be found in artico3_hw.h
+extern uint32_t artico3_hw_get_pmc_cycles(uint8_t slot);
+extern uint32_t artico3_hw_get_pmc_errors(uint8_t slot);
+
+
 #endif /* _ARTICO3_H_ */
