@@ -510,7 +510,8 @@ static int dmaproxy_mmap(struct file *fp, struct vm_area_struct *vma) {
 
     // Map kernel-space memory to DMA space
     dev_info(dma_dev->dev, "[ ] dma_common_mmap()");
-    res = dma_common_mmap(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
+    //~ res = dma_common_mmap(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
+    res = dma_mmap_coherent(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
     if (res) {
         dev_err(dma_dev->dev, "[X] dma_common_mmap()");
         goto err_dma_mmap;
