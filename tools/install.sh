@@ -47,6 +47,7 @@ EOF
 #       alternatives.
 GITTAG_UBOOT="digilent-v2016.07"
 GITTAG_LINUX="xilinx-v2017.2"
+GITTAG_DTC="v1.4.4"
 
 # Xilinx tools installation directory
 XILINX_ROOT="/opt"
@@ -278,6 +279,7 @@ cd $WD/devicetree
 # device tree overlays, and build it.
 git clone https://git.kernel.org/pub/scm/utils/dtc/dtc.git
 cd dtc
+git checkout -b wb "$GITTAG_DTC"
 make -j"$(nproc)"
 
 # Create directory to build device tree for Pynq board
