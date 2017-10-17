@@ -76,6 +76,35 @@ proc artico3_build_bitstream {} {
     launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] <a3<KernCoreName>a3>_slot_0_synth_1
     # Wait for module run to finish
     wait_on_run <a3<KernCoreName>a3>_slot_0_synth_1
+
+    # Additional subcores (required in HLS-based designs with floating point operations)
+    foreach {subcore} [glob -nocomplain -directory pcores/<a3<KernCoreName>a3>_v1_00_a/ip */*.xci] {
+        puts "\[A3DK\] reading subcore $subcore"
+        read_ip $subcore
+        # Generate output products
+        generate_target all [get_files $subcore]
+        # Export IP user files
+        export_ip_user_files -of_objects [get_files $subcore] -no_script -sync -force -quiet
+        # Create specific IP run
+        set_property GENERATE_SYNTH_CHECKPOINT true [get_files $subcore]
+        create_ip_run [get_files -of_objects [get_fileset sources_1] $subcore]
+        # Launch module run
+        launch_runs -jobs [ expr [get_cpu_core_count] / 2 + 1] [file rootname [file tail $subcore]]_synth_1
+        # Wait for module run to finish
+        wait_on_run [file rootname [file tail $subcore]]_synth_1
+        # Update kernel checkpoint
+        open_checkpoint myARTICo3.runs/<a3<KernCoreName>a3>_slot_0_synth_1/<a3<KernCoreName>a3>_slot_0.dcp
+        foreach {subcell} [get_cells -hierarchical [file rootname [file tail $subcore]]_u] {
+            read_checkpoint -cell $subcell myARTICo3.runs/[file rootname [file tail $subcore]]_synth_1/[file rootname [file tail $subcore]].dcp
+        }
+        write_checkpoint -force myARTICo3.runs/<a3<KernCoreName>a3>_slot_0_synth_1/<a3<KernCoreName>a3>_slot_0.dcp
+        close_design
+        # Remove files
+        delete_runs [file rootname [file tail $subcore]]_synth_1
+        file delete -force myARTICo3.runs/[file rootname [file tail $subcore]]_synth_1
+        remove_files -fileset [get_fileset [file rootname [file tail $subcore]]] pcores/<a3<KernCoreName>a3>_v1_00_a/ip/[file rootname [file tail $subcore]]/[file rootname [file tail $subcore]].xci
+        file delete -force myARTICo3.ip_user_files/ip/[file rootname [file tail $subcore]]
+    }
 <a3<end generate>a3>
     #
     # Main system implementation

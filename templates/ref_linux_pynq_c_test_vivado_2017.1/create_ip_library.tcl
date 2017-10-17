@@ -222,6 +222,18 @@ proc import_pcore { repo_path ip_name {libs ""} } {
 
     puts "\[A3DK\] $artico3_pcore $artico3_pcore_name $artico3_pcore_dir $temp_dir"
 
+    # Create additional subcores (required in HLS-based designs with floating point operations)
+    foreach {subcore_script} [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.tcl] {
+        # Copy IP cores
+        source $subcore_script
+        set subcore_name [file rootname [file tail $subcore_script]]
+        regsub {_ip$} $subcore_name {} subcore_name
+        puts "\[A3DK\] found subcore: $subcore_name"
+        file mkdir $artico3_pcore_dir/$artico3_pcore/ip
+        file copy -force $temp_dir/managed_ip_project/managed_ip_project.srcs/sources_1/ip/$subcore_name $artico3_pcore_dir/$artico3_pcore/ip/$subcore_name
+    }
+
+    # Create core
     if { $artico3_pcore_name == "artico3" } {
         ipx::infer_core -set_current true -as_library true -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
         set_property display_name artico3lib [ipx::current_core]
@@ -229,10 +241,12 @@ proc import_pcore { repo_path ip_name {libs ""} } {
         ipx::infer_core -set_current true -as_library false -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
     }
 
+    # Configure core parameters
     puts "\[A3DK\] After infer_core"
     set_property vendor                 cei.upm.es              [ipx::current_core]
     set_property library                artico3                 [ipx::current_core]
     set_property name                   $artico3_pcore_name     [ipx::current_core]
+    set_property version                1.0                     [ipx::current_core]
     set_property company_url            http://www.cei.upm.es/  [ipx::current_core]
     set_property display_name           $artico3_pcore_name     [ipx::current_core]
     set_property vendor_display_name    {Centro de Electronica Industrial (CEI-UPM)} [ipx::current_core]
