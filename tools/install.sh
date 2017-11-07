@@ -1522,12 +1522,19 @@ make -j"$(nproc)" xilinx_zynq_defconfig
 #~ # Make sure PCAP reconfiguration is enabled (DEVCFG) (from version
 #~ # xilinx-v2017.1 this has been disabled to support new reconfiguration
 #~ # managers). This edit comes here to patch xilinx_zynq_defconfig.
-#~ sed -i '/.*DEVCFG.*/d' .config
-#~ echo "CONFIG_XILINX_DEVCFG=y" >> .config
+#~ sed -i '/.*DEVCFG.*/d' $WD/linux-xlnx/.config
+#~ echo "CONFIG_XILINX_DEVCFG=y" >> $WD/linux-xlnx/.config
 
 # Modifications in some of the device drivers for the fpga_manager framework need to be done
 # to make partial reconfiguration work in Zynq-7000 devices.
 sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
+
+# Increase available memory for Linux CMA (default in Zynq-7000 is 16MB)
+#
+# This is required to be able to perform full reconfiguration in the
+# Zynq MMP board (full bitstream size ~17MB).
+#
+sed -i 's|.*CONFIG_CMA_SIZE_MBYTES.*|CONFIG_CMA_SIZE_MBYTES=128|' $WD/linux-xlnx/.config
 
 # Modifications in some of the low-level files are required to avoid problems with Ethernet and DMA.
 # See https://groups.google.com/forum/#!topic/reconos/ko-u2LnWL-I
