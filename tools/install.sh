@@ -1519,11 +1519,15 @@ git checkout -b wb "$GITTAG_LINUX"
 
 make -j"$(nproc)" xilinx_zynq_defconfig
 
-# Make sure PCAP reconfiguration is enabled (DEVCFG) (from version
-# xilinx-v2017.1 this has been disabled to support new reconfiguration
-# managers). This edit comes here to patch xilinx_zynq_defconfig.
-sed -i '/.*DEVCFG.*/d' .config
-echo "CONFIG_XILINX_DEVCFG=y" >> .config
+#~ # Make sure PCAP reconfiguration is enabled (DEVCFG) (from version
+#~ # xilinx-v2017.1 this has been disabled to support new reconfiguration
+#~ # managers). This edit comes here to patch xilinx_zynq_defconfig.
+#~ sed -i '/.*DEVCFG.*/d' .config
+#~ echo "CONFIG_XILINX_DEVCFG=y" >> .config
+
+# Modifications in some of the device drivers for the fpga_manager framework need to be done
+# to make partial reconfiguration work in Zynq-7000 devices.
+sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
 
 # Modifications in some of the low-level files are required to avoid problems with Ethernet and DMA.
 # See https://groups.google.com/forum/#!topic/reconos/ko-u2LnWL-I
