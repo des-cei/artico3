@@ -125,7 +125,10 @@ proc artico3_build_bitstream {} {
 
     # Generate static system bitstream
     file mkdir [pwd]/bitstreams
-    write_bitstream -force -no_binary_bitfile -no_partial_bitfile -bin_file bitstreams/system
+    write_bitstream -force -no_partial_bitfile bitstreams/system.bit
+    file mkdir [pwd]/bin
+    file mkdir [pwd]/bin/pbs
+    write_cfgmem -force -disablebitswap -interface SMAPx32 -format BIN -loadbit "up 0x0 bitstreams/system.bit" bin/system.bin
 
     # Replace slot contents by black boxes
 <a3<generate for SLOTS>a3>
@@ -164,11 +167,18 @@ proc artico3_build_bitstream {} {
     # Verify checkpoint compatibility
     pr_verify checkpoints/system.dcp checkpoints/<a3<KernCoreName>a3>.dcp
 
-    # Generate bitstream
-    write_bitstream -force -no_binary_bitfile -bin_file bitstreams/<a3<KernCoreName>a3>
+    # Generate bitstreams
+    write_bitstream -force bitstreams/<a3<KernCoreName>a3>.bit
+<a3<=generate for SLOTS=>a3>
+    write_cfgmem -force -disablebitswap -interface SMAPx32 -format BIN -loadbit "up 0x0 bitstreams/<a3<KernCoreName>a3>_a3_slot_<a3<id>a3>_partial.bit" bin/pbs/<a3<KernCoreName>a3>_a3_slot_<a3<id>a3>_partial.bin
+<a3<=end generate=>a3>
 <a3<end generate>a3>
     # Close Vivado project
     close_project
+
+    # Clean write_cfgmem report files
+    file delete -force {*}[glob bin/*.prm]
+    file delete -force {*}[glob bin/pbs/*.prm]
 
 }
 
