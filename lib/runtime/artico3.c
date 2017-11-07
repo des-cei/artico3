@@ -77,6 +77,8 @@ static int running = 0;
  * the ARTICo3 low-level functionality (DMA transfers, kernel and slot
  * distributions, etc.).
  *
+ * It also loads the FPGA with the initial bitstream (static system).
+ *
  * Return : 0 on success, error code otherwise
  */
 int artico3_init() {
