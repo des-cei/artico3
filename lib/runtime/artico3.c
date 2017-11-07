@@ -32,6 +32,7 @@
 #include "dmaproxy.h"
 #include "artico3.h"
 #include "artico3_hw.h"
+#include "artico3_rcfg.h"
 #include "artico3_dbg.h"
 
 
@@ -95,6 +96,9 @@ int artico3_init() {
      *       ARTICo3 Shuffler Data    -> 0x8aa00000 (dmaproxy)
      *
      */
+
+    // Load static system (global FPGA reconfiguration)
+    fpga_load("system.bin", 0);
 
     // Find the appropriate UIO device
     d = opendir("/sys/bus/platform/devices/7aa00000.artico3_shuffler/uio/");
@@ -533,7 +537,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 for (i = 0; i < size; i++) {
                     data[idx_dat + i] = mem[idx_mem + i];
                 }
-                
+
                 a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
@@ -908,10 +912,7 @@ int artico3_free(const char *kname, const char *pname) {
 // TODO: add documentation for this function
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
     unsigned int index;
-    int fd;
-    FILE *fp;
     char filename[128];
-    uint32_t buffer[1024];
     int ret;
 
     uint8_t id;
@@ -958,72 +959,12 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
                 // Set slot flag
                 shuffler.slots[index].state = S_LOAD;
 
-                // Open configuration file
-                fd = open("/sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream", O_RDWR);
-                if (fd < 0) {
-                    a3_print_error("[artico3-hw] open() /sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream failed\n");
-                    ret = -ENODEV;
-                    goto err_xdevcfg;
-                }
-
-                // Enable partial reconfiguration
-                write(fd, "1", strlen("1"));
-                a3_print_debug("[artico3-hw] DPR enabled\n");
-
-                // Close configuration file
-                close(fd);
-
-                // Open device file
-                fd = open("/dev/xdevcfg", O_RDWR);
-                if (fd < 0) {
-                    a3_print_error("[artico3-hw] open() /dev/xdevcfg failed\n");
-                    ret = -ENODEV;
-                    goto err_xdevcfg;
-                }
-
-                // Open partial bitstream file
+                // Load partial bitstream
                 sprintf(filename, "pbs/a3_%s_a3_slot_%d_partial.bin", name, slot);
-                fp = fopen(filename, "rb");
-                if (!fp) {
-                    a3_print_error("[artico3-hw] fopen() %s failed\n", filename);
-                    ret = -ENOENT;
-                    goto err_pbs;
+                ret = fpga_load(filename, 1);
+                if (ret) {
+                    goto err_fpga;
                 }
-                a3_print_debug("[artico3-hw] opened partial bitstream file %s\n", filename);
-
-                // Read partial bitstream file and write to reconfiguration engine
-                while (!feof(fp)) {
-
-                    // Read from file
-                    ret = fread(buffer, sizeof (uint32_t), 1024, fp);
-
-                    // Write to reconfiguration engine
-                    if (ret > 0) {
-                        write(fd, buffer, ret * sizeof (uint32_t));
-                    }
-
-                }
-
-                // Close partial bitstream file
-                fclose(fp);
-
-                // Close device file
-                close(fd);
-
-                // Open configuration file
-                fd = open("/sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream", O_RDWR);
-                if (fd < 0) {
-                    a3_print_error("[artico3-hw] open() /sys/bus/platform/devices/f8007000.devcfg/is_partial_bitstream failed\n");
-                    ret = -ENODEV;
-                    goto err_xdevcfg;
-                }
-
-                // Disable partial reconfiguration
-                write(fd, "0", strlen("0"));
-                a3_print_debug("[artico3-hw] DPR disabled\n");
-
-                // Close configuration file
-                close(fd);
 
                 // Set slot flag
                 shuffler.slots[index].state = S_IDLE;
@@ -1056,10 +997,7 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
 
     return 0;
 
-err_pbs:
-    close(fd);
-
-err_xdevcfg:
+err_fpga:
     pthread_mutex_unlock(&mutex);
 
     return ret;
