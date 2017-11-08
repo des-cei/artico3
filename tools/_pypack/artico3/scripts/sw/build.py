@@ -35,12 +35,13 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
+    parser.add_argument("-cc", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     return parser
 
 def build_cmd(args):
-    build(args)
+    build(args, args.cross)
 
-def build(args):
+def build(args, cross):
     prj = args.prj
     swdir = prj.basedir + ".sw"
 
@@ -50,10 +51,15 @@ def build(args):
         log.error("software directory '" + swdir + "' not found")
         return
 
+    if cross == "":
+        cc = "/opt/Xilinx/SDK/{0}/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi-".format(prj.impl.xil[1])
+    else:
+        cc = cross
+
     subprocess.run("""
-        bash -c "export CROSS_COMPILE=/opt/Xilinx/SDK/{0}/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi- &&
+        bash -c "export CROSS_COMPILE={0} &&
         make"
-        """.format(prj.impl.xil[1]), shell=True, check=True)
+        """.format(cc), shell=True, check=True)
 
     print()
     shutil2.chdir(prj.dir)
