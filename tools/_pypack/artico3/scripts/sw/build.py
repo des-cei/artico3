@@ -35,7 +35,7 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
-    parser.add_argument("-cc", "--cross", help="use external cross compiler instead of Xilinx's", default="")
+    parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     return parser
 
 def build_cmd(args):
