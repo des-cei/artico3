@@ -22,6 +22,8 @@ import sys
 import pkgutil
 import importlib
 import readline
+import os
+import glob
 import argparse
 import logging
 
@@ -92,11 +94,13 @@ def main():
 
         def _complete(text, state):
             if " " in readline.get_line_buffer():
-                return None
+                #~ return None
+                return ([f + "/" if os.path.isdir(f) else f for f in glob.glob(text + "*")]  + [None])[state]
             comp = [_ + " " for _ in cmds.keys() if _.startswith(text)]
             return comp[state] if state < len(comp) else None
 
         readline.parse_and_bind("tab: complete")
+        readline.set_completer_delims(' \t\n;')
         readline.set_completer(_complete)
 
         while True:
