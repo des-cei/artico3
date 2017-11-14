@@ -32,6 +32,7 @@
 #include <linux/dmaengine.h>
 #include <linux/mm.h>
 #include <linux/list.h>
+#include <linux/types.h>
 
 #include "dmaproxy.h"
 #define DRIVER_NAME "dmaproxy"
@@ -312,8 +313,8 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
     struct dmaproxy_device *dmaproxy_dev = fp->private_data;
     struct dmaproxy_vm_list *vm_list, *backup;
     struct dmaproxy_token token;
-    struct device_node *node = dmaproxy_dev->pdev->dev.of_node;
-    uint32_t of_value;
+    struct platform_device *pdev = dmaproxy_dev->pdev;
+    resource_size_t address, size;
     int res;
     int retval = 0;
 
@@ -366,24 +367,30 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
                         retval = -EINVAL;
                         break;
                     }
+                    // Check number of memory maps available in platform device (obtained from device tree field reg)
+                    if (pdev->num_resources != 1) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> wrong number of resources in device tree, there should be only ONE memory map (check reg field)");
+                        retval = -EINVAL;
+                        break;
+                    }
+                    // Get memory map base address and size
+                    address = pdev->resource[0].start;
+                    size = pdev->resource[0].end - pdev->resource[0].start;
                     // Hardware check
-                    of_property_read_u32_index(node, "reg", 1, &of_value);
-                    dev_info(dmaproxy_dev->dev, "[i] hardware memory map size = %x", of_value);
-                    if (of_value < (token.hwoff + token.size)) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA -> requested transfer out of hardware region");
+                    if (size < (token.hwoff + token.size)) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
                         retval = -EINVAL;
                         break;
                     }
                     // Address check
-                    of_property_read_u32_index(node, "reg", 0, &of_value);
-                    dev_info(dmaproxy_dev->dev, "[i] hardware memory map start = %x", of_value);
-                    if ((void *)of_value != token.hwaddr) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA -> hardware address does not match");
+                    dev_info(dmaproxy_dev->dev, "[i] hardware memory map start = %x", address);
+                    if ((void *)address != token.hwaddr) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> hardware address does not match");
                         retval = -EINVAL;
                         break;
                     }
                     // Perform transfer
-                    retval = dmaproxy_dma_transfer(dmaproxy_dev, of_value + token.hwoff, vm_list->addr_phy + token.memoff, token.size);
+                    retval = dmaproxy_dma_transfer(dmaproxy_dev, address + token.hwoff, vm_list->addr_phy + token.memoff, token.size);
                     break;
                 }
             }
@@ -417,24 +424,30 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
                         retval = -EINVAL;
                         break;
                     }
+                    // Check number of memory maps available in platform device (obtained from device tree field reg)
+                    if (pdev->num_resources != 1) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> wrong number of resources in device tree, there should be only ONE memory map (check reg field)");
+                        retval = -EINVAL;
+                        break;
+                    }
+                    // Get memory map base address and size
+                    address = pdev->resource[0].start;
+                    size = pdev->resource[0].end - pdev->resource[0].start;
                     // Hardware check
-                    of_property_read_u32_index(node, "reg", 1, &of_value);
-                    dev_info(dmaproxy_dev->dev, "[i] of_value = %x", of_value);
-                    if (of_value < (token.hwoff + token.size)) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA -> requested transfer out of hardware region");
+                    if (size < (token.hwoff + token.size)) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
                         retval = -EINVAL;
                         break;
                     }
                     // Address check
-                    of_property_read_u32_index(node, "reg", 0, &of_value);
-                    dev_info(dmaproxy_dev->dev, "[i] of_value = %x", of_value);
-                    if ((void *)of_value != token.hwaddr) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA -> hardware address does not match");
+                    dev_info(dmaproxy_dev->dev, "[i] hardware memory map start = %x", address);
+                    if ((void *)address != token.hwaddr) {
+                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> hardware address does not match");
                         retval = -EINVAL;
                         break;
                     }
                     // Perform transfer
-                    retval = dmaproxy_dma_transfer(dmaproxy_dev, vm_list->addr_phy + token.memoff, of_value + token.hwoff, token.size);
+                    retval = dmaproxy_dma_transfer(dmaproxy_dev, vm_list->addr_phy + token.memoff, address + token.hwoff, token.size);
                     break;
                 }
             }
