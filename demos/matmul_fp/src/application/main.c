@@ -1,15 +1,27 @@
+/*
+ * ARTICo3 test application
+ * Matrix Multiplication (32-bit floating point)
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : August 2017
+ *
+ * Main application
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
-#include <math.h>
-#include <float.h>
+#include <sys/time.h> // struct timeval, gettimeofday()
+#include <time.h>     // time()
+#include <math.h>     // sqrt()
+#include <float.h>    // FLT_MIN
 
 #include "artico3.h"
 
 #define MSIZE_APP (512)
 #define MSIZE_ACC (64)
 
+// Software reference implementation
 void matmul_sw(int size, float a[size], float b[size], float c[size]) {
     unsigned int i, j, k;
 
@@ -127,6 +139,17 @@ int main(int argc, char *argv[]) {
     t_sw = ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
     printf("Software execution : %.6f ms\n", t_sw);
     printf("Speedup : %.6f\n", t_sw / t_hw);
+
+    /*
+     * NOTE: floating point operations may generate precision loss at
+     *       certain point, especially when computations are not performed
+     *       in the same order (for instance, in this example, where the
+     *       software computes it naively, and the hardware computes it
+     *       using a two-level block approach). Therefore, to check whether
+     *       the results are correct or not, a threshold value is used,
+     *       together with the maximum absolute error.
+     *
+     */
 
     // Check results vs. software reference
     printf("Checking results...\n");

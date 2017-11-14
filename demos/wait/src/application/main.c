@@ -1,8 +1,19 @@
+/*
+ * ARTICo3 test application
+ * Parallel "wait" kernels
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : August 2017
+ *
+ * Main application
+ *
+ */
+
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
+#include <sys/time.h> // struct timeval, gettimeofday()
+#include <time.h>     // time()
 
 #include "artico3.h"
 

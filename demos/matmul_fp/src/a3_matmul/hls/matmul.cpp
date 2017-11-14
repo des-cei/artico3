@@ -1,6 +1,6 @@
 /*
  * ARTICo3 test application
- * Matrix Multiplication
+ * Matrix Multiplication (32-bit floating point)
  *
  * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
  * Date   : August 2017
@@ -22,6 +22,15 @@
  *       contains the amount of values that have been written to the
  *       internal memories of the accelerator (it is important to take
  *       into account that this includes ALL inputs).
+ *
+ * NOTE: this kernel showcases an application in which data conversion
+ *       is required. The ARTICo3 data movement infrastructure works
+ *       with 32-bit unsigned integer, whereas the core processing kernel
+ *       works with 32-bit floating point numbers. To make everything
+ *       compatible, application developers need to use the built-in
+ *       functions a3tof() and ftoa3() to convert from a3data_t (uint32_t)
+ *       to float and viceversa, respectively.
+ *
  */
 
 A3_KERNEL(a3in_t a, a3in_t b, a3out_t c) {

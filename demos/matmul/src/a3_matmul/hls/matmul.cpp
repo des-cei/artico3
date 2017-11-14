@@ -1,6 +1,6 @@
 /*
  * ARTICo3 test application
- * Matrix Multiplication
+ * Matrix Multiplication  (32-bit unsigned integer)
  *
  * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
  * Date   : August 2017

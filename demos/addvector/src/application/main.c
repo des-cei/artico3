@@ -1,13 +1,24 @@
+/*
+ * ARTICo3 test application
+ * Array addition
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : August 2017
+ *
+ * Main application
+ *
+ */
+
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
+#include <sys/time.h> // struct timeval, gettimeofday()
+#include <time.h>     // time()
 
 #include "artico3.h"
 
-#define BLOCKS (10)
-#define VALUES (1024)
+#define BLOCKS (10)   // Number of blocks to process
+#define VALUES (1024) // Number of elements in each block
 
 int main(int argc, char *argv[]) {
     unsigned int i, errors, blocks;

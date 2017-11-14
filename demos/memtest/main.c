@@ -1,16 +1,24 @@
+/*
+ * ARTICo3 test application
+ * Memory test (malloc vs mmap over non-cached, contiguous DMA memory)
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : September 2017
+ *
+ * Main application
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+#include <string.h>    // memcpy()
 
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <fcntl.h>     // open()
+#include <sys/mman.h>  // mmap()
 
-#include <sys/mman.h>
-
-#include <time.h>
-#include <sys/time.h>
+#include <sys/time.h>  // struct timeval, gettimeofday()
+#include <time.h>      // time()
 
 #include "../../linux/drivers/dmaproxy/dmaproxy.h"
 

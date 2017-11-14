@@ -1,13 +1,25 @@
+/*
+ * ARTICo3 test application
+ * Matrix Multiplication (32-bit unsigned integer)
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : August 2017
+ *
+ * Main application
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
+#include <sys/time.h> // struct timeval, gettimeofday()
+#include <time.h>     // time()
 
 #include "artico3.h"
 
 #define MSIZE_APP (512)
 #define MSIZE_ACC (64)
 
+// Software reference implementation
 void matmul_sw(int size, a3data_t a[size], a3data_t b[size], a3data_t c[size]) {
     unsigned int i, j, k;
 
@@ -74,10 +86,6 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < (MSIZE_APP * MSIZE_APP); i++) {
         a[i] = rand();
         b[i] = rand();
-        //~ a[i] = (i / MSIZE_APP) + (i % MSIZE_APP);
-        //~ b[i] = (i / MSIZE_APP) + (i % MSIZE_APP) + 2;
-        //~ a[i] = 1;
-        //~ b[i] = 1;
     }
 
     // Execute kernel
@@ -139,7 +147,7 @@ int main(int argc, char *argv[]) {
     // Show partial results
     printf("A:\n");
     for (i = 0; i < 4; i++) {
-		printf("    ");
+        printf("    ");
         for (j = 0; j < 4; j++) {
             printf("%08x ", a[(i * MSIZE_APP) + j]);
         }
@@ -147,7 +155,7 @@ int main(int argc, char *argv[]) {
     }
     printf("B:\n");
     for (i = 0; i < 4; i++) {
-		printf("    ");
+        printf("    ");
         for (j = 0; j < 4; j++) {
             printf("%08x ", b[(i * MSIZE_APP) + j]);
         }
@@ -155,7 +163,7 @@ int main(int argc, char *argv[]) {
     }
     printf("SOFTWARE:\n");
     for (i = 0; i < 4; i++) {
-		printf("    ");
+        printf("    ");
         for (j = 0; j < 4; j++) {
             printf("%08x ", sw[(i * MSIZE_APP) + j]);
         }
@@ -163,7 +171,7 @@ int main(int argc, char *argv[]) {
     }
     printf("HARDWARE:\n");
     for (i = 0; i < 4; i++) {
-		printf("    ");
+        printf("    ");
         for (j = 0; j < 4; j++) {
             printf("%08x ", hw[(i * MSIZE_APP) + j]);
         }
