@@ -33,6 +33,7 @@
 #include <linux/mm.h>
 #include <linux/list.h>
 #include <linux/types.h>
+#include <linux/ioport.h>
 
 #include "dmaproxy.h"
 #define DRIVER_NAME "dmaproxy"
@@ -367,15 +368,26 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
                         retval = -EINVAL;
                         break;
                     }
-                    // Check number of memory maps available in platform device (obtained from device tree field reg)
+                    // Check number of resources available in platform device (obtained from device tree fields reg, interrupts)
                     if (pdev->num_resources != 1) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> wrong number of resources in device tree, there should be only ONE memory map (check reg field)");
+                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong number of resources in device tree (make sure only one range is present in 'reg' field");
                         retval = -EINVAL;
                         break;
                     }
+                    // Check if the resource is a memory map
+                    if (pdev->resource[0].flags != IORESOURCE_MEM) {
+                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong type of resources in device tree (make sure no 'interrupts' field is present)");
+                        retval = -EINVAL;
+                        break;
+                    }
+                    // Print resource info
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource name  = %s", pdev->resource[0].name);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource start = %lx", pdev->resource[0].start);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource end   = %lx", pdev->resource[0].end);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource flags = %lx", pdev->resource[0].flags);
                     // Get memory map base address and size
                     address = pdev->resource[0].start;
-                    size = pdev->resource[0].end - pdev->resource[0].start;
+                    size = pdev->resource[0].end - pdev->resource[0].start + 1;
                     // Hardware check
                     if (size < (token.hwoff + token.size)) {
                         dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
@@ -424,15 +436,26 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
                         retval = -EINVAL;
                         break;
                     }
-                    // Check number of memory maps available in platform device (obtained from device tree field reg)
+                    // Check number of resources available in platform device (obtained from device tree fields reg, interrupts)
                     if (pdev->num_resources != 1) {
-                        dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> wrong number of resources in device tree, there should be only ONE memory map (check reg field)");
+                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong number of resources in device tree (make sure only one range is present in 'reg' field");
                         retval = -EINVAL;
                         break;
                     }
+                    // Check if the resource is a memory map
+                    if (pdev->resource[0].flags != IORESOURCE_MEM) {
+                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong type of resources in device tree (make sure no 'interrupts' field is present)");
+                        retval = -EINVAL;
+                        break;
+                    }
+                    // Print resource info
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource name  = %s", pdev->resource[0].name);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource start = %lx", pdev->resource[0].start);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource end   = %lx", pdev->resource[0].end);
+                    dev_info(&pdev->dev, "[i] Platform Device -> resource flags = %lx", pdev->resource[0].flags);
                     // Get memory map base address and size
                     address = pdev->resource[0].start;
-                    size = pdev->resource[0].end - pdev->resource[0].start;
+                    size = pdev->resource[0].end - pdev->resource[0].start + 1;
                     // Hardware check
                     if (size < (token.hwoff + token.size)) {
                         dev_err(dmaproxy_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
