@@ -193,6 +193,10 @@ int artico3_init() {
         ret = -ENOMEM;
         goto err_malloc_threads;
     }
+    for (i = 0; i < A3_MAXKERNS; i++) {
+        threads[i] = 0;
+    }
+    a3_print_debug("[artico3-hw] threads=%p\n", threads);
 
     // Enable clocks in reconfigurable region
     artico3_hw_enable_clk();
