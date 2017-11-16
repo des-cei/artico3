@@ -40,4 +40,5 @@
    Files to be modified:
        - templates/artico3_devicetree_overlay/artico3.dts
        - lib/runtime/artico3_hw.h
+       - lib/runtime/artico3.c
        - templates/ref_<os>_<board>_<revision>_<name>_vivado_<version>/export.tcl
