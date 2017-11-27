@@ -74,6 +74,7 @@ demos/*/*.hw*/
 demos/*/*.sw*/
 demos/*/*.sim*/
 demos/*/*.hls*/
+demos/*/*.os*/
 
 #
 # Device tree overlays (output products)
