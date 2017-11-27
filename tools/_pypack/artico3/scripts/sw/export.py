@@ -31,7 +31,7 @@ def get_call(prj):
     return export_sw_cmd
 
 def get_parser(prj):
-    parser = argparse.ArgumentParser("export_hw", description="""
+    parser = argparse.ArgumentParser("export_sw", description="""
         Exports the software project and generates all necessary files.
         """)
     parser.add_argument("-l", "--link", help="link sources instead of copying", default=False, action="store_true")
