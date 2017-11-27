@@ -36,16 +36,16 @@ def get_parser(prj):
         Parses and compiles the ARTICo3 device tree overlay.
         """)
     parser.add_argument("-l", "--link", help="link sources instead of copying", default=False, action="store_true")
-    parser.add_argument("dtc", help="Device Tree Compiler path", nargs="?")
+    parser.add_argument("dtcdir", help="Device Tree Compiler path", nargs="?")
     parser.add_argument("outdir", help="alternative export directory", nargs="?")
     return parser
 
 def gen_overlay_cmd(args):
-    gen_overlay(args, args.dtc, args.outdir, args.link)
+    gen_overlay(args, args.dtcdir, args.outdir, args.link)
 
-def gen_overlay(args, dtc, outdir, link):
+def gen_overlay(args, dtcdir, outdir, link):
     prj = args.prj
-    if dtc is None:
+    if dtcdir is None:
         log.error("Device Tree Compiler must be specified")
         return
     outdir = outdir if outdir is not None else prj.basedir + ".os"
@@ -63,8 +63,8 @@ def gen_overlay(args, dtc, outdir, link):
     log.info("Building device tree overlay...")
     shutil2.chdir(outdir)
     subprocess.run("""
-        bash -c "{0} -I dts -O dtb -@ -o artico3.dtbo artico3.dts"
-        """.format(dtc), shell=True, check=True)
+        bash -c "{0}/dtc -I dts -O dtb -@ -o artico3.dtbo artico3.dts"
+        """.format(dtcdir), shell=True, check=True)
 
     print()
     shutil2.chdir(prj.dir)
