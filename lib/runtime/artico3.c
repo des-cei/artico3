@@ -9,6 +9,7 @@
  *
  */
 
+<a3<artico3_preproc>a3>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,8 +95,14 @@ int artico3_init() {
      *       If the processor memory map is changed somehow, this has to
      *       be reflected in this file.
      *
+<a3<if DEVICE=="zynq">a3>
      *       ARTICo3 Shuffler Control -> 0x7aa00000 (uio)
      *       ARTICo3 Shuffler Data    -> 0x8aa00000 (dmaproxy)
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+     *       ARTICo3 Shuffler Control -> 0xa0000000 (uio)
+     *       ARTICo3 Shuffler Data    -> 0xb0000000 (dmaproxy)
+<a3<end if>a3>
      *
      */
 
@@ -103,7 +110,12 @@ int artico3_init() {
     fpga_load("system.bin", 0);
 
     // Find the appropriate UIO device
+<a3<if DEVICE=="zynq">a3>
     d = opendir("/sys/bus/platform/devices/7aa00000.artico3_shuffler/uio/");
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+    d = opendir("/sys/bus/platform/devices/a0000000.artico3_shuffler/uio/");
+<a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {
@@ -136,7 +148,12 @@ int artico3_init() {
     a3_print_debug("[artico3-hw] artico3_hw=%p\n", artico3_hw);
 
     // Find the appropriate DMA proxy device
+<a3<if DEVICE=="zynq">a3>
     d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/dmaproxy/");
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+    d = opendir("/sys/bus/platform/devices/b0000000.artico3_slots/dmaproxy/");
+<a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {

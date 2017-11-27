@@ -57,6 +57,7 @@ def export_sw(args, swdir, link):
     dictionary["LDFLAGS"] = prj.impl.ldflags
 
     dictionary["NUM_SLOTS"] = prj.shuffler.slots
+    dictionary["DEVICE"] = "zynqmp" if "xczu" in prj.impl.part else "zynq"
 
     srcs = shutil2.join(prj.dir, "src", "application")
     dictionary["SOURCES"] = [srcs]
