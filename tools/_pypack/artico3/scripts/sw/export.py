@@ -31,7 +31,7 @@ def get_call(prj):
     return export_sw_cmd
 
 def get_parser(prj):
-    parser = argparse.ArgumentParser("export_hw", description="""
+    parser = argparse.ArgumentParser("export_sw", description="""
         Exports the software project and generates all necessary files.
         """)
     parser.add_argument("-l", "--link", help="link sources instead of copying", default=False, action="store_true")
@@ -57,6 +57,7 @@ def export_sw(args, swdir, link):
     dictionary["LDFLAGS"] = prj.impl.ldflags
 
     dictionary["NUM_SLOTS"] = prj.shuffler.slots
+    dictionary["DEVICE"] = "zynqmp" if "xczu" in prj.impl.part else "zynq"
 
     srcs = shutil2.join(prj.dir, "src", "application")
     dictionary["SOURCES"] = [srcs]

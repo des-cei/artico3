@@ -1,3 +1,19 @@
+/*
+ * Programmable Logic (PL) device tree root node in Zynq devices
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : November 2017
+ *
+ */
+
+<a3<artico3_preproc>a3>
+
+<a3<if DEVICE=="zynq">a3>
+/*
+ * Zynq-7000 devices (32-bit architecture)
+ *
+ */
+
 / {
     amba_pl: amba_pl {
         #address-cells = <1>;
@@ -7,3 +23,28 @@
         ranges ;
     };
 };
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+/*
+ * Zynq UltraScale+ MPSoC devices (64-bit architecture)
+ *
+ */
+
+/ {
+    amba_pl: amba_pl@0 {
+        #address-cells = <2>;
+        #size-cells = <2>;
+        compatible = "simple-bus";
+        interrupt-parent = <&gic>;
+        ranges ;
+        psu_ctrl_ipi: PERIPHERAL@ff380000 {
+            compatible = "xlnx,PERIPHERAL-1.0";
+            reg = <0x0 0xff380000 0x0 0x80000>;
+        };
+        psu_message_buffers: PERIPHERAL@ff990000 {
+            compatible = "xlnx,PERIPHERAL-1.0";
+            reg = <0x0 0xff990000 0x0 0x10000>;
+        };
+    };
+};
+<a3<end if>a3>

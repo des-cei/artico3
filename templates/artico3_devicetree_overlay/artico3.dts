@@ -1,3 +1,16 @@
+/*
+ * ARTICo3 device tree overlay
+ *
+ * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+ * Date   : November 2017
+ *
+ * "Plug & Play" attachment of the ARTICo3 memory maps into the static
+ * device tree of the system.
+ *
+ */
+
+<a3<artico3_preproc>a3>
+
 /dts-v1/;
 /plugin/;
 
@@ -5,6 +18,7 @@
     fragment@0 {
         target = <&amba_pl>;
         __overlay__ {
+<a3<if DEVICE=="zynq">a3>
             artico3_shuffler_0: artico3_shuffler@7aa00000 {
                 compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
                 interrupt-parent = <&intc>;
@@ -17,6 +31,21 @@
                 dmas = <&dmac_s 0>;
                 dma-names = "ps-dma";
             };
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+            artico3_shuffler_0: artico3_shuffler@a0000000 {
+                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+                interrupt-parent = <&gic>;
+                interrupts = <0 89 1>;
+                reg = <0x0 0xa0000000 0x0 0x100000>;
+            };
+            artico3_slots_0: artico3_slots@b0000000 {
+                compatible = "cei.upm,proxy-cdma-1.00.a";
+                reg = <0x0 0xb0000000 0x0 0x100000>;
+                dmas = <&fpd_dma_chan0 0>;
+                dma-names = "ps-dma";
+            };
+<a3<end if>a3>
         };
     };
 };

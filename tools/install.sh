@@ -1788,12 +1788,31 @@ cd $WD/artico3/linux/drivers/dmaproxy
 make -j"$(nproc)" PREFIX=$WD/nfs/opt/artico3 install
 
 # Compile ARTICo3 device tree overlay
-cd $WD/artico3/templates/artico3_devicetree_overlay
-dtc -I dts -O dts -@ -o artico3.dtso artico3.dts
-dtc -I dts -O dtb -@ -o artico3.dtbo artico3.dts
+cat >> $WD/nfs/lib/firmware/overlays/artico3.dts << EOF
+/dts-v1/;
+/plugin/;
 
-# Copy ARTICo3 files to rootfs
-cp $WD/artico3/templates/artico3_devicetree_overlay/artico3.dtbo $WD/nfs/lib/firmware/overlays
+/ {
+    fragment@0 {
+        target = <&amba_pl>;
+        __overlay__ {
+            artico3_shuffler_0: artico3_shuffler@7aa00000 {
+                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+                interrupt-parent = <&intc>;
+                interrupts = <0 29 1>;
+                reg = <0x7aa00000 0x100000>;
+            };
+            artico3_slots_0: artico3_slots@8aa00000 {
+                compatible = "cei.upm,proxy-cdma-1.00.a";
+                reg = <0x8aa00000 0x100000>;
+                dmas = <&dmac_s 0>;
+                dma-names = "ps-dma";
+            };
+        };
+    };
+};
+EOF
+dtc -I dts -O dtb -@ -o $WD/nfs/lib/firmware/overlays/artico3.dtbo $WD/nfs/lib/firmware/overlays/artico3.dts
 
 # Create script to move kernel module to /lib/modules/...
 cat >> $WD/nfs/opt/artico3/artico3_init.sh << EOF

@@ -19,8 +19,12 @@
  */
 #define A3_MAXSLOTS (<a3<NUM_SLOTS>a3>)
 #define A3_MAXKERNS (0xF) // TODO: maybe make it configurable? Would also require additional VHDL parsing in Shuffler...
+<a3<if DEVICE=="zynq">a3>
 #define A3_SLOTADDR (0x8aa00000)
-
+<a3<end if>a3>
+<a3<if DEVICE=="zynqmp">a3>
+#define A3_SLOTADDR (0xb0000000)
+<a3<end if>a3>
 
 /*
  * ARTICo3 infrastructure register offsets (in 32-bit words)
