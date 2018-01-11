@@ -42,7 +42,7 @@
             artico3_slots_0: artico3_slots@b0000000 {
                 compatible = "cei.upm,proxy-cdma-1.00.a";
                 reg = <0x0 0xb0000000 0x0 0x100000>;
-                dmas = <&fpd_dma_chan0 0>;
+                dmas = <&fpd_dma_chan1 0>;
                 dma-names = "ps-dma";
             };
 <a3<end if>a3>
