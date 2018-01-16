@@ -483,8 +483,8 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    // Print ARTICo3 registers
-    artico3_hw_print_regs();
+    //~ // Print ARTICo3 registers
+    //~ artico3_hw_print_regs();
 
     return 0;
 }
@@ -569,8 +569,8 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    // Print ARTICo3 registers
-    artico3_hw_print_regs();
+    //~ // Print ARTICo3 registers
+    //~ artico3_hw_print_regs();
 
     return 0;
 }
@@ -960,18 +960,19 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
         // Only change configuration when no kernel is being executed
         if (!running) {
 
-            // Check if partial reconfiguration is required
-            if (shuffler.slots[index].state == S_EMPTY) {
-                reconf = 1;
-            }
-            else {
-                if (strcmp(shuffler.slots[index].kernel->name, name) != 0) {
-                    reconf = 1;
-                }
-                else {
-                    reconf = 0;
-                }
-            }
+            //~ // Check if partial reconfiguration is required
+            //~ if (shuffler.slots[index].state == S_EMPTY) {
+                //~ reconf = 1;
+            //~ }
+            //~ else {
+                //~ if (strcmp(shuffler.slots[index].kernel->name, name) != 0) {
+                    //~ reconf = 1;
+                //~ }
+                //~ else {
+                    //~ reconf = 0;
+                //~ }
+            //~ }
+            reconf = 1; // The previous code generates segmentation fault, needs checking
 
             // Even if reconfiguration is not required, it can be forced
             reconf |= force;
