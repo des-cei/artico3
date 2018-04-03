@@ -23,8 +23,14 @@ typedef uint32_t a3data_t;
  * ARTICo3 HLS-based kernel definition
  *
  */
+
+// Memory-based I/O
 #define a3in_t
 #define a3out_t
+#define a3inout_t
+
+// Register-based I/O
+// TODO
 
 #define A3_KERNEL(<a3<ARGS>a3>) void <a3<NAME>a3>(\
 <a3<generate for PORTS>a3>

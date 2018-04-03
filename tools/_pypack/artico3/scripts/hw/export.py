@@ -157,10 +157,25 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["ARGS"] = re.sub(r"a3\w+_t", "", match.group("ports")).strip()
 
         # Generate list with sorted input/output ports
-        args = []
+        #
+        # NOTE: in order to comply with bank orderings (especially
+        #       relevant for DMA transfers), ports are sorted in
+        #       alphabetical order and then arranged as I-IO-O.
+        #
+        argsI = []
+        argsO = []
+        argsIO = []
         for arg in match.group("ports").split(","):
-            args.append(arg.split())
-        args.sort()
+            if "a3in_t" in arg.split():
+                argsI.append(arg.split())
+            if "a3out_t" in arg.split():
+                argsO.append(arg.split())
+            if "a3inout_t" in arg.split():
+                argsIO.append(arg.split())
+        argsI.sort()
+        argsO.sort()
+        argsIO.sort()
+        args = argsI + argsIO + argsO;
         dictionary["PORTS"] = []
         for i in range(len(args)):
             d = {}
@@ -177,15 +192,22 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         log.info("Generating temporary HLS project in " + tmp.name + " ...")
         prj.apply_template("artico3_kernel_hls_build", dictionary, tmp.name)
 
-        # Fix header file (parser generates excesive \n that need to be removed)
-        with open(shutil2.join(tmp.name, "artico3.h")) as fp:
-            data = fp.read()
-        def repl(match):
-            return ",\\\n" + match.group("data")
-        reg = r",\\[\n]+(?P<data>\s*uint32_t values\))"
-        data = re.sub(reg, repl, data, 0, re.DOTALL)
-        with open(shutil2.join(tmp.name, "artico3.h"), "w") as fp:
-            fp.write(data)
+        #~ # Fix header file (parser generates excesive \n that need to be removed)
+        #~ with open(shutil2.join(tmp.name, "artico3.h")) as fp:
+            #~ data = fp.read()
+        #~ def repl(match):
+            #~ return ",\\\n" + match.group("data")
+        #~ reg = r",\\[\n]+(?P<data>\s*uint32_t values\))"
+        #~ data = re.sub(reg, repl, data, 0, re.DOTALL)
+        #~ with open(shutil2.join(tmp.name, "artico3.h"), "w") as fp:
+            #~ fp.write(data)
+
+        #~ # DEBUG
+        #~ with open(shutil2.join(tmp.name, "artico3.h")) as fp:
+            #~ data = fp.read()
+            #~ print(data)
+            #~ sys.exit(1)
+        #~ # END DEBUG
 
         log.info("Starting Vivado HLS ...")
 
