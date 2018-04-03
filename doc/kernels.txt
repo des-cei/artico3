@@ -44,6 +44,15 @@ entity <kernel_name> is
         bram_<i>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
         bram_<i>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
         (...)
+        -- Bidirectional I/O data memories
+        bram_<k>_clk  : out std_logic;
+        bram_<k>_rst  : out std_logic;
+        bram_<k>_en   : out std_logic;
+        bram_<k>_we   : out std_logic;
+        bram_<k>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
+        bram_<k>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<k>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        (...)
         -- Output data memories
         bram_<j>_clk  : out std_logic;
         bram_<j>_rst  : out std_logic;
@@ -77,7 +86,7 @@ C-Based HLS Kernel Specification
 
 #include "artico3.h"
 
-A3_KERNEL(a3in_t <in_0>, (...), a3in_t <in_i>, a3out_t <out_0>, (...), a3out_t <out_j>) {
+A3_KERNEL(a3in_t <in_i>, (...), a3out_t <out_j>, (...), a3inout_t <inout_k>, (...)) {
     (...)
 }
 
@@ -85,5 +94,9 @@ A3_KERNEL(a3in_t <in_0>, (...), a3in_t <in_i>, a3out_t <out_0>, (...), a3out_t <
 * It is important to identify input and output ports using the flags:
     - a3in_t for input ports
     - a3out_t for output ports
+    - a3inout_t for bidirectional I/O ports
+
+* The ordering of the ports is not important, the toolchain automatically
+sets and sorts everything.
 
 * HLS-based accelerators require the addition of the "artico3.h" header
