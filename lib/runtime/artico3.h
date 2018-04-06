@@ -36,7 +36,7 @@ typedef uint32_t a3data_t;
  * A3_P_O - ARTICo3 Output Port
  *
  */
-enum a3pdir_t {A3_P_I, A3_P_O};
+enum a3pdir_t {A3_P_I, A3_P_O, A3_P_IO};
 
 
 /*

@@ -79,6 +79,7 @@ struct a3kernel_t {
     size_t regro;
     struct a3port_t **inputs;
     struct a3port_t **outputs;
+    struct a3port_t **inouts;
 };
 
 

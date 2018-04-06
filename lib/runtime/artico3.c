@@ -341,10 +341,19 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         goto err_malloc_kernel_outputs;
     }
 
+    // Initialize kernel bidirectional I/O ports
+    kernel->inouts = malloc(membanks * sizeof *kernel->inouts);
+    if (!kernel->inouts) {
+        a3_print_error("[artico3-hw] malloc() failed\n");
+        ret = -ENOMEM;
+        goto err_malloc_kernel_inouts;
+    }
+
     // Set initial values for inputs and outputs
     for (i = 0; i < kernel->membanks; i++) {
         kernel->inputs[i] = NULL;
         kernel->outputs[i] = NULL;
+        kernel->inouts[i] = NULL;
     }
 
     a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%d,membanks=%d,regrw=%d,regro=%d)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regrw, kernel->regro);
@@ -353,6 +362,9 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
     kernels[index] = kernel;
 
     return 0;
+
+err_malloc_kernel_inouts:
+    free(kernel->outputs);
 
 err_malloc_kernel_outputs:
     free(kernel->inputs);
@@ -391,6 +403,7 @@ int artico3_kernel_release(const char *name) {
     }
 
     // Free allocated memory
+    free(kernels[index]->inouts);
     free(kernels[index]->outputs);
     free(kernels[index]->inputs);
     free(kernels[index]->name);
@@ -417,7 +430,7 @@ int artico3_kernel_release(const char *name) {
  */
 int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
     unsigned int acc, port;
-    unsigned int nports;
+    unsigned int nports, ninputs, ninouts;
 
     struct dmaproxy_token token;
     volatile a3data_t *mem = NULL;
@@ -425,13 +438,13 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     uint32_t blksize;
 
     // Get number of input ports
-    nports = 0;
+    ninputs = 0;
+    ninouts = 0;
     for (port = 0; port < kernels[id - 1]->membanks; port++) {
-        if (!kernels[id - 1]->inputs[port]) {
-            nports = port;
-            break;
-        }
+        if (kernels[id - 1]->inputs[port]) ninputs++;
+        if (kernels[id - 1]->inouts[port]) ninouts++;
     }
+    nports = ninputs + ninouts;
     if (!nports) {
         a3_print_error("[artico3-hw] no input ports found for kernel %x\n", id);
         return -ENODEV;
@@ -449,16 +462,23 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
     // Copy inputs to physical memory (TODO: could it be possible to avoid this step?)
     for (acc = 0; acc < naccs; acc++) {
-        for (port = 0; port < nports; port++) {
-            // When finishing, there could be more accelerators than rounds left
-            if ((round + acc) < nrounds) {
-                size_t size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;
-                size_t offset = round * size;
-                uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
-                uint32_t idx_dat = (acc * size) + offset;
-                a3data_t *data = kernels[id - 1]->inputs[port]->data;
-                //~ memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
+        // When finishing, there could be more accelerators than rounds left
+        if ((round + acc) < nrounds) {
+            // Iterate for each port
+            for (port = 0; port < nports; port++) {
+                size_t size, offset;
+                uint32_t idx_mem, idx_dat;
+                a3data_t *data = NULL;
 
+                if (port < ninputs) size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;           // Inputs
+                else                size = (kernels[id - 1]->inouts[port - ninputs]->size / sizeof (a3data_t)) / nrounds; // Bidirectional I/O ports
+                offset = round * size;
+                idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                idx_dat = (acc * size) + offset;
+                if (port < ninputs) data = kernels[id - 1]->inputs[port]->data;           // Inputs
+                else                data = kernels[id - 1]->inouts[port - ninputs]->data; // Bidirectional I/O ports
+
+                //~ memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
                 unsigned int i;
                 for (i = 0; i < size; i++) {
                     mem[idx_mem + i] = data[idx_dat + i];
@@ -503,21 +523,21 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
  */
 int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
     unsigned int acc, port;
-    unsigned int nports;
+    unsigned int nports, noutputs, ninouts;
 
     struct dmaproxy_token token;
     volatile a3data_t *mem = NULL;
 
     uint32_t blksize;
 
-    // Get number of input ports
-    nports = 0;
+    // Get number of output ports
+    ninouts = 0;
+    noutputs = 0;
     for (port = 0; port < kernels[id - 1]->membanks; port++) {
-        if (!kernels[id - 1]->outputs[port]) {
-            nports = port;
-            break;
-        }
+        if (kernels[id - 1]->inouts[port]) ninouts++;
+        if (kernels[id - 1]->outputs[port]) noutputs++;
     }
+    nports = ninouts + noutputs;
     if (!nports) {
         a3_print_error("[artico3-hw] no output ports found for kernel %x\n", id);
         return -ENODEV;
@@ -546,16 +566,23 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
     // Copy outputs from physical memory (TODO: could it be possible to avoid this step?)
     for (acc = 0; acc < naccs; acc++) {
-        for (port = 0; port < nports; port++) {
-            // When finishing, there could be more accelerators than rounds left
-            if ((round + acc) < nrounds) {
-                size_t size = (kernels[id - 1]->outputs[port]->size / sizeof (a3data_t)) / nrounds;
-                size_t offset = round * size;
-                uint32_t idx_mem = (port * (blksize / nports)) + (acc * blksize);
-                uint32_t idx_dat = (acc * size) + offset;
-                a3data_t *data = kernels[id - 1]->outputs[port]->data;
-                //~ memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
+        // When finishing, there could be more accelerators than rounds left
+        if ((round + acc) < nrounds) {
+            // Iterate for each port
+            for (port = 0; port < nports; port++) {
+                size_t size, offset;
+                uint32_t idx_mem, idx_dat;
+                a3data_t *data = NULL;
 
+                if (port < ninouts) size = (kernels[id - 1]->inouts[port]->size / sizeof (a3data_t)) / nrounds;            // Bidirectional I/O ports
+                else                size = (kernels[id - 1]->outputs[port - ninouts]->size / sizeof (a3data_t)) / nrounds; // Outputs
+                offset = round * size;
+                idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                idx_dat = (acc * size) + offset;
+                if (port < ninouts) data = kernels[id - 1]->inouts[port]->data;            // Bidirectional I/O ports
+                else                data = kernels[id - 1]->outputs[port - ninouts]->data; // Outputs
+
+                //~ memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
                 unsigned int i;
                 for (i = 0; i < size; i++) {
                     data[idx_dat + i] = mem[idx_mem + i];
@@ -793,7 +820,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         goto err_malloc_port_data;
     }
 
-    // Check port direction flag
+    // Check port direction flag : INPUTS
     if (dir == A3_P_I) {
 
         // Add port to inputs
@@ -826,7 +853,9 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         a3_print_debug("\n");
 
     }
-    else {
+
+    // Check port direction flag : OUTPUTS
+    if (dir == A3_P_O) {
 
         // Add port to outputs
         p = 0;
@@ -854,6 +883,40 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         for (p = 0; p < kernels[index]->membanks; p++) {
             if (!kernels[index]->outputs[p]) break;
             a3_print_debug("%s ", kernels[index]->outputs[p]->name);
+        }
+        a3_print_debug("\n");
+
+    }
+
+    // Check port direction flag : BIDIRECTIONAL I/O
+    if (dir == A3_P_IO) {
+
+        // Add port to bidirectional I/O ports
+        p = 0;
+        while (kernels[index]->inouts[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
+        kernels[index]->inouts[p] = port;
+
+        // Bubble-sort bidirectional I/O ports by name
+        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
+            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
+                if (!kernels[index]->inouts[j + 1]) break;
+                if (strcmp(kernels[index]->inouts[j]->name, kernels[index]->inouts[j + 1]->name) > 0) {
+                    struct a3port_t *aux = kernels[index]->inouts[j + 1];
+                    kernels[index]->inouts[j + 1] = kernels[index]->inouts[j];
+                    kernels[index]->inouts[j] = aux;
+                }
+            }
+        }
+
+        // Print sorted list
+        a3_print_debug("[artico3-hw] bidirectional I/O ports after sorting: ");
+        for (p = 0; p < kernels[index]->membanks; p++) {
+            if (!kernels[index]->inouts[p]) break;
+            a3_print_debug("%s ", kernels[index]->inouts[p]->name);
         }
         a3_print_debug("\n");
 
@@ -914,6 +977,13 @@ int artico3_free(const char *kname, const char *pname) {
             if (strcmp(kernels[index]->outputs[p]->name, pname) == 0) {
                 port = kernels[index]->outputs[p];
                 kernels[index]->outputs[p] = NULL;
+                break;
+            }
+        }
+        if (kernels[index]->inouts[p]) {
+            if (strcmp(kernels[index]->inouts[p]->name, pname) == 0) {
+                port = kernels[index]->inouts[p];
+                kernels[index]->inouts[p] = NULL;
                 break;
             }
         }
