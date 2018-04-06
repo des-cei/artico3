@@ -71,6 +71,7 @@ end <kernel_name>;
 * The naming convention for input/output memories is as follows:
     - Input memories start at i = 0
     - Output memories start at j = i + 1, where i is the last input bank
+    - Bidirectional I/O memories start at k = j + 1, where k is the last output bank
 
 * The timing of the START/READY pair has to be the following:
         __    __    __    __    __    __    __    __    __    __    __

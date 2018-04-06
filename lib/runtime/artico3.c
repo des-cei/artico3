@@ -783,6 +783,8 @@ int artico3_kernel_wait(const char *name) {
  *
  * Return : pointer to allocated memory on success, NULL otherwise
  *
+ * TODO   : implement optimized version using qsort();
+ *
  */
 void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
     unsigned int index, p, i, j;
