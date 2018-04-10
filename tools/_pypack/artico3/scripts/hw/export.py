@@ -117,15 +117,19 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
         dictionary["RST_POL"] = kernel.rstpol
-        dictionary["REGRW"] = kernel.regrw
-        dictionary["REGRO"] = kernel.regro
+        dictionary["NUMREGS"] = kernel.regs
         dictionary["MEMBYTES"] = kernel.membytes
         dictionary["MEMBANKS"] = kernel.membanks
-        dictionary["BANKS"] = []
+        dictionary["REGS"] = []
+        for i in range(kernel.regs):
+            d = {}
+            d["rid"] = i
+            dictionary["REGS"].append(d)
+        dictionary["PORTS"] = []
         for i in range(kernel.membanks):
             d = {}
-            d["bid"] = i
-            dictionary["BANKS"].append(d)
+            d["pid"] = i
+            dictionary["PORTS"].append(d)
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
         incl = shutil2.listfiles(src, True)
@@ -141,8 +145,6 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["PART"] = prj.impl.part
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
-        dictionary["REGRW"] = kernel.regrw
-        dictionary["REGRO"] = kernel.regro
         dictionary["MEMBYTES"] = kernel.membytes
         src = shutil2.join(prj.dir, "src", "a3_" + kernel.name.lower(), kernel.hwsrc)
         dictionary["SOURCES"] = [src]
@@ -159,12 +161,13 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         # Generate list with sorted input/output ports
         #
         # NOTE: in order to comply with bank orderings (especially
-        #       relevant for DMA transfers), ports are sorted in
-        #       alphabetical order and then arranged as I-IO-O.
+        #       relevant for DMA transfers), memory ports are sorted
+        #       in alphabetical order and then arranged as I-IO-O.
         #
         argsI = []
         argsO = []
         argsIO = []
+        argsR = []
         for arg in match.group("ports").split(","):
             if "a3in_t" in arg.split():
                 argsI.append(arg.split())
@@ -172,16 +175,30 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
                 argsO.append(arg.split())
             if "a3inout_t" in arg.split():
                 argsIO.append(arg.split())
+            if "a3reg_t" in arg.split():
+                argsR.append(arg.split())
         argsI.sort()
         argsO.sort()
         argsIO.sort()
         args = argsI + argsIO + argsO;
+        argsR.sort()
+        dictionary["REGS"] = []
+        for i in range(len(argsR)):
+            d = {}
+            d["rname"] = argsR[i][1]
+            d["rid"] = i
+            dictionary["REGS"].append(d)
         dictionary["PORTS"] = []
         for i in range(len(args)):
             d = {}
-            d["pid"] = args[i][1]
-            d["bid"] = i
+            d["pname"] = args[i][1]
+            d["pid"] = i
             dictionary["PORTS"].append(d)
+
+        # Get info from register numbers and check consistency
+        dictionary["NUMREGS"] = len(dictionary["REGS"])
+        if dictionary["NUMREGS"] != kernel.regs:
+            log.warning("Inconsistent use of Regs (.cfg) and A3_KERNEL (.cpp), will generate run-time errors")
 
         # Get info from the number of memory elements in each bank
         dictionary["MEMBANKS"] = len(dictionary["PORTS"])
