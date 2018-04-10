@@ -30,11 +30,14 @@ typedef uint32_t a3data_t;
 #define a3inout_t
 
 // Register-based I/O
-// TODO
+#define a3reg_t
 
 #define A3_KERNEL(<a3<ARGS>a3>) void <a3<NAME>a3>(\
+<a3<generate for REGS>a3>
+        a3data_t *<a3<rname>a3>,\
+<a3<end generate>a3>
 <a3<generate for PORTS>a3>
-        a3data_t <a3<pid>a3>[<a3<MEMPOS>a3>],\
+        a3data_t <a3<pname>a3>[<a3<MEMPOS>a3>],\
 <a3<end generate>a3>
         a3data_t values)
 
