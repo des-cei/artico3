@@ -36,6 +36,8 @@
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
 
+#include <inttypes.h>
+
 
 /*
  * ARTICo3 global variables
@@ -1204,18 +1206,13 @@ int artico3_kernel_reset(const char *name) {
  *
  */
 int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
-    unsigned int index, i;
+    unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
-
-    uint8_t aux_id;
-    uint8_t aux_tmr;
-    uint8_t aux_dmr;
-    uint8_t shift;
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1238,63 +1235,64 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
 
     // Get current shadow registers
     id_reg  = shuffler.id_reg;
-    tmr_reg = shuffler.tmr_reg;
     dmr_reg = shuffler.dmr_reg;
+    tmr_reg = shuffler.tmr_reg;
 
-    // Isolate equivalent accelerators and perform individual
-    // (AXI4-Lite) write operations to each one of them.
-    shift = 0;
+    // Initialize index variable
     index = 0;
-    while (id_reg) {
-        // Initialize shadow configuration
+
+    // TMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
         shuffler.id_reg  = 0x0000000000000000;
-        shuffler.tmr_reg = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
-        // Extract current ID and TMR/DMR group
-        aux_id  = id_reg  & 0xf;
-        aux_tmr = tmr_reg & 0xf;
-        aux_dmr = dmr_reg & 0xf;
-        // Whenever a match is found...
-        if (aux_id == id) {
-            // ...modify shadow configuration...
-            shuffler.id_reg  |= aux_id  << shift;
-            shuffler.tmr_reg |= aux_tmr << shift;
-            shuffler.dmr_reg |= aux_dmr << shift;
-            // ...and check if TMR redundancy is enabled...
-            if (aux_tmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
-                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
-                    if (((tmr_reg >> (4 * i)) & 0xf) == aux_tmr) {
-                        tmr_reg ^= tmr_reg & (0xf << (4 * i));
-                        id_reg ^= id_reg & (0xf << (4 * i));
-                        // ...modifying shadow configuration when required
-                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
-                        shuffler.tmr_reg |= aux_tmr << (shift + (4 * i));
-                    }
-                }
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.tmr_reg |= (i << (4 * j));
             }
-            // ...or check if DMR redundancy is enabled...
-            else if (aux_dmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
-                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
-                    if (((dmr_reg >> (4 * i)) & 0xf) == aux_dmr) {
-                        dmr_reg ^= dmr_reg & (0xf << (4 * i));
-                        id_reg ^= id_reg & (0xf << (4 * i));
-                        // ...modifying shadow configuration when required
-                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
-                        shuffler.dmr_reg |= aux_dmr << (shift + (4 * i));
-                    }
-                }
-            }
+        }
+        if (shuffler.id_reg) {
             // Perform write operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
-            artico3_hw_regwrite(aux_id, 0, offset, cfg[index++]);
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
         }
-        // Update intermediate variables
-        shift += 4;
-        id_reg >>= 4;
-        tmr_reg >>= 4;
-        dmr_reg >>= 4;
+    }
+
+    // DMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.dmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Simplex blocks
+    for (j = 0; j < A3_MAXSLOTS; j++) {
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        if ((((id_reg >> (4 * j)) & 0xf) == id) && (((dmr_reg >> (4 * j) & 0xf) == 0x0) && ((tmr_reg >> (4 * j) & 0xf) == 0x0))) {
+            shuffler.id_reg  |= (id << (4 * j));
+        }
+        if (shuffler.id_reg) {
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
     }
 
     // Restore previous shuffler status
@@ -1331,18 +1329,13 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *
  */
 int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
-    unsigned int index, i;
+    unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
-
-    uint8_t aux_id;
-    uint8_t aux_tmr;
-    uint8_t aux_dmr;
-    uint8_t shift;
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1368,60 +1361,61 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     tmr_reg = shuffler.tmr_reg;
     dmr_reg = shuffler.dmr_reg;
 
-    // Isolate equivalent accelerators and perform individual
-    // (AXI4-Lite) read operations to each one of them.
-    shift = 0;
+    // Initialize index variable
     index = 0;
-    while (id_reg) {
-        // Initialize shadow configuration
+
+    // TMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
         shuffler.id_reg  = 0x0000000000000000;
-        shuffler.tmr_reg = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
-        // Extract current ID and TMR/DMR group
-        aux_id  = id_reg  & 0xf;
-        aux_tmr = tmr_reg & 0xf;
-        aux_dmr = dmr_reg & 0xf;
-        // Whenever a match is found...
-        if (aux_id == id) {
-            // ...modify shadow configuration...
-            shuffler.id_reg  |= aux_id  << shift;
-            shuffler.tmr_reg |= aux_tmr << shift;
-            shuffler.dmr_reg |= aux_dmr << shift;
-            // ...and check if TMR redundancy is enabled...
-            if (aux_tmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
-                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
-                    if (((tmr_reg >> (4 * i)) & 0xf) == aux_tmr) {
-                        tmr_reg ^= tmr_reg & (0xf << (4 * i));
-                        id_reg ^= id_reg & (0xf << (4 * i));
-                        // ...modifying shadow configuration when required
-                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
-                        shuffler.tmr_reg |= aux_tmr << (shift + (4 * i));
-                    }
-                }
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.tmr_reg |= (i << (4 * j));
             }
-            // ...or check if DMR redundancy is enabled...
-            else if (aux_dmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
-                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
-                    if (((dmr_reg >> (4 * i)) & 0xf) == aux_dmr) {
-                        dmr_reg ^= dmr_reg & (0xf << (4 * i));
-                        id_reg ^= id_reg & (0xf << (4 * i));
-                        // ...modifying shadow configuration when required
-                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
-                        shuffler.dmr_reg |= aux_dmr << (shift + (4 * i));
-                    }
-                }
-            }
+        }
+        if (shuffler.id_reg) {
             // Perform read operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
-            cfg[index++] = artico3_hw_regread(aux_id, 0, offset);
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
         }
-        // Update intermediate variables
-        shift += 4;
-        id_reg >>= 4;
-        tmr_reg >>= 4;
-        dmr_reg >>= 4;
+    }
+
+    // DMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.dmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Simplex blocks
+    for (j = 0; j < A3_MAXSLOTS; j++) {
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        if ((((id_reg >> (4 * j)) & 0xf) == id) && (((dmr_reg >> (4 * j) & 0xf) == 0x0) && ((tmr_reg >> (4 * j) & 0xf) == 0x0))) {
+            shuffler.id_reg  |= (id << (4 * j));
+        }
+        if (shuffler.id_reg) {
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
     }
 
     // Restore previous shuffler status
