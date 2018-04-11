@@ -13,8 +13,8 @@
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
 
-extern uint32_t *artico3_hw;
-extern struct a3shuffler_t shuffler;
+extern volatile uint32_t *artico3_hw;
+extern volatile struct a3shuffler_t shuffler;
 
 
 /*

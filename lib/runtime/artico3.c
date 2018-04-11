@@ -53,10 +53,10 @@
  *
  */
 static int artico3_fd;
-uint32_t *artico3_hw = NULL;
+volatile uint32_t *artico3_hw = NULL;
 static int a3slots_fd;
 
-struct a3shuffler_t shuffler = {
+volatile struct a3shuffler_t shuffler = {
     .id_reg      = 0x0000000000000000,
     .tmr_reg     = 0x0000000000000000,
     .dmr_reg     = 0x0000000000000000,
@@ -1244,6 +1244,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     // Isolate equivalent accelerators and perform individual
     // (AXI4-Lite) write operations to each one of them.
     shift = 0;
+    index = 0;
     while (id_reg) {
         // Initialize shadow configuration
         shuffler.id_reg  = 0x0000000000000000;
@@ -1287,7 +1288,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             }
             // Perform write operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
-            artico3_hw_regwrite(aux_id, 0, offset, cfg[shift / 4]);
+            artico3_hw_regwrite(aux_id, 0, offset, cfg[index++]);
         }
         // Update intermediate variables
         shift += 4;
@@ -1370,6 +1371,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     // Isolate equivalent accelerators and perform individual
     // (AXI4-Lite) read operations to each one of them.
     shift = 0;
+    index = 0;
     while (id_reg) {
         // Initialize shadow configuration
         shuffler.id_reg  = 0x0000000000000000;
@@ -1413,7 +1415,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             }
             // Perform read operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
-            cfg[shift / 4] = artico3_hw_regread(aux_id, 0, offset);
+            cfg[index++] = artico3_hw_regread(aux_id, 0, offset);
         }
         // Update intermediate variables
         shift += 4;
