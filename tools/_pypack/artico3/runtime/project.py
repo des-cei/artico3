@@ -65,18 +65,18 @@ class Slot:
 class Kernel:
     """Class to store information of an ARTICo\u00b3 kernel."""
 
-    def __init__(self, name, hwsrc, membytes, membanks, regrw, regro, rstpol):
+    def __init__(self, name, hwsrc, membytes, membanks, regs, rstpol):
         self.name, self.hwsrc = name, hwsrc
         self.membytes, self.membanks = membytes, membanks
-        self.regrw, self.regro = regrw, regro
+        self.regs = regs
         self.rstpol = rstpol
         pass
 
     def __repr__(self):
         msg = ("<ARTICo\u00b3 Kernel> "
-               "name={},hwsrc={},mem=({},{}),reg=({},{})")
+               "name={},hwsrc={},mem=({},{}),reg={}")
         return msg.format(self.name, self.hwsrc, self.membytes,
-            self.membanks, self.regrw, self.regro)
+            self.membanks, self.regs)
 
     def get_corename(self):
         return "a3_" + self.name.lower()
@@ -194,7 +194,7 @@ class Project:
         self._parse_shuffler(self.impl.part)
         self._parse_kernels(cfg)
 
-        kernel = Kernel("dummy", "vhdl", 4096, 2, 2, 2, "low")
+        kernel = Kernel("dummy", "vhdl", 4096, 2, 2, "low")
         self.kerns.append(kernel)
         for i in range(self.shuffler.slots):
             slot = Slot()
@@ -252,17 +252,11 @@ class Project:
                 log.warning("[{}] increasing kernel memory size to ensure integer number of 32-bit words per bank".format(name))
                 membytes = int(math.ceil((membytes / membanks) / 4) * 4 * membanks)
 
-            if cfg.has_option(kernel, "RegRW"):
-                regrw = int(cfg.get(kernel, "RegRW"))
+            if cfg.has_option(kernel, "Regs"):
+                regs = int(cfg.get(kernel, "Regs"))
             else:
                 log.warning("[{}] number of local R/W registers not specified, assuming 4".format(name))
-                regrw = 4
-
-            if cfg.has_option(kernel, "RegRO"):
-                regro = int(cfg.get(kernel, "RegRO"))
-            else:
-                log.warning("[{}] number of local Read Only registers not specified, assuming 4".format(name))
-                regro = 4
+                regs = 4
 
             if cfg.has_option(kernel, "RstPol"):
                 rstpol = cfg.get(kernel, "RstPol")
@@ -270,8 +264,7 @@ class Project:
                 log.warning("[{}] reset polarity for accelerator not found, setting active low for AXI compatibility".format(name))
                 rstpol = "low"
 
-            kernel = Kernel(name, hwsrc, membytes, membanks, regrw,
-                regro, rstpol)
+            kernel = Kernel(name, hwsrc, membytes, membanks, regs, rstpol)
             self.kerns.append(kernel)
 
 

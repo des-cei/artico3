@@ -35,14 +35,18 @@ entity <kernel_name> is
         -- Control signals
         start         : in  std_logic;
         ready         : out std_logic;
+        -- Configuration registers
+        reg_<i>_o_vld : out std_logic;
+        reg_<i>_o     : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        reg_<i>_i     : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
         -- Input data memories
-        bram_<i>_clk  : out std_logic;
-        bram_<i>_rst  : out std_logic;
-        bram_<i>_en   : out std_logic;
-        bram_<i>_we   : out std_logic;
-        bram_<i>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
-        bram_<i>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
-        bram_<i>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<j>_clk  : out std_logic;
+        bram_<j>_rst  : out std_logic;
+        bram_<j>_en   : out std_logic;
+        bram_<j>_we   : out std_logic;
+        bram_<j>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
+        bram_<j>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<j>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
         (...)
         -- Bidirectional I/O data memories
         bram_<k>_clk  : out std_logic;
@@ -54,13 +58,13 @@ entity <kernel_name> is
         bram_<k>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
         (...)
         -- Output data memories
-        bram_<j>_clk  : out std_logic;
-        bram_<j>_rst  : out std_logic;
-        bram_<j>_en   : out std_logic;
-        bram_<j>_we   : out std_logic;
-        bram_<j>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
-        bram_<j>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
-        bram_<j>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<l>_clk  : out std_logic;
+        bram_<l>_rst  : out std_logic;
+        bram_<l>_en   : out std_logic;
+        bram_<l>_we   : out std_logic;
+        bram_<l>_addr : out std_logic_vector(C_ADDR_WIDTH-1 downto 0);
+        bram_<l>_din  : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        bram_<l>_dout : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
         (...)
         -- Data counter
         values        : in  std_logic_vector(31 downto 0)
@@ -68,9 +72,11 @@ entity <kernel_name> is
 end <kernel_name>;
 
 
-* The naming convention for input/output memories is as follows:
-    - Input memories start at i = 0
-    - Output memories start at j = i + 1, where i is the last input bank
+* The naming convention for input/output register/memories is as follows:
+    - Configuration registers start at i = 0
+    - Input memories start at j = 0
+    - Bidirectional I/O memories start at k = j + 1, where j is the last input bank
+    - Output memories start at l = k + 1, where k is the last bidirectional I/O bank
 
 * The timing of the START/READY pair has to be the following:
         __    __    __    __    __    __    __    __    __    __    __
@@ -86,15 +92,26 @@ C-Based HLS Kernel Specification
 
 #include "artico3.h"
 
-A3_KERNEL(a3in_t <in_i>, (...), a3out_t <out_j>, (...), a3inout_t <inout_k>, (...)) {
+A3_KERNEL(a3reg_t   <reg_i>, (...),
+          a3in_t    <mem_j>, (...),
+          a3inout_t <mem_k>, (...),
+          a3out_t   <mem_l>, (...)) {
     (...)
 }
 
 
 * It is important to identify input and output ports using the flags:
-    - a3in_t for input ports
-    - a3out_t for output ports
-    - a3inout_t for bidirectional I/O ports
+    - a3reg_t   for configuration registers
+    - a3in_t    for input memory ports
+    - a3inout_t for bidirectional I/O memory ports
+    - a3out_t   for output memory ports
+
+* The HLS process translates these flags in:
+    - a3reg_t   <reg_i> -> a3data_t *<reg_i>
+    - a3in_t    <mem_j> -> a3data_t <mem_j>[<size>]
+    - a3inout_t <mem_k> -> a3data_t <mem_k>[<size>]
+    - a3out_t   <mem_l> -> a3data_t <mem_l>[<size>]
+    * a3data_t          -> uint32_t
 
 * The ordering of the ports is not important, the toolchain automatically
 sets and sorts everything.

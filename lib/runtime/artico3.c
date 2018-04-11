@@ -36,6 +36,8 @@
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
 
+#include <inttypes.h>
+
 
 /*
  * ARTICo3 global variables
@@ -53,10 +55,10 @@
  *
  */
 static int artico3_fd;
-uint32_t *artico3_hw = NULL;
+volatile uint32_t *artico3_hw = NULL;
 static int a3slots_fd;
 
-struct a3shuffler_t shuffler = {
+volatile struct a3shuffler_t shuffler = {
     .id_reg      = 0x0000000000000000,
     .tmr_reg     = 0x0000000000000000,
     .dmr_reg     = 0x0000000000000000,
@@ -783,6 +785,8 @@ int artico3_kernel_wait(const char *name) {
  *
  * Return : pointer to allocated memory on success, NULL otherwise
  *
+ * TODO   : implement optimized version using qsort();
+ *
  */
 void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
     unsigned int index, p, i, j;
@@ -1136,6 +1140,289 @@ int artico3_unload(const char *name, size_t slot) {
     pthread_mutex_unlock(&mutex);
 
     a3_print_debug("[artico3-hw] removed accelerator \"%s\" from slot %d\n", name, slot);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 reset hardware kernel
+ *
+ * This function resets all hardware accelerators of a given kernel.
+ *
+ * @name : hardware kernel to reset
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_reset(const char *name) {
+    unsigned int index;
+    uint8_t id;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Setup transfer (blksize needs to be 0 for register-based transactions)
+    artico3_hw_setup_transfer(0);
+    // Perform selective RESET (requires kernel ID and operation code 0x1
+    // and the value to be written is not used).
+    artico3_hw_regwrite(id, 0x1, 0x000, 0x00000000);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 configuration register write
+ *
+ * This function writes configuration data to ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be written, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+    unsigned int index, i, j;
+    struct a3shuffler_t shuffler_shadow;
+    uint8_t id;
+
+    uint64_t id_reg;
+    uint64_t tmr_reg;
+    uint64_t dmr_reg;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Lock mutex, avoid interference with other processes
+    pthread_mutex_lock(&mutex);
+
+    // Copy current shuffler status
+    shuffler_shadow = shuffler;
+
+    // Get current shadow registers
+    id_reg  = shuffler.id_reg;
+    dmr_reg = shuffler.dmr_reg;
+    tmr_reg = shuffler.tmr_reg;
+
+    // Initialize index variable
+    index = 0;
+
+    // TMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.tmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // DMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.dmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Simplex blocks
+    for (j = 0; j < A3_MAXSLOTS; j++) {
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        if ((((id_reg >> (4 * j)) & 0xf) == id) && (((dmr_reg >> (4 * j) & 0xf) == 0x0) && ((tmr_reg >> (4 * j) & 0xf) == 0x0))) {
+            shuffler.id_reg  |= (id << (4 * j));
+        }
+        if (shuffler.id_reg) {
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(id, 0, offset, cfg[index++]);
+            a3_print_debug("W SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Restore previous shuffler status
+    shuffler = shuffler_shadow;
+
+    // Release mutex
+    pthread_mutex_unlock(&mutex);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 configuration register read
+ *
+ * This function reads configuration data from ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be read, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+    unsigned int index, i, j;
+    struct a3shuffler_t shuffler_shadow;
+    uint8_t id;
+
+    uint64_t id_reg;
+    uint64_t tmr_reg;
+    uint64_t dmr_reg;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Lock mutex, avoid interference with other processes
+    pthread_mutex_lock(&mutex);
+
+    // Copy current shuffler status
+    shuffler_shadow = shuffler;
+
+    // Get current shadow registers
+    id_reg  = shuffler.id_reg;
+    tmr_reg = shuffler.tmr_reg;
+    dmr_reg = shuffler.dmr_reg;
+
+    // Initialize index variable
+    index = 0;
+
+    // TMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.tmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // DMR blocks
+    for (i = 1; i < (1 << 4); i++) {           // TODO: make this configurable (now, only 4 bits for ID are used)
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        for (j = 0; j < A3_MAXSLOTS; j++) {
+            if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
+                shuffler.id_reg  |= (id << (4 * j));
+                shuffler.dmr_reg |= (i << (4 * j));
+            }
+        }
+        if (shuffler.id_reg) {
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Simplex blocks
+    for (j = 0; j < A3_MAXSLOTS; j++) {
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        if ((((id_reg >> (4 * j)) & 0xf) == id) && (((dmr_reg >> (4 * j) & 0xf) == 0x0) && ((tmr_reg >> (4 * j) & 0xf) == 0x0))) {
+            shuffler.id_reg  |= (id << (4 * j));
+        }
+        if (shuffler.id_reg) {
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[index++] = artico3_hw_regread(id, 0, offset);
+            a3_print_debug("R SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+        }
+    }
+
+    // Restore previous shuffler status
+    shuffler = shuffler_shadow;
+
+    // Release mutex
+    pthread_mutex_unlock(&mutex);
 
     return 0;
 }

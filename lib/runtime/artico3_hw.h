@@ -13,6 +13,10 @@
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
 
+extern volatile uint32_t *artico3_hw;
+extern volatile struct a3shuffler_t shuffler;
+
+
 /*
  * ARTICo3 hardware configuration parameters
  *
@@ -238,6 +242,51 @@ uint32_t artico3_hw_get_pmc_cycles(uint8_t slot);
  *
  */
 uint32_t artico3_hw_get_pmc_errors(uint8_t slot);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Generic write operation to access accelerator registers or to send
+ * specific commands.
+ *
+ * @id    : kernel ID
+ * @op    : operation code
+ *          0 - write operation
+ *          1 - reset all accelerators from kernel #ID
+ * @reg   : for actual register write operations, register offset
+ * @value : for actual register write operations, value to be written
+ *
+ * NOTE: this implementation assumes fixed number of bits for ID, OP and
+ *       address ranges inside the memory map (4, 4, and 12 respectively)
+ *
+ */
+static inline void artico3_hw_regwrite(uint8_t id, uint8_t op, uint16_t reg, uint32_t value){
+    artico3_hw[((((id & 0xf) << 16) | ((op & 0xf) << 12)) >> 2) | (reg & 0xfff)] = value;
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Generic read operation to access accelerator registers or to execute
+ * specific commands.
+ *
+ * @id    : kernel ID
+ * @op    : operation code
+ *          0    - read operation
+ *          1..f - reduction operation code
+ * @reg   : for actual register read operations, register offset
+ *
+ * Return : for actual register read operations, read value
+ *
+ * NOTE: this implementation assumes fixed number of bits for ID, OP and
+ *       address ranges inside the memory map (4, 4, and 12 respectively)
+ *
+ */
+static inline uint32_t artico3_hw_regread(uint8_t id, uint8_t op, uint16_t reg){
+    return artico3_hw[((((id & 0xf) << 16) | ((op & 0xf) << 12)) >> 2) | (reg & 0xfff)];
+}
 
 
 #endif /* _ARTICO3_HW_H_ */

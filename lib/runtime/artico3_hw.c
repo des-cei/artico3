@@ -17,10 +17,6 @@
 #include "artico3_dbg.h"
 
 
-extern uint32_t *artico3_hw;
-extern struct a3shuffler_t shuffler;
-
-
 /*
  * ARTICo3 low-level hardware function
  *
