@@ -1141,3 +1141,292 @@ int artico3_unload(const char *name, size_t slot) {
 
     return 0;
 }
+
+
+/*
+ * ARTICo3 reset hardware kernel
+ *
+ * This function resets all hardware accelerators of a given kernel.
+ *
+ * @name : hardware kernel to reset
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_reset(const char *name) {
+    unsigned int index;
+    uint8_t id;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Setup transfer (blksize needs to be 0 for register-based transactions)
+    artico3_hw_setup_transfer(0);
+    // Perform selective RESET (requires kernel ID and operation code 0x1
+    // and the value to be written is not used).
+    artico3_hw_regwrite(id, 0x1, 0x000, 0x00000000);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 configuration register write
+ *
+ * This function writes configuration data to ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be written, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+    unsigned int index, i;
+    struct a3shuffler_t shuffler_shadow;
+    uint8_t id;
+
+    uint64_t id_reg;
+    uint64_t tmr_reg;
+    uint64_t dmr_reg;
+
+    uint8_t aux_id;
+    uint8_t aux_tmr;
+    uint8_t aux_dmr;
+    uint8_t shift;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Lock mutex, avoid interference with other processes
+    pthread_mutex_lock(&mutex);
+
+    // Copy current shuffler status
+    shuffler_shadow = shuffler;
+
+    // Get current shadow registers
+    id_reg  = shuffler.id_reg;
+    tmr_reg = shuffler.tmr_reg;
+    dmr_reg = shuffler.dmr_reg;
+
+    // Isolate equivalent accelerators and perform individual
+    // (AXI4-Lite) write operations to each one of them.
+    shift = 0;
+    while (id_reg) {
+        // Initialize shadow configuration
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        // Extract current ID and TMR/DMR group
+        aux_id  = id_reg  & 0xf;
+        aux_tmr = tmr_reg & 0xf;
+        aux_dmr = dmr_reg & 0xf;
+        // Whenever a match is found...
+        if (aux_id == id) {
+            // ...modify shadow configuration...
+            shuffler.id_reg  |= aux_id  << shift;
+            shuffler.tmr_reg |= aux_tmr << shift;
+            shuffler.dmr_reg |= aux_dmr << shift;
+            // ...and check if TMR redundancy is enabled...
+            if (aux_tmr) {
+                for (i = 1; i < A3_MAXSLOTS; i++) {
+                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
+                    if (((tmr_reg >> (4 * i)) & 0xf) == aux_tmr) {
+                        tmr_reg ^= tmr_reg & (0xf << (4 * i));
+                        id_reg ^= id_reg & (0xf << (4 * i));
+                        // ...modifying shadow configuration when required
+                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
+                        shuffler.tmr_reg |= aux_tmr << (shift + (4 * i));
+                    }
+                }
+            }
+            // ...or check if DMR redundancy is enabled...
+            else if (aux_dmr) {
+                for (i = 1; i < A3_MAXSLOTS; i++) {
+                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
+                    if (((dmr_reg >> (4 * i)) & 0xf) == aux_dmr) {
+                        dmr_reg ^= dmr_reg & (0xf << (4 * i));
+                        id_reg ^= id_reg & (0xf << (4 * i));
+                        // ...modifying shadow configuration when required
+                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
+                        shuffler.dmr_reg |= aux_dmr << (shift + (4 * i));
+                    }
+                }
+            }
+            // Perform write operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            artico3_hw_regwrite(aux_id, 0, offset, cfg[shift / 4]);
+        }
+        // Update intermediate variables
+        shift += 4;
+        id_reg >>= 4;
+        tmr_reg >>= 4;
+        dmr_reg >>= 4;
+    }
+
+    // Restore previous shuffler status
+    shuffler = shuffler_shadow;
+
+    // Release mutex
+    pthread_mutex_unlock(&mutex);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 configuration register read
+ *
+ * This function reads configuration data from ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be read, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+    unsigned int index, i;
+    struct a3shuffler_t shuffler_shadow;
+    uint8_t id;
+
+    uint64_t id_reg;
+    uint64_t tmr_reg;
+    uint64_t dmr_reg;
+
+    uint8_t aux_id;
+    uint8_t aux_tmr;
+    uint8_t aux_dmr;
+    uint8_t shift;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    // Lock mutex, avoid interference with other processes
+    pthread_mutex_lock(&mutex);
+
+    // Copy current shuffler status
+    shuffler_shadow = shuffler;
+
+    // Get current shadow registers
+    id_reg  = shuffler.id_reg;
+    tmr_reg = shuffler.tmr_reg;
+    dmr_reg = shuffler.dmr_reg;
+
+    // Isolate equivalent accelerators and perform individual
+    // (AXI4-Lite) read operations to each one of them.
+    shift = 0;
+    while (id_reg) {
+        // Initialize shadow configuration
+        shuffler.id_reg  = 0x0000000000000000;
+        shuffler.tmr_reg = 0x0000000000000000;
+        shuffler.dmr_reg = 0x0000000000000000;
+        // Extract current ID and TMR/DMR group
+        aux_id  = id_reg  & 0xf;
+        aux_tmr = tmr_reg & 0xf;
+        aux_dmr = dmr_reg & 0xf;
+        // Whenever a match is found...
+        if (aux_id == id) {
+            // ...modify shadow configuration...
+            shuffler.id_reg  |= aux_id  << shift;
+            shuffler.tmr_reg |= aux_tmr << shift;
+            shuffler.dmr_reg |= aux_dmr << shift;
+            // ...and check if TMR redundancy is enabled...
+            if (aux_tmr) {
+                for (i = 1; i < A3_MAXSLOTS; i++) {
+                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
+                    if (((tmr_reg >> (4 * i)) & 0xf) == aux_tmr) {
+                        tmr_reg ^= tmr_reg & (0xf << (4 * i));
+                        id_reg ^= id_reg & (0xf << (4 * i));
+                        // ...modifying shadow configuration when required
+                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
+                        shuffler.tmr_reg |= aux_tmr << (shift + (4 * i));
+                    }
+                }
+            }
+            // ...or check if DMR redundancy is enabled...
+            else if (aux_dmr) {
+                for (i = 1; i < A3_MAXSLOTS; i++) {
+                    if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
+                    if (((dmr_reg >> (4 * i)) & 0xf) == aux_dmr) {
+                        dmr_reg ^= dmr_reg & (0xf << (4 * i));
+                        id_reg ^= id_reg & (0xf << (4 * i));
+                        // ...modifying shadow configuration when required
+                        shuffler.id_reg  |= aux_id  << (shift + (4 * i));
+                        shuffler.dmr_reg |= aux_dmr << (shift + (4 * i));
+                    }
+                }
+            }
+            // Perform read operation
+            artico3_hw_setup_transfer(0); // Register operations do not use blksize register
+            cfg[shift / 4] = artico3_hw_regread(aux_id, 0, offset);
+        }
+        // Update intermediate variables
+        shift += 4;
+        id_reg >>= 4;
+        tmr_reg >>= 4;
+        dmr_reg >>= 4;
+    }
+
+    // Restore previous shuffler status
+    shuffler = shuffler_shadow;
+
+    // Release mutex
+    pthread_mutex_unlock(&mutex);
+
+    return 0;
+}
