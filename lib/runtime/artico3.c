@@ -487,7 +487,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                     mem[idx_mem + i] = data[idx_dat + i];
                 }
 
-                a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | i_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | i_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
@@ -591,7 +591,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                     data[idx_dat + i] = mem[idx_mem + i];
                 }
 
-                a3_print_debug("[artico3-hw] id %x | round %3d | acc %d | o_port %d | mem %4d | dat %6d | size %4d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | o_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
