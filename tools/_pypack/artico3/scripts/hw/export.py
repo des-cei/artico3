@@ -112,7 +112,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         log.error("Kernel '" + kernel  + "' not found")
         return
 
-    if kernel.hwsrc == "vhdl":
+    if (kernel.hwsrc == "vhdl") or (kernel.hwsrc == "verilog"):
         dictionary = {}
         dictionary["NAME"] = kernel.name.lower()
         dictionary["HWSRC"] = kernel.hwsrc
