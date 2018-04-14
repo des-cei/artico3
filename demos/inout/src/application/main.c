@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     artico3_init();
 
     // Create kernel instance
-    artico3_kernel_create("increment", 12288, 3, 3, 3);
+    artico3_kernel_create("increment", 12288, 3, 1);
 
     // Load accelerators
     gettimeofday(&t0, NULL);
