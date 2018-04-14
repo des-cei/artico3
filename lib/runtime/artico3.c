@@ -252,6 +252,9 @@ err_mmap:
  */
 void artico3_exit() {
 
+    // Print ARTICo3 control registers
+    artico3_hw_print_regs();
+
     // Disable clocks in reconfigurable region
     artico3_hw_disable_clk();
 
