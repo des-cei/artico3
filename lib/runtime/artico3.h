@@ -91,13 +91,12 @@ int artico3_unload(const char *name, size_t slot);
  * @name     : name of the hardware kernel to be created
  * @membytes : local memory size (in bytes) of the associated accelerator
  * @membanks : number of local memory banks in the associated accelerator
- * @regrw    : number of read/write registers in the associated accelerator
- * @regro    : number of read only registers in the associated accelerator
+ * @regs     : number of read/write registers in the associated accelerator
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regrw, size_t regro);
+int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs);
 
 
 /*

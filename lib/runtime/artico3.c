@@ -287,13 +287,12 @@ void artico3_exit() {
  * @name     : name of the hardware kernel to be created
  * @membytes : local memory size (in bytes) of the associated accelerator
  * @membanks : number of local memory banks in the associated accelerator
- * @regrw    : number of read/write registers in the associated accelerator
- * @regro    : number of read only registers in the associated accelerator
+ * @regs     : number of read/write registers in the associated accelerator
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regrw, size_t regro) {
+int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs) {
     unsigned int index, i;
     struct a3kernel_t *kernel = NULL;
     int ret;
@@ -327,8 +326,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
     kernel->id = index + 1;
     kernel->membytes = ceil(((float)membytes / (float)membanks) / sizeof (a3data_t)) * sizeof (a3data_t) * membanks; // Fix to ensure all banks have integer number of 32-bit words
     kernel->membanks = membanks;
-    kernel->regrw = regrw;
-    kernel->regro = regro;
+    kernel->regs = regs;
 
     // Initialize kernel inputs
     kernel->inputs = malloc(membanks * sizeof *kernel->inputs);
@@ -361,7 +359,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         kernel->inouts[i] = NULL;
     }
 
-    a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%d,membanks=%d,regrw=%d,regro=%d)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regrw, kernel->regro);
+    a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%d,membanks=%d,regs=%d)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regs);
 
     // Store kernel configuration in kernel list
     kernels[index] = kernel;
@@ -1174,6 +1172,7 @@ int artico3_kernel_reset(const char *name) {
 
     // Get kernel id
     id = kernels[index]->id;
+    a3_print_debug("[artico3-hw] sending kernel reset signal to accelerator(s) with ID = %1x\n", id);
 
     // Setup transfer (blksize needs to be 0 for register-based transactions)
     artico3_hw_setup_transfer(0);
@@ -1259,7 +1258,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform write operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             artico3_hw_regwrite(id, 0, offset, cfg[index++]);
-            a3_print_debug("W TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] W TMR | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
@@ -1278,7 +1277,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform write operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             artico3_hw_regwrite(id, 0, offset, cfg[index++]);
-            a3_print_debug("W DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] W DMR | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
@@ -1294,7 +1293,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform write operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             artico3_hw_regwrite(id, 0, offset, cfg[index++]);
-            a3_print_debug("W SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] W SMP | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
@@ -1382,7 +1381,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform read operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             cfg[index++] = artico3_hw_regread(id, 0, offset);
-            a3_print_debug("R TMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] R TMR | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
@@ -1401,7 +1400,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform read operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             cfg[index++] = artico3_hw_regread(id, 0, offset);
-            a3_print_debug("R DMR | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] R DMR | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
@@ -1417,7 +1416,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
             // Perform read operation
             artico3_hw_setup_transfer(0); // Register operations do not use blksize register
             cfg[index++] = artico3_hw_regread(id, 0, offset);
-            a3_print_debug("R SPX | id : %02x | id : %016" PRIx64 " | %016" PRIx64 " | %016" PRIx64 " | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, cfg[index-1]);
+            a3_print_debug("[artico3-hw] R SMP | kernel : %1x | id : %016" PRIx64 " | tmr : %016" PRIx64 " | dmr : %016" PRIx64 " | register : %03x | value : %08x\n", id, shuffler.id_reg, shuffler.tmr_reg, shuffler.dmr_reg, offset, cfg[index-1]);
         }
     }
 
