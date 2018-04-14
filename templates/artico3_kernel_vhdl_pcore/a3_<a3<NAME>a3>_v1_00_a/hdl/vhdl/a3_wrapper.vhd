@@ -57,6 +57,33 @@ architecture behavioral of a3_wrapper is
     ----------------
 
 <a3<if NAME!="dummy">a3>
+<a3<=if HWSRC=="verilog"=>a3>
+    -- Verilog-based hardware kernel
+    component <a3<NAME>a3>
+    port (
+        clk         : in  std_logic;
+        reset       : in  std_logic;
+        start       : in  std_logic;
+        ready       : out std_logic;
+
+<a3<generate for REGS>a3>
+        reg_<a3<rid>a3>_o_vld : out std_logic;
+        reg_<a3<rid>a3>_o     : out std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
+        reg_<a3<rid>a3>_i     : in  std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
+<a3<end generate>a3>
+<a3<generate for PORTS>a3>
+        bram_<a3<pid>a3>_clk  : out std_logic;
+        bram_<a3<pid>a3>_rst  : out std_logic;
+        bram_<a3<pid>a3>_en   : out std_logic;
+        bram_<a3<pid>a3>_we   : out std_logic;
+        bram_<a3<pid>a3>_addr : out std_logic_vector(C_ARTICO3_ADDR_WIDTH-1 downto 0);
+        bram_<a3<pid>a3>_din  : out std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
+        bram_<a3<pid>a3>_dout : in  std_logic_vector(C_ARTICO3_DATA_WIDTH-1 downto 0);
+<a3<end generate>a3>
+        values      : in  std_logic_vector(31 downto 0)
+    );
+    end component;
+<a3<=end if=>a3>
 <a3<=if HWSRC=="hls"=>a3>
     -- HLS control signals
     signal ap_start      : std_logic;
@@ -160,19 +187,25 @@ begin
 
 <a3<if NAME=="dummy">a3>
     -- Dummy hardware kernel (no user logic)
-    mem_rst       <= (others => '1');
-    mem_en        <= (others => '0');
-    mem_we        <= (others => '0');
-    mem_addr      <= (others => (others => '0'));
-    mem_din       <= (others => (others => '0'));
-    reg_we        <= (others => '0');
-    reg_din       <= (others => (others => '0'));
+    mem_rst         <= (others => '1');
+    mem_en          <= (others => '0');
+    mem_we          <= (others => '0');
+    mem_addr        <= (others => (others => '0'));
+    mem_din         <= (others => (others => '0'));
+    reg_we          <= (others => '0');
+    reg_din         <= (others => (others => '0'));
     s_artico3_ready <= '1';
 <a3<end if>a3>
 <a3<if NAME!="dummy">a3>
 <a3<=if HWSRC=="vhdl"=>a3>
     -- VHDL-based hardware kernel
     kernel_i: entity work.<a3<NAME>a3>
+<a3<=end if=>a3>
+<a3<=if HWSRC=="verilog"=>a3>
+    -- Verilog-based hardware kernel
+    kernel_i: <a3<NAME>a3>
+<a3<=end if=>a3>
+<a3<=if HWSRC!="hls"=>a3>
     port map (
         clk         => s_artico3_aclk,
 <a3<==if RST_POL=="low"==>a3>

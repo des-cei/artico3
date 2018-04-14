@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
     artico3_init();
 
     // Create kernel instance
-    artico3_kernel_create("wait1s", 16384, 3, 3, 3);
-    artico3_kernel_create("wait4s", 16384, 3, 3, 3);
+    artico3_kernel_create("wait1s", 16384, 3, 0);
+    artico3_kernel_create("wait4s", 16384, 3, 0);
 
     // Load accelerators
     gettimeofday(&t0, NULL);

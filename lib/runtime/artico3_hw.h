@@ -68,8 +68,7 @@ struct a3port_t {
  * @id       : kernel ID (0x1 - 0xF)
  * @membytes : local memory inside kernel, in bytes
  * @membanks : number of local memory banks inside kernel
- * @regrw    : number of read/write registers inside kernel
- * @regro    : number of read only registers inside kernel
+ * @regs     : number of read/write registers inside kernel
  * @inputs   : input port configuration for this kernel
  * @outputs  : output port configuration for this kernel
  *
@@ -79,8 +78,7 @@ struct a3kernel_t {
     uint8_t id;
     size_t membytes;
     size_t membanks;
-    size_t regrw;
-    size_t regro;
+    size_t regs;
     struct a3port_t **inputs;
     struct a3port_t **outputs;
     struct a3port_t **inouts;
