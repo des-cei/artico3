@@ -673,8 +673,8 @@ void *_artico3_kernel_execute(void *data) {
 
     }
 
-    // TODO: this should use artico3_print_XXX()
-    printf("[artico3-hw] delegate scheduler thread ID:%x | tsend(ms):%.3f | texec(ms):%.3f | trecv(ms):%.3f\n", id, tsend, texec, trecv);
+    // Print elapsed times per stage (send - process - receive)
+    a3_print_debug("[artico3-hw] delegate scheduler thread ID : %x | tsend(ms) : %8.3f | texec(ms) : %8.3f | trecv(ms) : %8.3f\n", id, tsend, texec, trecv);
 
     return NULL;
 }
