@@ -32,6 +32,25 @@ typedef uint32_t a3data_t;
 // Register-based I/O
 #define a3reg_t
 
+/*
+ * ARTICo3 register initialization
+ *
+ * NOTE: this function needs to be called for each register defined in the
+ *       kernel with a3reg_t. This forces a dummy read and write operation
+ *       to enable the desired three-port interface (_i, _o, _o_vld), since
+ *       otherwise it could not be automatically generated.
+ *
+ */
+static inline void a3reg_init(a3data_t *reg) {
+    volatile a3data_t dummy;
+    dummy = *reg;
+    *reg = dummy;
+}
+
+/*
+ * ARTICo3 kernel header
+ *
+ */
 #define A3_KERNEL(<a3<ARGS>a3>) void <a3<NAME>a3>(\
 <a3<generate for REGS>a3>
         a3data_t *<a3<rname>a3>,\

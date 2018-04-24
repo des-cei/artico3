@@ -9,3 +9,7 @@
    IDEAS:
        - Use kthreads instead of pthreads
        - Use ioctl() to implement each of the functions in artico3.c
+
+2. Fix register interfaces in HLS-based kernels to force them to use 3
+   ports (_i, _o, _o_ap_vld). There is a first approach implemented that
+   uses a3reg_init() to perform a dummy read/write transaction.
