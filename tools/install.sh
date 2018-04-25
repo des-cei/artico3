@@ -173,7 +173,8 @@ done
 
 # Export environment variables
 export ARCH="arm"
-export CROSS_COMPILE="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi-"
+#~ export CROSS_COMPILE="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi-"
+export CROSS_COMPILE="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin/arm-linux-gnueabihf-"
 export KDIR="$WD/linux-xlnx"
 export PATH="$WD/devicetree/dtc:$PATH"
 export PATH="$WD/u-boot-digilent/tools:$PATH"
