@@ -150,6 +150,7 @@ int fpga_load(const char *name, uint8_t is_partial) {
     int ret;
     char cwd[128];
     char filename[256];
+    char state[256];
 
     // Remove symlink of the bitstream file in /lib/firmware
     unlink("/lib/firmware/a3_bitstream");
@@ -217,10 +218,35 @@ int fpga_load(const char *name, uint8_t is_partial) {
 
     }
 
+    // Open FPGA Manager state
+    fd = open("/sys/class/fpga_manager/fpga0/state", O_RDONLY);
+    if (fd < 0) {
+        a3_print_error("[artico3-hw] open() /sys/class/fpga_manager/fpga0/state failed\n");
+        ret = -ENODEV;
+        goto err_fpga;
+    }
+
+    // Read FPGA Manager state
+    ret = read(fd, state, sizeof state);
+    char *token = strtok(state, "\n");
+    a3_print_debug("[artico3-hw] FPGA Manager state : %s\n", token);
+    if (strcmp(token, "operating") != 0) {
+        a3_print_error("[artico3-hw] FPGA Manager state error (%s)\n", token);
+        ret = -EBUSY;
+        goto err_state;
+    }
+
+    // Close FPGA Manager state
+    close(fd);
+
     // Remove symlink of the bitstream file in /lib/firmware
     unlink("/lib/firmware/a3_bitstream");
 
     return 0;
+
+err_state:
+    // Close FPGA Manager state
+    close(fd);
 
 err_fpga:
     // Remove symlink of the bitstream file in /lib/firmware
