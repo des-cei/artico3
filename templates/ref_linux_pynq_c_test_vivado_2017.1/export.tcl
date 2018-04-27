@@ -181,7 +181,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
     # Create instances of hardware kernels
 <a3<generate for SLOTS>a3>
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<SlotCoreName>a3>:[str range <a3<SlotCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<SlotCoreName>a3>:[string range <a3<SlotCoreVersion>a3> 0 2] "a3_slot_<a3<id>a3>"
 <a3<end generate>a3>
 
     # Create other instances
@@ -290,7 +290,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     create_bd_intf_port -mode Slave -vlnv cei.upm.es:artico3:artico3_rtl:1.0 s_artico3
 
     # Create module instance
-    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[str range <a3<KernCoreVersion>a3> 0 2] "slot"
+    create_bd_cell -type ip -vlnv cei.upm.es:artico3:<a3<KernCoreName>a3>:[string range <a3<KernCoreVersion>a3> 0 2] "slot"
 
     # Connect ARTICo3 slot
     connect_bd_intf_net -intf_net artico3_slot [get_bd_intf_ports s_artico3] [get_bd_intf_pins slot/s_artico3]
