@@ -151,6 +151,9 @@ int fpga_load(const char *name, uint8_t is_partial) {
     char cwd[128];
     char filename[256];
 
+    // Remove symlink of the bitstream file in /lib/firmware
+    unlink("/lib/firmware/a3_bitstream");
+
     // Create symlink of the bitstream file in /lib/firmware
     getcwd(cwd, sizeof(cwd));
     sprintf(filename, "%s/%s", cwd, name);
