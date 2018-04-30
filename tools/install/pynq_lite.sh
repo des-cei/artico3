@@ -214,7 +214,7 @@ EOF
 
 printf "Type '1' for root filesystem as NFS share, '2' for initrd image, '3' for initramfs image.\n"
 while true; do
-    read -e -p "> " -i "1" ROOTFS
+    read -e -p "> " -i "3" ROOTFS
     if [[ $ROOTFS = "" ]]; then
         continue
     fi
@@ -275,14 +275,20 @@ git clone https://github.com/mkj/dropbear
 
 # Create working directory for device tree development
 mkdir $WD/devicetree
-cd $WD/devicetree
 
 # Download latest Device Tree Compiler (dtc), required to work with
 # device tree overlays, and build it.
+cd $WD/devicetree
 git clone https://git.kernel.org/pub/scm/utils/dtc/dtc.git
-cd dtc
+cd $WD/devicetree/dtc
 git checkout -b wb "$GITTAG_DTC"
 make -j"$(nproc)"
+
+# Download Xilinx device tree repository
+cd $WD/devicetree
+git clone https://github.com/Xilinx/device-tree-xlnx
+cd $WD/devicetree/device-tree-xlnx
+git checkout -b wb "$GITTAG_LINUX"
 
 # Create directory to build device tree for Pynq board
 mkdir $WD/devicetree/pynq
@@ -1430,19 +1436,11 @@ close_project
 EOF
 
 cat >> create_devicetree.tcl << EOF
-set cur_dir [pwd]
-
-open_hw_design \$cur_dir/pynq.hdf
-set_repo_path \$cur_dir/device-tree-xlnx
+open_hw_design pynq.hdf
+set_repo_path ../device-tree-xlnx
 create_sw_design device-tree -os device_tree -proc ps7_cortexa9_0
 generate_target -dir dts
 EOF
-
-# Download Xilinx device tree repository
-git clone https://github.com/Xilinx/device-tree-xlnx
-cd $WD/devicetree/pynq/device-tree-xlnx
-git checkout -b wb "$GITTAG_LINUX"
-cd $WD/devicetree/pynq
 
 # Generate device tree from a simple vivado project
 vivado -mode batch -source create_hdf.tcl
@@ -1609,12 +1607,15 @@ cd $WD/nfs
 set +e
 # Copy shared libraries and bin utilities
 cp -R "$GCC_SYSROOT"/lib/* $WD/nfs/lib
-cp -R "$GCC_SYSROOT"/sbin/* $WD/nfs/sbin
-cp -R "$GCC_SYSROOT"/usr/bin/* $WD/nfs/usr/bin
-cp -R "$GCC_SYSROOT"/usr/sbin/* $WD/nfs/usr/sbin
+cp -R "$GCC_SYSROOT"/libc/lib/* $WD/nfs/lib
+cp -R "$GCC_SYSROOT"/libc/sbin/* $WD/nfs/sbin
+#~ cp -R "$GCC_SYSROOT"/libc/usr/lib/* $WD/nfs/usr/lib
+#~ cp -R "$GCC_SYSROOT"/libc/usr/bin/* $WD/nfs/usr/bin
+#~ cp -R "$GCC_SYSROOT"/libc/usr/sbin/* $WD/nfs/usr/sbin
 # Strip files (remove debugging info)
 "$CROSS_COMPILE"strip lib/*
 "$CROSS_COMPILE"strip sbin/*
+"$CROSS_COMPILE"strip usr/lib/*
 "$CROSS_COMPILE"strip usr/bin/*
 "$CROSS_COMPILE"strip usr/sbin/*
 # Modify scripts to work with busybox shell (not bash)
@@ -1726,12 +1727,12 @@ mount -t configfs config /sys/kernel/config
 EOF
 
 if [[ $ROOTFS = 3 ]]; then
-    cat >> etc/init.d/rcS <<'EOF'
+    cat >> etc/init.d/rcS << EOF
 mount -t devtmpfs dev /dev
 EOF
 fi
 
-cat >> etc/init.d/rcS <<'EOF'
+cat >> etc/init.d/rcS << EOF
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 
@@ -1747,9 +1748,17 @@ echo "++ Starting dropbear..."
 hostname -F /etc/hostname
 dropbear -B -R
 
-#echo "++ Starting udhcpc..."
-#udhcpc -b -S
+EOF
 
+if [[ $ROOTFS != 1 ]]; then
+    cat >> etc/init.d/rcS << EOF
+echo "++ Starting udhcpc..."
+udhcpc -b -S
+
+EOF
+fi
+
+cat >> etc/init.d/rcS << EOF
 echo "++ Loading DMA proxy driver..."
 /opt/artico3/artico3_init.sh
 modprobe mdmaproxy
@@ -1848,7 +1857,7 @@ cp $WD/devicetree/pynq/dts/devicetree.dtb $WD/sdcard/
 if [[ $ROOTFS = 2 ]]; then
     mkdir $WD/ramdisk
     cd $WD/ramdisk
-    dd if=/dev/zero of=ramdisk.image bs=1024 count=16384
+    dd if=/dev/zero of=ramdisk.image bs=1M count=16
     mke2fs -F ramdisk.image -L "ramdisk" -b 1024 -m 0
     tune2fs ramdisk.image -i 0
     chmod a+rwx ramdisk.image
@@ -1887,4 +1896,4 @@ if [[ $ROOTFS = 1 ]]; then
 fi
 printf "* Turn on the board, connect with UART.\n"
 printf "* If 'Zynq> ' prompt appears type 'boot' followed by 'Enter'.\n\n"
-printf "The Linux prompt '#\ ' will appear.\n"
+printf "The Linux prompt '#/ ' will appear.\n"
