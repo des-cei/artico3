@@ -190,7 +190,8 @@ source "$XILINX_ROOT/Xilinx/Vivado/$XILINX_VERSION/settings64.sh"
 #       glibc-based toolchain (https://lists.debian.org/debian-boot/2014/09/msg00700.html).
 #       Can be solved using a custom toolchain featuring uclibc-ng instead.
 #
-GCC_SYSROOT="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/arm/lin/arm-xilinx-linux-gnueabi/libc"
+#~ GCC_SYSROOT="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/arm/lin/arm-xilinx-linux-gnueabi/libc"
+GCC_SYSROOT="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/aarch32/lin/gcc-arm-linux-gnueabi/arm-linux-gnueabihf"
 
 
 #
@@ -1571,7 +1572,8 @@ autoconf
 autoheader
 
 # Automate configuration
-./configure --host=arm-xilinx-linux-gnueabi --disable-zlib --disable-shadow CC="$CROSS_COMPILE"gcc STRIP="$CROSS_COMPILE"strip
+#~ ./configure --host=arm-xilinx-linux-gnueabi --disable-zlib --disable-shadow CC="$CROSS_COMPILE"gcc STRIP="$CROSS_COMPILE"strip
+./configure --host=arm-linux-gnueabihf --disable-zlib --disable-shadow CC="$CROSS_COMPILE"gcc STRIP="$CROSS_COMPILE"strip
 
 # Build dropbear
 make -j"$(nproc)" PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" MULTI=1 strip
