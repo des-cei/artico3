@@ -12,26 +12,9 @@ Requirements
 ============
 
 In order to add a new FPGA device to the list of devices already supported
-by the ARTICo3 toolchain, developers need to follow two steps:
+by the ARTICo3 toolchain, developers need to follow these steps:
 
-    1. Add a new dictionary entry in tools/_pypack/artico3/devices.py
-
-        # xc7z020 (Pynq, ZedBoard, MicroZed)
-        dev = {}
-        dev["slots"] = 4
-        dev["pipe_depth"] = 3
-        dev["clk_buffer"] = "horizontal"
-        dev["rst_buffer"] = "global"
-        fpgas["xc7z020"] = dev
-
-    2. Add a new low-level constraints file in templates/artico3_devices
-       with (templates/artico3_devices/xc7z020.xdc can be used as an
-       example).
-
-    NOTE: the name of the file has to be exactly the same as the one used
-          in the dictionary entry.
-
-    3. Create a new reference design:
+    1. Create a new reference design:
 
         templates/ref_<os>_<board>_<revision>_<name>_vivado_<version>
         |--- pcores
@@ -40,7 +23,7 @@ by the ARTICo3 toolchain, developers need to follow two steps:
         |    |
         |    |--- (...)
         |
-        |--- <a3<generate_for_SOURCES>a3>
+        |--- artico3.cfg
         |--- build.tcl
         |--- clean.tcl
         |--- create_ip_library.tcl
@@ -53,7 +36,20 @@ by the ARTICo3 toolchain, developers need to follow two steps:
           internal contents of the artico3_shuffler_v1_00_a folder have
           been removed for the sake of readability.
 
-    NOTE: <a3<generate_for_SOURCES>a3> is an empty file that is used by
-          the ARTICo3 Developmnent Kit parser to copy all required files
-          (in this case, the specific low-level constraints file found
-          in templates/artico3_devices).
+    2. Write ARTICo3 infrastructure configuration in artico3.cfg
+
+        Slots     - number of reconfigurable slots available in this device
+
+        PipeDepth - number of pipeline stages in the ARTICo3 infrastructure
+                    (between Shuffler and accelerators, used to avoid timing
+                    issues).
+
+        ClkBuffer - type of hardware primitive to use as clock buffers
+                        none       (disables clock gating features)
+                        global     (use global FPGA buffers)
+                        horizontal (use local buffers per clock region)
+
+        RstBuffer - type of hardware primitive to use as reset buffers
+                        none
+                        global     (use global FPGA buffers)
+                        horizontal (use local buffers per clock region)

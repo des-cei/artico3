@@ -49,9 +49,6 @@ def get_dict(prj):
     dictionary["PIPE_DEPTH"] = prj.shuffler.stages
     dictionary["CLK_BUFFER"] = "NO_BUFFER" if prj.shuffler.clkbuf == "none" else prj.shuffler.clkbuf.upper()
     dictionary["RST_BUFFER"] = "NO_BUFFER" if prj.shuffler.rstbuf == "none" else prj.shuffler.rstbuf.upper()
-    dictionary["PART"] = prj.shuffler.xdcpart
-    src = shutil2.join(prj.impl.repo, "templates/artico3_devices", prj.shuffler.xdcpart + ".xdc")
-    dictionary["SOURCES"] = [src]
     dictionary["SLOTS"] = []
     for slot in prj.slots:
         if slot.kerns:

@@ -310,7 +310,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 # LOW-LEVEL DEPENDENCIES
 
     # Add DPR constraints
-    add_files -fileset constrs_1 -norecurse $proj_dir/<a3<PART>a3>.xdc
+    add_files -fileset constrs_1 -norecurse $proj_dir/xc7z020.xdc
 
 # END
 

@@ -26,7 +26,6 @@ import logging
 
 import artico3.utils.shutil2 as shutil2
 import artico3.utils.template as template
-import artico3.devices as devices
 
 log = logging.getLogger(__name__)
 
@@ -191,7 +190,7 @@ class Project:
         log.debug(str(self))
         log.debug(str(self.impl))
 
-        self._parse_shuffler(self.impl.part)
+        self._parse_shuffler()
         self._parse_kernels(cfg)
 
         kernel = Kernel("dummy", "vhdl", 4096, 2, 2, "low")
@@ -202,21 +201,26 @@ class Project:
             self.slots.append(slot)
             log.debug(str(slot))
 
-    def _parse_shuffler(self, part):
+    def _parse_shuffler(self):
         """Parses ARTICo\u00b3 Shuffler configuration."""
 
-        for device in devices.fpgas.keys():
-            if device in part:
-                self.shuffler.slots = devices.fpgas[device]["slots"];
-                self.shuffler.stages = devices.fpgas[device]["pipe_depth"]
-                self.shuffler.clkbuf = devices.fpgas[device]["clk_buffer"]
-                self.shuffler.rstbuf = devices.fpgas[device]["rst_buffer"]
-                self.shuffler.xdcpart = device
-                log.debug(str(self.shuffler))
-                break
-        else:
-            log.error("FPGA part {} not supported".format(part))
+        # Get current template
+        tmpl = "ref_" + self.impl.os + "_" + "_".join(self.impl.board) + "_" + self.impl.design + "_" + self.impl.xil[0] + "_" + self.impl.xil[1]
+
+        # Get configuration file for current template
+        filepath = shutil2.join(self.impl.repo, "templates", tmpl, "artico3.cfg")
+        a3cfg = configparser.RawConfigParser()
+        a3cfg.optionxform = str
+        ret = a3cfg.read(filepath)
+        if not ret:
+            log.error("ARTICo\u00b3 config file '" + filepath + "' not found")
             sys.exit(1)
+
+        # Assign configuration
+        self.shuffler.slots  = int(a3cfg.get("Shuffler", "Slots"))
+        self.shuffler.stages = int(a3cfg.get("Shuffler", "PipeDepth"))
+        self.shuffler.clkbuf = a3cfg.get("Shuffler", "ClkBuffer")
+        self.shuffler.rstbuf = a3cfg.get("Shuffler", "RstBuffer")
 
     def _parse_kernels(self, cfg):
         """Parses ARTICo\u00b3 kernels."""
