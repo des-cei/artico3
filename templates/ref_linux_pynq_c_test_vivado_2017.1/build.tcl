@@ -121,7 +121,7 @@ proc artico3_build_bitstream {} {
 
     # Save checkpoint
     file mkdir [pwd]/checkpoints
-    write_checkpoint checkpoints/system.dcp
+    write_checkpoint -force checkpoints/system.dcp
 
     # Generate static system bitstream
     file mkdir [pwd]/bitstreams
@@ -139,7 +139,7 @@ proc artico3_build_bitstream {} {
     lock_design -level routing
 
     # Save checkpoint
-    write_checkpoint checkpoints/static.dcp
+    write_checkpoint -force checkpoints/static.dcp
 
 <a3<generate for KERNELS(KernCoreName!="a3_dummy")>a3>
     #
@@ -162,7 +162,7 @@ proc artico3_build_bitstream {} {
     route_design
 
     # Save checkpoint
-    write_checkpoint checkpoints/<a3<KernCoreName>a3>.dcp
+    write_checkpoint -force checkpoints/<a3<KernCoreName>a3>.dcp
 
     # Verify checkpoint compatibility
     pr_verify checkpoints/system.dcp checkpoints/<a3<KernCoreName>a3>.dcp
