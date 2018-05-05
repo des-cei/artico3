@@ -13,32 +13,32 @@ Project Specification
 
 * ARTICo3 projects need to show the following structure:
 
-    <project_name>
-    |--- build.cfg
-    |--- src
-         |--- application
-         |    |--- main.c
-         |    |--- (...)
-         |
-         |--- a3_<kernel_0_name>
-         |    |--- hls
-         |    |    |--- <kernel_0_name>.cpp
-         |    |    |--- (...)
-         |    |
-         |    |--- vhdl
-         |         |--- <kernel_0_name>.vhd
-         |         |--- (...)
-         |
-         |--- (...)
-         |
-         |--- a3_<kernel_n_name>
-              |--- hls
-              |    |--- <kernel_n_name>.cpp
-              |    |--- (...)
-              |
-              |--- vhdl
-                   |--- <kernel_n_name>.vhd
-                   |--- (...)
+      <project_name>
+      |--- build.cfg
+      |--- src
+           |--- application
+           |    |--- main.c
+           |    |--- (...)
+           |
+           |--- a3_<kernel_0_name>
+           |    |--- hls
+           |    |    |--- <kernel_0_name>.cpp
+           |    |    |--- (...)
+           |    |
+           |    |--- vhdl
+           |         |--- <kernel_0_name>.vhd
+           |         |--- (...)
+           |
+           |--- (...)
+           |
+           |--- a3_<kernel_n_name>
+                |--- hls
+                |    |--- <kernel_n_name>.cpp
+                |    |--- (...)
+                |
+                |--- vhdl
+                     |--- <kernel_n_name>.vhd
+                     |--- (...)
 
 * The file build.cfg contains all the required data to generate the
   target system.
@@ -53,15 +53,15 @@ Launch Instructions
 The ARTICo3 Development Kit suite has to be launched in the same directory
 the build.cfg file is. The following commands can be used to launch it:
 
-    1. Set up environment
-        source $PATH_TO_A3_REPO/tools/settings.sh
-        cd $PATH_TO_PROJ/<project_name>
+    1.  Set up environment
+            source $PATH_TO_A3_REPO/tools/settings.sh
+            cd $PATH_TO_PROJ/<project_name>
 
     2a. Launch ARTICo3 Development Kit
-        a3dk
+            a3dk
 
     2b. Run specific ARTICo3 Development Kit command
-        a3dk <command>
+            a3dk <command>
 
 
 Hardware System Generation

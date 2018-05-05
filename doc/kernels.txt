@@ -39,6 +39,7 @@ entity <kernel_name> is
         reg_<i>_o_vld : out std_logic;
         reg_<i>_o     : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
         reg_<i>_i     : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+        (...)
         -- Input data memories
         bram_<j>_clk  : out std_logic;
         bram_<j>_rst  : out std_logic;
@@ -73,10 +74,10 @@ end <kernel_name>;
 
 
 * The naming convention for input/output register/memories is as follows:
-    - Configuration registers start at i = 0
-    - Input memories start at j = 0
-    - Bidirectional I/O memories start at k = j + 1, where j is the last input bank
-    - Output memories start at l = k + 1, where k is the last bidirectional I/O bank
+      - Configuration registers start at i = 0
+      - Input memories start at j = 0
+      - Bidirectional I/O memories start at k = j + 1, where j is the last input bank
+      - Output memories start at l = k + 1, where k is the last bidirectional I/O bank
 
 * The timing of the START/READY pair has to be the following:
         __    __    __    __    __    __    __    __    __    __    __
@@ -101,19 +102,27 @@ A3_KERNEL(a3reg_t   <reg_i>, (...),
 
 
 * It is important to identify input and output ports using the flags:
-    - a3reg_t   for configuration registers
-    - a3in_t    for input memory ports
-    - a3inout_t for bidirectional I/O memory ports
-    - a3out_t   for output memory ports
+      - a3reg_t   for configuration registers
+      - a3in_t    for input memory ports
+      - a3inout_t for bidirectional I/O memory ports
+      - a3out_t   for output memory ports
 
 * The HLS process translates these flags in:
-    - a3reg_t   <reg_i> -> a3data_t *<reg_i>
-    - a3in_t    <mem_j> -> a3data_t <mem_j>[<size>]
-    - a3inout_t <mem_k> -> a3data_t <mem_k>[<size>]
-    - a3out_t   <mem_l> -> a3data_t <mem_l>[<size>]
-    * a3data_t          -> uint32_t
+      - a3reg_t   <reg_i> -> a3data_t *<reg_i>
+      - a3in_t    <mem_j> -> a3data_t <mem_j>[<size>]
+      - a3inout_t <mem_k> -> a3data_t <mem_k>[<size>]
+      - a3out_t   <mem_l> -> a3data_t <mem_l>[<size>]
+      - a3data_t          -> uint32_t
 
 * The ordering of the ports is not important, the toolchain automatically
-sets and sorts everything.
+  sets and sorts everything.
 
-* HLS-based accelerators require the addition of the "artico3.h" header
+* Registers need to be initialized within kernel code. It is advisable to
+  do so right after kernel entry.
+
+      A3_KERNEL(a3reg_t <reg_i>, ...) {
+          a3reg_init(<reg_i>);
+          (...)
+      }
+
+* HLS-based accelerators require the addition of the "artico3.h" header.

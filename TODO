@@ -67,17 +67,25 @@
        that the _firmware_ file in sysfs was intended only for full FPGA
        reconfigurations).
 
-           drivers/fpga/fpga-mgr.c  : firmware_store() -> info.flags = 0;
+           drivers/fpga/fpga-mgr.c -> firmware_store() -> info.flags = 0;
 
        Hence, kernel hacking is required to enable it. Changes can be made
        in drivers/fpga/fpga-mgr.c (common FPGA Manager framework) or in
        drivers/fpga/zynq-fpga.c (for Zynq-7000, which is a device-specific
        low-level driver). Current implementation relies on the latter.
 
-           drivers/fpga/zynq-fpga.c : zynq_fpga_ops_write_init()
-                                          info->flags -> mgr->flags
-                                      zynq_fpga_ops_write_complete()
-                                          info->flags -> mgr->flags
+           [Option A] drivers/fpga/fpga-mgr.c
+                          firmware_store()
+                              [orig] info.flags = 0;
+                              [mod]  info.flags = mgr->flags;
+
+           [Option B] drivers/fpga/zynq-fpga.c :
+                          zynq_fpga_ops_write_init()
+                              [orig] info->flags
+                              [mod]  mgr->flags
+                          zynq_fpga_ops_write_complete()
+                              [orig] info->flags
+                              [mod]  mgr->flags
 
        EDIT: the _firmware_ file in sysfs was added as a debug entry point,
              not as the main reconfiguration trigger (see commit 6f6a4b0).
@@ -104,3 +112,8 @@
        [2] Documentation/fpga/fpga-mgr.txt
        [3] Documentation/fpga/fpga-region.txt
        [4] Documentation/devicetree/bindings/fpga/fpga-region.txt
+
+6. Add documentation on Linux requirements for ARTICo3 to work properly.
+   Does it make sense to add both requirements in host PC (Vivado and
+   Linux distro details) and embedded target (drivers and hacks)? The
+   former can be edited on a3dk.txt.

@@ -16,19 +16,19 @@ by the ARTICo3 toolchain, developers need to follow these steps:
 
     1. Create a new reference design:
 
-        templates/ref_<os>_<board>_<revision>_<name>_vivado_<version>
-        |--- pcores
-        |    |--- artico3_shuffler_v1_00_a
-        |    |    |--- (...)
-        |    |
-        |    |--- (...)
-        |
-        |--- artico3.cfg
-        |--- build.tcl
-        |--- clean.tcl
-        |--- create_ip_library.tcl
-        |--- export.tcl
-        |--- (...)
+           templates/ref_<os>_<board>_<revision>_<name>_vivado_<version>
+           |--- pcores
+           |    |--- artico3_shuffler_v1_00_a
+           |    |    |--- (...)
+           |    |
+           |    |--- (...)
+           |
+           |--- artico3.cfg
+           |--- build.tcl
+           |--- clean.tcl
+           |--- create_ip_library.tcl
+           |--- export.tcl
+           |--- (...)
 
     NOTE: the folder pcores contains the required IP blocks to be used in
           Vivado IP integrator. The usual approach is to generate symlinks
