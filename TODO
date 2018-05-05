@@ -54,8 +54,8 @@
                  * dma_sync_single_for_device()
                  * (...)
 
-5. Port reconfiguration mechanisms to the most up-to-date FPGA manager
-   framework, where reconfiguration is driven from Device Tree Overlays.
+5. Port reconfiguration mechanisms to the standard FPGA manager framework,
+   where reconfiguration is driven from Device Tree Overlays.
 
    Xilinx kernel:
        The current version provides direct access to a file in sysfs to
@@ -83,9 +83,22 @@
              not as the main reconfiguration trigger (see commit 6f6a4b0).
              Hence, it may make sense to modify the firmware_store() function.
 
+       EDIT: Xilinx implementation of the FPGA Manager infrastructure
+             differs in more than just the _firmware_ entry in sysfs.
+             The fpga_manager struct contains three extra fields, required
+             for Xilinx devices:
+                 long int flags;
+                 char key[ENCRYPTED_KEY_LEN];
+                 char iv[ENCRYPTED_IV_LEN];
+             The _flags_ field is used in the current ARTICo3 runtime
+             library implementation to specify whether a bitstream file
+             is Full or Partial. Reconfiguration is then triggered by
+             writing the name of the bistream file to the _firmware_ entry
+             of the fpga_manager structure in sysfs.
+
    Mainline Linux kernel (kernel.org):
        The _firmware_ file in sysfs is not available, and the whole
-       reconfiguration process is specified in Device Tree Overlays.
+       reconfiguration process is specified through Device Tree Overlays.
 
        [1] Documentation/fpga/overview.txt
        [2] Documentation/fpga/fpga-mgr.txt
