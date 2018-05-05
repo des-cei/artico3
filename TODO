@@ -13,3 +13,81 @@
 2. Fix register interfaces in HLS-based kernels to force them to use 3
    ports (_i, _o, _o_ap_vld). There is a first approach implemented that
    uses a3reg_init() to perform a dummy read/write transaction.
+
+3. Check if memory barriers are needed for the DMA Proxy Linux driver. In case
+   they are, the correct place to put them would be before starting the DMA
+   transfers, i.e. as part of dmaproxy_ioctl().
+
+       #include <asm/barrier.h>
+
+       (...)
+
+       // Memory barrier before DMA transfer to ensure memory consistency
+       // between CPU(s) and hardware device. The memory used is allocated
+       // with dma_zalloc_coherent()
+       wmb();
+
+       /* Start DMA transfer here */
+
+       (...)
+
+4. Check if a different implementation of the DMA Proxy driver using cached
+   buffers renders better performance than the current one.
+
+       [In dmaproxy_mmap()]
+           Buffer allocation : dma_zalloc_coherent() -> kzalloc()
+           Buffer remapping  : dma_mmap_coherent()   -> remap_pfn_range()
+
+       [In dmaproxy_ioctl(), before dmaproxy_dma_transfer()]
+           DMA send          : dma_map_single(..., DMA_TO_DEVICE)
+           DMA receive       : dma_map_single(..., DMA_FROM_DEVICE)
+
+       [In dmaproxy_ioctl(), after dmaproxy_dma_transfer()]
+           DMA send          : dma_unmap_single(..., DMA_TO_DEVICE)
+           DMA receive       : dma_unmap_single(..., DMA_FROM_DEVICE)
+
+
+       NOTE: Read DMA-API-HOWTO.txt in kernel documentation to see how to
+             properly use these functions and which ones are needed.
+                 * dma_mapping_error()
+                 * dma_sync_single_for_cpu()
+                 * dma_sync_single_for_device()
+                 * (...)
+
+5. Port reconfiguration mechanisms to the most up-to-date FPGA manager
+   framework, where reconfiguration is driven from Device Tree Overlays.
+
+   Xilinx kernel:
+       The current version provides direct access to a file in sysfs to
+       which the name of the FPGA bitstream to be loaded needs to be written.
+
+           echo "system.bin" > /sys/class/fpga_manager/fpga0/firmware
+
+       In addition, Partial Reconfiguration is not supported (I guess
+       that the _firmware_ file in sysfs was intended only for full FPGA
+       reconfigurations).
+
+           drivers/fpga/fpga-mgr.c  : firmware_store() -> info.flags = 0;
+
+       Hence, kernel hacking is required to enable it. Changes can be made
+       in drivers/fpga/fpga-mgr.c (common FPGA Manager framework) or in
+       drivers/fpga/zynq-fpga.c (for Zynq-7000, which is a device-specific
+       low-level driver). Current implementation relies on the latter.
+
+           drivers/fpga/zynq-fpga.c : zynq_fpga_ops_write_init()
+                                          info->flags -> mgr->flags
+                                      zynq_fpga_ops_write_complete()
+                                          info->flags -> mgr->flags
+
+       EDIT: the _firmware_ file in sysfs was added as a debug entry point,
+             not as the main reconfiguration trigger (see commit 6f6a4b0).
+             Hence, it may make sense to modify the firmware_store() function.
+
+   Mainline Linux kernel (kernel.org):
+       The _firmware_ file in sysfs is not available, and the whole
+       reconfiguration process is specified in Device Tree Overlays.
+
+       [1] Documentation/fpga/overview.txt
+       [2] Documentation/fpga/fpga-mgr.txt
+       [3] Documentation/fpga/fpga-region.txt
+       [4] Documentation/devicetree/bindings/fpga/fpga-region.txt
