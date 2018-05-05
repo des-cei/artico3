@@ -23,8 +23,14 @@
  *       into account that this includes ALL inputs).
  */
 
-A3_KERNEL(a3out_t b, a3in_t a, a3inout_t c, a3reg_t inc) {
+A3_KERNEL(a3in_t    a,
+          a3out_t   b,
+          a3inout_t c,
+          a3reg_t   inc) {
     unsigned int i;
+
+    // All registers in HLS-based kernels need to be initialized
+    a3reg_init(inc);
 
     for (i = 0; i < VALUES; i++) {
 #pragma HLS PIPELINE
