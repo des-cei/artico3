@@ -151,9 +151,13 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         # Get info from user defined ports
         with open(shutil2.join(src, kernel.name.lower()) + ".cpp") as fp:
             data = fp.read()
-        reg = r"A3_KERNEL\((?P<ports>.+)\)"
+        reg = r"A3_KERNEL\((?P<ports>[^\)]+)\)"
         match = re.search(reg, data)
-        dictionary["ARGS"] = re.sub(r"a3\w+_t", "", match.group("ports")).strip()
+        aux =  match.group("ports")
+        aux = re.sub(r"[\n\r]", "", aux)   # Remove line breaks
+        aux = re.sub(r"\s{2,}", " ", aux)  # Replace more than 2 spaces with 1
+        aux = re.sub(r"a3\w+_t ", "", aux) # Remove port tags
+        dictionary["ARGS"] = aux.strip()   # Remove heading and trailing spaces
 
         # Generate list with sorted input/output ports
         #
@@ -177,7 +181,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         argsI.sort()
         argsO.sort()
         argsIO.sort()
-        args = argsI + argsIO + argsO;
+        argsM = argsI + argsIO + argsO;
         argsR.sort()
         dictionary["REGS"] = []
         for i in range(len(argsR)):
@@ -186,9 +190,9 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             d["rid"] = i
             dictionary["REGS"].append(d)
         dictionary["PORTS"] = []
-        for i in range(len(args)):
+        for i in range(len(argsM)):
             d = {}
-            d["pname"] = args[i][1]
+            d["pname"] = argsM[i][1]
             d["pid"] = i
             dictionary["PORTS"].append(d)
 
