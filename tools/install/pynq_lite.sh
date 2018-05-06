@@ -295,7 +295,7 @@ mkdir $WD/devicetree/pynq
 cd $WD/devicetree/pynq
 
 # Create required files
-cat >> pynq_c_pl.xdc << EOF
+cat > pynq_c_pl.xdc << EOF
 ## This file is a general .xdc for the PYNQ-Z1 board Rev. C
 ## To use it in a project:
 ## - uncomment the lines corresponding to used pins
@@ -487,7 +487,7 @@ cat >> pynq_c_pl.xdc << EOF
 #set_property -dict { PACKAGE_PIN J15   IOSTANDARD LVCMOS33 } [get_ports { crypto_sda }]; #IO_25_35 Sch=crypto_sda
 EOF
 
-cat >> pynq_c_ps.tcl << EOF
+cat > pynq_c_ps.tcl << EOF
 proc getPresetInfo {} {
   return [dict create name {PYNQ} description {PYNQ}  vlnv xilinx.com:ip:processing_system7:5.5 display_name {PYNQ} ]
 }
@@ -1367,7 +1367,7 @@ return [dict create \
 }
 EOF
 
-cat >> create_hdf.tcl << EOF
+cat > create_hdf.tcl << EOF
 set cur_dir [pwd]
 
 # Create Vivado project
@@ -1435,7 +1435,7 @@ write_hwdef -force -file "\$cur_dir/pynq.hdf"
 close_project
 EOF
 
-cat >> create_devicetree.tcl << EOF
+cat > create_devicetree.tcl << EOF
 open_hw_design pynq.hdf
 set_repo_path ../device-tree-xlnx
 create_sw_design device-tree -os device_tree -proc ps7_cortexa9_0
@@ -1527,7 +1527,8 @@ make -j"$(nproc)" xilinx_zynq_defconfig
 
 # Modifications in some of the device drivers for the fpga_manager framework need to be done
 # to make partial reconfiguration work in Zynq-7000 devices.
-sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
+sed -i 's|info.flags = 0;|info.flags = mgr->flags;|' $WD/linux-xlnx/drivers/fpga/fpga-mgr.c
+#~ sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
 
 # Increase available memory for Linux CMA (default in Zynq-7000 is 16MB)
 #
@@ -1800,7 +1801,7 @@ cd $WD/artico3/linux/drivers/dmaproxy
 make -j"$(nproc)" PREFIX=$WD/nfs/opt/artico3 install
 
 # Compile ARTICo3 device tree overlay
-cat >> $WD/nfs/lib/firmware/overlays/artico3.dts << EOF
+cat > $WD/nfs/lib/firmware/overlays/artico3.dts << EOF
 /dts-v1/;
 /plugin/;
 
@@ -1827,7 +1828,7 @@ EOF
 dtc -I dts -O dtb -@ -o $WD/nfs/lib/firmware/overlays/artico3.dtbo $WD/nfs/lib/firmware/overlays/artico3.dts
 
 # Create script to move kernel module to /lib/modules/...
-cat >> $WD/nfs/opt/artico3/artico3_init.sh << EOF
+cat > $WD/nfs/opt/artico3/artico3_init.sh << EOF
 mkdir -p /lib/modules/\$(uname -r)
 mv /opt/artico3/mdmaproxy.ko /lib/modules/\$(uname -r)
 modprobe mdmaproxy
@@ -1857,7 +1858,7 @@ cp $WD/devicetree/pynq/dts/devicetree.dtb $WD/sdcard/
 if [[ $ROOTFS = 2 ]]; then
     mkdir $WD/ramdisk
     cd $WD/ramdisk
-    dd if=/dev/zero of=ramdisk.image bs=1M count=16
+    dd if=/dev/zero of=ramdisk.image bs=1M count=16 status=progress
     mke2fs -F ramdisk.image -L "ramdisk" -b 1024 -m 0
     tune2fs ramdisk.image -i 0
     chmod a+rwx ramdisk.image

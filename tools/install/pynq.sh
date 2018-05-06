@@ -218,7 +218,7 @@ mkdir $WD/devicetree/pynq
 cd $WD/devicetree/pynq
 
 # Create required files
-cat >> pynq_c_pl.xdc << EOF
+cat > pynq_c_pl.xdc << EOF
 ## This file is a general .xdc for the PYNQ-Z1 board Rev. C
 ## To use it in a project:
 ## - uncomment the lines corresponding to used pins
@@ -410,7 +410,7 @@ cat >> pynq_c_pl.xdc << EOF
 #set_property -dict { PACKAGE_PIN J15   IOSTANDARD LVCMOS33 } [get_ports { crypto_sda }]; #IO_25_35 Sch=crypto_sda
 EOF
 
-cat >> pynq_c_ps.tcl << EOF
+cat > pynq_c_ps.tcl << EOF
 proc getPresetInfo {} {
   return [dict create name {PYNQ} description {PYNQ}  vlnv xilinx.com:ip:processing_system7:5.5 display_name {PYNQ} ]
 }
@@ -1290,7 +1290,7 @@ return [dict create \
 }
 EOF
 
-cat >> create_hdf.tcl << EOF
+cat > create_hdf.tcl << EOF
 set cur_dir [pwd]
 
 # Create Vivado project
@@ -1358,7 +1358,7 @@ write_hwdef -force -file "\$cur_dir/pynq.hdf"
 close_project
 EOF
 
-cat >> create_devicetree.tcl << EOF
+cat > create_devicetree.tcl << EOF
 open_hw_design pynq.hdf
 set_repo_path ../device-tree-xlnx
 create_sw_design device-tree -os device_tree -proc ps7_cortexa9_0
@@ -1442,7 +1442,8 @@ echo "CONFIG_XILINX_DEVCFG=m" >> $WD/linux-xlnx/.config
 
 # Modifications in some of the device drivers for the fpga_manager framework need to be done
 # to make partial reconfiguration work in Zynq-7000 devices.
-sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
+sed -i 's|info.flags = 0;|info.flags = mgr->flags;|' $WD/linux-xlnx/drivers/fpga/fpga-mgr.c
+#~ sed -i 's|info->flags|mgr->flags|' $WD/linux-xlnx/drivers/fpga/zynq-fpga.c
 
 # Increase available memory for Linux CMA (default in Zynq-7000 is 16MB)
 #
@@ -1486,7 +1487,7 @@ cd $WD/artico3/linux/drivers/dmaproxy
 make -j"$(nproc)"
 
 # Compile ARTICo3 device tree overlay
-cat >> $WD/rootfs/artico3.dts << EOF
+cat > $WD/rootfs/artico3.dts << EOF
 /dts-v1/;
 /plugin/;
 
@@ -1582,7 +1583,7 @@ sudo -H tar --strip-components=1 -xzvphf linaro-stretch-developer-20170706-43.ta
 sync
 
 # Create script to initialize ARTICo3
-cat >> $WD/rootfs/setup.sh << EOF
+cat > $WD/rootfs/setup.sh << EOF
 # Load ARTICo3 device tree overlay
 echo "Loading ARTICo3 device tree overlay..."
 mkdir /sys/kernel/config/device-tree/overlays/artico3
@@ -1598,7 +1599,7 @@ EOF
 chmod +x $WD/rootfs/setup.sh
 
 # Create script to change FPGA operating frequency
-cat >> $WD/rootfs/set_clk.sh << EOF
+cat > $WD/rootfs/set_clk.sh << EOF
 # Get operating frequency from first argument
 FREQ=\$((\${1-100} * 1000000))
 
@@ -1625,7 +1626,7 @@ EOF
 chmod +x $WD/rootfs/set_clk.sh
 
 # Create script to move kernel modules to /lib/modules/...
-cat >> $WD/rootfs/artico3_init.sh << EOF
+cat > $WD/rootfs/artico3_init.sh << EOF
 mkdir -p /lib/modules/\$(uname -r)
 mv /root/mdmaproxy.ko /lib/modules/\$(uname -r)
 mv /root/xilinx_devcfg.ko /lib/modules/\$(uname -r)
