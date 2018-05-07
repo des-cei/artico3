@@ -314,7 +314,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
     }
 
     // Set kernel name
-    kernel->name = malloc(strlen(name));
+    kernel->name = malloc(strlen(name) + 1);
     if (!kernel->name) {
         a3_print_error("[artico3-hw] malloc() failed\n");
         ret = -ENOMEM;
@@ -506,8 +506,8 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    //~ // Print ARTICo3 registers
-    //~ artico3_hw_print_regs();
+    // Print ARTICo3 registers
+    artico3_hw_print_regs();
 
     return 0;
 }
@@ -599,8 +599,8 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
 
-    //~ // Print ARTICo3 registers
-    //~ artico3_hw_print_regs();
+    // Print ARTICo3 registers
+    artico3_hw_print_regs();
 
     return 0;
 }
@@ -810,7 +810,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     }
 
     // Set port name
-    port->name = malloc(strlen(pname));
+    port->name = malloc(strlen(pname) + 1);
     if (!port->name) {
         goto err_malloc_port_name;
     }
@@ -1035,28 +1035,28 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
         // Only change configuration when no kernel is being executed
         if (!running) {
 
-            //~ // Check if partial reconfiguration is required
-            //~ if (shuffler.slots[index].state == S_EMPTY) {
-                //~ reconf = 1;
-            //~ }
-            //~ else {
-                //~ if (strcmp(shuffler.slots[index].kernel->name, name) != 0) {
-                    //~ reconf = 1;
-                //~ }
-                //~ else {
-                    //~ reconf = 0;
-                //~ }
-            //~ }
-            reconf = 1; // The previous code generates segmentation fault, needs checking
+            // Check if partial reconfiguration is required
+            if (shuffler.slots[slot].state == S_EMPTY) {
+                reconf = 1;
+            }
+            else {
+                if (strcmp(shuffler.slots[slot].kernel->name, name) != 0) {
+                    reconf = 1;
+                }
+                else {
+                    reconf = 0;
+                }
+            }
 
             // Even if reconfiguration is not required, it can be forced
-            reconf |= force;
+            //~ reconf |= force;
+            reconf = reconf || force;
 
             // Perform DPR
             if (reconf) {
 
                 // Set slot flag
-                shuffler.slots[index].state = S_LOAD;
+                shuffler.slots[slot].state = S_LOAD;
 
                 // Load partial bitstream
                 sprintf(filename, "pbs/a3_%s_a3_slot_%d_partial.bin", name, slot);
@@ -1066,12 +1066,12 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
                 }
 
                 // Set slot flag
-                shuffler.slots[index].state = S_IDLE;
+                shuffler.slots[slot].state = S_IDLE;
 
             }
 
             // Update ARTICo3 slot info
-            shuffler.slots[index].kernel = kernels[index];
+            shuffler.slots[slot].kernel = kernels[index];
 
             // Update ARTICo3 configuration registers
             shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
@@ -1104,18 +1104,7 @@ err_fpga:
 
 
 // TODO: add documentation for this function
-int artico3_unload(const char *name, size_t slot) {
-    unsigned int index;
-
-    // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
-    }
-    if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
-        return -ENODEV;
-    }
+int artico3_unload(size_t slot) {
 
     while (1) {
         pthread_mutex_lock(&mutex);
@@ -1124,7 +1113,8 @@ int artico3_unload(const char *name, size_t slot) {
         if (!running) {
 
             // Update ARTICo3 slot info
-            shuffler.slots[index].kernel = NULL;
+            shuffler.slots[slot].state = S_EMPTY;
+            shuffler.slots[slot].kernel = NULL;
 
             // Update ARTICo3 configuration registers
             shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
@@ -1140,7 +1130,7 @@ int artico3_unload(const char *name, size_t slot) {
     }
     pthread_mutex_unlock(&mutex);
 
-    a3_print_debug("[artico3-hw] removed accelerator \"%s\" from slot %d\n", name, slot);
+    a3_print_debug("[artico3-hw] removed accelerator from slot %d\n", slot);
 
     return 0;
 }

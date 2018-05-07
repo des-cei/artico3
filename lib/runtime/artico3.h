@@ -76,7 +76,7 @@ void artico3_exit();
 
 // TODO: add documentation for these functions
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
-int artico3_unload(const char *name, size_t slot);
+int artico3_unload(size_t slot);
 
 /*
  * KERNEL MANAGEMENT
