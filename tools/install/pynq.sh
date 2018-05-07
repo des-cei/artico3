@@ -1639,12 +1639,13 @@ chmod +x $WD/rootfs/artico3_init.sh
 
 # Copy additional files
 sudo -H mkdir -p $WD/rootfs/root/lib/firmware/overlays
-sudo -H cp $WD/rootfs/artico3.dtbo $WD/rootfs/root/lib/firmware/overlays
+sudo -H mv $WD/rootfs/artico3.dts $WD/rootfs/root/lib/firmware/overlays
+sudo -H mv $WD/rootfs/artico3.dtbo $WD/rootfs/root/lib/firmware/overlays
 sudo -H cp $WD/artico3/linux/drivers/dmaproxy/mdmaproxy.ko $WD/rootfs/root/root
 sudo -H cp $WD/linux-xlnx/drivers/char/xilinx_devcfg.ko $WD/rootfs/root/root
-sudo -H cp $WD/rootfs/setup.sh $WD/rootfs/root/root
-sudo -H cp $WD/rootfs/set_clk.sh $WD/rootfs/root/root
-sudo -H cp $WD/rootfs/artico3_init.sh $WD/rootfs/root/root
+sudo -H mv $WD/rootfs/setup.sh $WD/rootfs/root/root
+sudo -H mv $WD/rootfs/set_clk.sh $WD/rootfs/root/root
+sudo -H mv $WD/rootfs/artico3_init.sh $WD/rootfs/root/root
 sync
 
 # Unmount partitions
@@ -1664,7 +1665,8 @@ sudo -H losetup -D
 printf "ARTICo3 has been installed successfully.\n\n"
 printf "Please execute the following post-installation steps:\n"
 printf "* Copy SD card image to the SD card and insert in Pynq board.\n"
-printf "      dd if=linaropynq.img of=/dev/sdX bs=4M status=progress\n"
+printf "* SD card image : $WD/rootfs/linaropynq.img\n"
+printf "  > sudo -H dd if=$WD/rootfs/linaropynq.img of=/dev/sdX bs=4M status=progress\n"
 printf "* Set boot mode to SD using jumper JP4.\n"
 printf "* Turn on the board, connect with UART.\n"
 printf "* If 'Zynq> ' prompt appears type 'boot' followed by 'Enter'.\n\n"
