@@ -53,10 +53,19 @@ def clean(args):
             log.error("software directory '" + swdir + "' not found")
             return
 
+        if cross == "":
+            if "xczu" in prj.impl.part:
+                cc = "/opt/Xilinx/SDK/{0}/gnu/aarch64/lin/aarch64-linux/bin/aarch64-linux-gnu-".format(prj.impl.xil[1])
+            else:
+                #~ cc = "/opt/Xilinx/SDK/{0}/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi-".format(prj.impl.xil[1])
+                cc = "/opt/Xilinx/SDK/{0}/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin/arm-linux-gnueabihf-".format(prj.impl.xil[1])
+        else:
+            cc = cross
+
         subprocess.run("""
-            bash -c "export CROSS_COMPILE=/opt/Xilinx/SDK/{0}/gnu/arm/lin/bin/arm-xilinx-linux-gnueabi- &&
+            bash -c "export CROSS_COMPILE={0} &&
             make clean"
-            """.format(prj.impl.xil[1]), shell=True, check=True)
+            """.format(cc), shell=True, check=True)
 
 
         print()
