@@ -479,7 +479,8 @@ static long dmaproxy_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
             break;
 
         default:
-            return -ENOTTY;
+            dev_err(dmaproxy_dev->dev, "[i] ioctl() -> command %x does not exist", cmd);
+            retval = -ENOTTY;
 
     }
 
