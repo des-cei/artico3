@@ -117,3 +117,5 @@
    Does it make sense to add both requirements in host PC (Vivado and
    Linux distro details) and embedded target (drivers and hacks)? The
    former can be edited on a3dk.txt.
+
+7. Move ARTICo3 runtime library for Linux to a shared library.
