@@ -314,10 +314,53 @@ dtc -I dts -O dtb -@ -o system.dtb system-top.dts
 mkdir -p $WD/firmware
 cd $WD/firmware
 
+#
 # Build ARM Trusted Firmware
+#
+# NOTE: repo version xilinx-v2018.1 is used (it is compatible) because
+#       it is the first release in which PL configuration from Linux is
+#       done properly [1] (in previous releases, it was a non-blocking
+#       process that led to runtime errors due to wrong PL programming and
+#       race conditions).
+#
+# PL programming from Linux steps:
+#
+#     1. echo $flags > /sys/class/fpga_manager/fpga0/flags
+#        echo $firmware > /sys/class/fpga_manager/fpga0/firmware
+#
+#        This procedure does not follow conventional FPGA Manager framework,
+#        since it uses custom files named _flags_ and _firmware_ instead
+#        of relying on Device Tree Overlays. See [2] for more info.
+#
+#     2. Linux (xilinx-v2017.2) @ ARM Cortex A53
+#        | fpga_mgr_firmware_load()       drivers/fpga/fpga-mgr.c
+#        | fpga_mgr_buf_load()            drivers/fpga/fpga-mgr.c
+#        | zynqmp_fpga_ops_write()        drivers/fpga/zynqmp-fpga.c
+#        | zynqmp_pm_fpga_load()          drivers/soc/xilinx/zynqmp/pm.c
+#        | invoke_pm_fn()                 drivers/soc/xilinx/zynqmp/pm.c
+#        | do_fw_call()                   drivers/soc/xilinx/zynqmp/pm.c
+#        | do_fw_call_smc()               drivers/soc/xilinx/zynqmp/pm.c
+#        | arm_smccc_smc()                arch/arm64/kernel/smccc-call.S
+#
+#     3. ARM Trusted Firmware (xilinx-v2018.1) @ ARM Cortex A53
+#        | pm_smc_handler()               plat/xilinx/zynqmp/pm_service/pm_svc_main.c
+#        | pm_fpga_load()                 plat/xilinx/zynqmp/pm_service/pm_api_sys.c
+#        | pm_ipi_send_sync()             plat/xilinx/zynqmp/pm_service/pm_ipi.c
+#        | pm_ipi_send_common()           plat/xilinx/zynqmp/pm_service/pm_ipi.c
+#        | ipi_mb_notify()                plat/xilinx/zynqmp/pm_service/pm_ipi.c
+#
+#     4. Zynq MP PMU Firmware (xilinx-v2017.1) @ PMU MicroBlaze
+#        | PmProcessApiCall ()            <embeddedsw>/lib/sw_apps/zynqmp_pmufw/src/pm_core.c
+#        | PmFpgaLoad ()                  <embeddedsw>/lib/sw_apps/zynqmp_pmufw/src/pm_core.c
+#        | XFpga_PL_BitSream_Load ()      <embeddedsw>/lib/sw_services/xilfpga/src/xilfpga_pcap.c
+#
+# [1] https://github.com/Xilinx/arm-trusted-firmware/commit/c055151bfd7641f9a748de2ecd50ff968ff07176#diff-84707f287ea5d2f11d613b22d81b5534
+# [2] Documentation/devicetree/bindings/fpga/fpga-region.txt
+#
 git clone https://github.com/Xilinx/arm-trusted-firmware.git
 cd $WD/firmware/arm-trusted-firmware
-git checkout -b wb "$GITTAG_LINUX"
+#~ git checkout -b wb "$GITTAG_LINUX"
+git checkout -b wb "xilinx-v2018.1"
 make -j $(nproc) PLAT=zynqmp RESET_TO_BL31=1
 
 # Create ZynqMP FSBL + PMU Firmware projects
@@ -408,34 +451,6 @@ sed -i 's|.*CONFIG_OF_OVERLAY.*|CONFIG_OF_OVERLAY=y|' $WD/linux-xlnx/.config
 sed -i '/.*CONFIG_OF_OVERLAY.*/a CONFIG_OF_CONFIGFS=y' $WD/linux-xlnx/.config
 sed -i 's|CONFIG_UIO_PDRV_GENIRQ=m|CONFIG_UIO_PDRV_GENIRQ=y|' $WD/linux-xlnx/.config
 sed -i 's|CONFIG_UIO_DMEM_GENIRQ=m|CONFIG_UIO_DMEM_GENIRQ=y|' $WD/linux-xlnx/.config
-
-# Modify ZynqMP FPGA Manager
-#
-# NOTE: for some reason, this needs to be done for the system to be able
-#       to work properly. Leaving the default implementation somehow resets
-#       the PL after each partial reconfiguration.
-#       The changes affect the low-level funcions of the reconfiguration
-#       manager in Linux, adding a polling + timeout process after
-#       bitstream loading.
-#
-sed -i '/static int zynqmp_fpga_ops_write_complete/,/^$/ d' $WD/linux-xlnx/drivers/fpga/zynqmp-fpga.c
-sed -i '/static const struct fpga_manager_ops zynqmp_fpga_ops/i #define INIT_POLL_TIMEOUT (10000) \
-static int zynqmp_fpga_ops_write_complete(struct fpga_manager *mgr,         \
-                      struct fpga_image_info *info)                         \
-{                                                                           \
-    volatile unsigned int timeout = INIT_POLL_TIMEOUT;                      \
-    enum fpga_mgr_states state;                                             \
-                                                                            \
-    while (timeout--) {                                                     \
-        state = zynqmp_fpga_ops_state(mgr);                                 \
-        dev_info(&mgr->dev, "Polling FPGA state... | %s\\n",                \
-            (state == FPGA_MGR_STATE_OPERATING) ? "operating" : "unknown"); \
-        if (state == FPGA_MGR_STATE_OPERATING) break;                       \
-    }                                                                       \
-                                                                            \
-    return (state == FPGA_MGR_STATE_OPERATING) ? 0 : -EBUSY;                \
-}                                                                           \
-' $WD/linux-xlnx/drivers/fpga/zynqmp-fpga.c
 
 make -j $(nproc)
 
