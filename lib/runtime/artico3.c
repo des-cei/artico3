@@ -120,7 +120,7 @@ int artico3_init() {
 <a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {
+            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
                 continue;
             }
             sprintf(filename, "/dev/%s", dir->d_name);
@@ -158,7 +158,7 @@ int artico3_init() {
 <a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {
+            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
                 continue;
             }
             sprintf(filename, "/dev/%s", dir->d_name);
