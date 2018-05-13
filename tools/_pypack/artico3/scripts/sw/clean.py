@@ -34,13 +34,14 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("clean_sw", description="""
         Cleans the software project.
         """)
+    parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     parser.add_argument("-r", "--remove", help="remove entire software directory", action="store_true")
     return parser
 
 def clean_cmd(args):
-    clean(args)
+    clean(args, args.cross)
 
-def clean(args):
+def clean(args, cross):
     prj = args.prj
     swdir = prj.basedir + ".sw"
 

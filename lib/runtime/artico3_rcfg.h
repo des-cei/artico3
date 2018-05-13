@@ -31,9 +31,10 @@
  * NOTE: as of version xilinx-v2017.2, there is a problem in the source
  *       files for the fpga_manager framework in Zynq-7000 devices that
  *       requires modifications in the driver functions to enable partial
- *       reconfiguration.
+ *       reconfiguration. There are two options to perform them:
  *
- * sed -i 's|info->flags|mgr->flags|' linux-xlnx/drivers/fpga/zynq-fpga.c
+ * [1] sed -i 's|info.flags = 0;|info.flags = mgr->flags;|' linux-xlnx/drivers/fpga/fpga-mgr.c
+ * [2] sed -i 's|info->flags|mgr->flags|' linux-xlnx/drivers/fpga/zynq-fpga.c
  *
  */
 

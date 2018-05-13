@@ -120,7 +120,7 @@ int artico3_init() {
 <a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {
+            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
                 continue;
             }
             sprintf(filename, "/dev/%s", dir->d_name);
@@ -158,7 +158,7 @@ int artico3_init() {
 <a3<end if>a3>
     if (d) {
         while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, ".") == 0)) {
+            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
                 continue;
             }
             sprintf(filename, "/dev/%s", dir->d_name);
@@ -1016,6 +1016,12 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
     uint8_t id;
     uint8_t reconf;
 
+    // Check if slot is within range
+    if (slot >= A3_MAXSLOTS) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", A3_MAXSLOTS - 1);
+        return -ENODEV;
+    }
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
         if (!kernels[index]) continue;
@@ -1105,6 +1111,12 @@ err_fpga:
 
 // TODO: add documentation for this function
 int artico3_unload(size_t slot) {
+
+    // Check if slot is within range
+    if (slot >= A3_MAXSLOTS) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", A3_MAXSLOTS - 1);
+        return -ENODEV;
+    }
 
     while (1) {
         pthread_mutex_lock(&mutex);
