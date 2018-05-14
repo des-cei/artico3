@@ -186,6 +186,10 @@ class Project:
             self.impl.ldflags = cfg.get("General", "LdFlags")
         else:
             self.impl.ldflags = ""
+        if cfg.has_option("General", "LdLibs"):
+            self.impl.ldlibs = cfg.get("General", "LdLibs")
+        else:
+            self.impl.ldlibs = ""
 
         log.debug(str(self))
         log.debug(str(self.impl))

@@ -55,6 +55,7 @@ def export_sw(args, swdir, link):
     else:
         dictionary["CFLAGS"] = prj.impl.cflags
     dictionary["LDFLAGS"] = prj.impl.ldflags
+    dictionary["LDLIBS"] = prj.impl.ldlibs
 
     dictionary["NUM_SLOTS"] = prj.shuffler.slots
     dictionary["DEVICE"] = "zynqmp" if "xczu" in prj.impl.part else "zynq"
