@@ -8,7 +8,6 @@
  *
  */
 
-<a3<artico3_preproc>a3>
 
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
@@ -22,12 +21,13 @@ extern volatile struct a3shuffler_t shuffler;
  *
  */
 #define A3_MAXKERNS (0xF) // TODO: maybe make it configurable? Would also require additional VHDL parsing in Shuffler...
-<a3<if DEVICE=="zynq">a3>
-#define A3_SLOTADDR (0x8aa00000)
-<a3<end if>a3>
-<a3<if DEVICE=="zynqmp">a3>
+
+#ifdef ZYNQMP
 #define A3_SLOTADDR (0xb0000000)
-<a3<end if>a3>
+#else
+#define A3_SLOTADDR (0x8aa00000)
+#endif
+
 
 /*
  * ARTICo3 infrastructure register offsets (in 32-bit words)
