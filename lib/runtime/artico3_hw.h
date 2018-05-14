@@ -42,8 +42,9 @@ extern volatile struct a3shuffler_t shuffler;
 #define A3_DMR_REG_HIGH   (0x00000014 >> 2)                 // DMR register (high)
 #define A3_BLOCK_SIZE_REG (0x00000018 >> 2)                 // Block size register
 #define A3_CLOCK_GATE_REG (0x0000001c >> 2)                 // Clock gating register
-#define A3_READY_REG      (0x00000028 >> 2)                 // Ready register
-#define A3_PMC_CYCLES_REG (0x0000002c >> 2)                 // PMC (cycles)
+#define A3_NSLOTS_REG     (0x00000028 >> 2)                 // Firmware info : number of slots
+#define A3_READY_REG      (0x0000002c >> 2)                 // Ready register
+#define A3_PMC_CYCLES_REG (0x00000030 >> 2)                 // PMC (cycles)
 #define A3_PMC_ERRORS_REG (A3_PMC_CYCLES_REG + A3_MAXSLOTS) // PMC (errors)
 
 
