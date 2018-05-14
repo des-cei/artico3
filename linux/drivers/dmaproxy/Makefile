@@ -16,7 +16,7 @@
 # Notes:
 #     - This Makefile requires the following environment variables to
 #       be previously set (by the user, or the ARTICo3 toolchain):
-#		ARCH, CROSS_COMPILE, KDIR
+#       ARCH, CROSS_COMPILE, KDIR
 #
 
 obj-m += mdmaproxy.o
