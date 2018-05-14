@@ -20,6 +20,20 @@
 /*
  * ARTICo3 low-level hardware function
  *
+ * Gets firmware information (number of ARTICo3 slots) of the current
+ * static system.
+ *
+ * Returns : number of slots on success, error code otherwise
+ *
+ */
+uint32_t artico3_hw_get_nslots() {
+    return artico3_hw[A3_NSLOTS_REG];
+}
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
  * Gets current number of available hardware accelerators for a given
  * kernel ID tag.
  *
@@ -61,7 +75,7 @@ int artico3_hw_get_naccs(uint8_t id) {
         aux_dmr = dmr_reg & 0xf;
         if (aux_id == id) {
             if (aux_tmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
+                for (i = 1; i < shuffler.nslots; i++) {
                     if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
                     if (((tmr_reg >> (4 * i)) & 0xf) == aux_tmr) {
                         tmr_reg ^= tmr_reg & (0xf << (4 * i));
@@ -70,7 +84,7 @@ int artico3_hw_get_naccs(uint8_t id) {
                 }
             }
             else if (aux_dmr) {
-                for (i = 1; i < A3_MAXSLOTS; i++) {
+                for (i = 1; i < shuffler.nslots; i++) {
                     if (((id_reg >> (4 * i)) & 0xf) != aux_id) continue;
                     if (((dmr_reg >> (4 * i)) & 0xf) == aux_dmr) {
                         dmr_reg ^= dmr_reg & (0xf << (4 * i));
@@ -145,10 +159,10 @@ void artico3_hw_print_regs() {
     a3_print_debug("    [REG] %-8s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
 
     a3_print_debug("[artico3-hw] current status:\n");
-    for (i = 0; i < A3_MAXSLOTS; i++) {
+    for (i = 0; i < shuffler.nslots; i++) {
         a3_print_debug("    [PMC] %4s<%2d> | %08x cycles\n", "slot", i, artico3_hw[A3_PMC_CYCLES_REG + i]);
     }
-    for (i = 0; i < A3_MAXSLOTS; i++) {
+    for (i = 0; i < shuffler.nslots; i++) {
         a3_print_debug("    [PMC] %4s<%2d> | %08x errors\n", "slot", i, artico3_hw[A3_PMC_ERRORS_REG + i]);
     }
 }
@@ -202,7 +216,7 @@ void artico3_hw_enable_clk() {
 
     // Enable clocks in reconfigurable region (TODO: change if a more precise power management is required)
     clkgate = 0;
-    for (i = 0; i < A3_MAXSLOTS; i++) {
+    for (i = 0; i < shuffler.nslots; i++) {
         clkgate |= 1 << i;
     }
     artico3_hw[A3_CLOCK_GATE_REG] = clkgate;
