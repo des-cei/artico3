@@ -156,6 +156,7 @@ void artico3_hw_print_regs() {
     a3_print_debug("    [REG] %-8s | %08x%08x\n", "dmr", artico3_hw[A3_DMR_REG_HIGH], artico3_hw[A3_DMR_REG_LOW]);
     a3_print_debug("    [REG] %-8s | %08x\n", "block", artico3_hw[A3_BLOCK_SIZE_REG]);
     a3_print_debug("    [REG] %-8s | %08x\n", "clk", artico3_hw[A3_CLOCK_GATE_REG]);
+    a3_print_debug("    [REG] %-8s | %08x\n", "nslots", artico3_hw[A3_NSLOTS_REG]);
     a3_print_debug("    [REG] %-8s | %08x\n", "ready", artico3_hw[A3_READY_REG]);
 
     a3_print_debug("[artico3-hw] current status:\n");
