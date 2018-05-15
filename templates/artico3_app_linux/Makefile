@@ -1,3 +1,10 @@
+#
+# ARTICo3 Linux Application
+#
+# Author   : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
+# Date     : May 2018
+#
+
 <a3<artico3_preproc>a3>
 
 CC = $(CROSS_COMPILE)gcc
@@ -12,6 +19,7 @@ CFLAGS = -Wall -Wextra -I <a3<REPO_REL>a3>/lib/runtime/aarch64/include <a3<CFLAG
 LDFLAGS = -L <a3<REPO_REL>a3>/lib/runtime/aarch64 -Wl,-R,. <a3<LDLIBS>a3>
 <a3<end if>a3>
 LDLIBS = -lartico3 <a3<LDLIBS>a3>
+LDLIBS_DBG = -lartico3dbg <a3<LDLIBS>a3>
 
 MKDIRP = mkdir -p
 
@@ -27,13 +35,21 @@ static: <a3<DEVICE>a3> $(BUILD_OBJS)
 shared: <a3<DEVICE>a3> $(BUILD_OBJS)
 	$(CC) $(LDFLAGS) $(BUILD_OBJS) $(LDLIBS) -o <a3<NAME>a3>
 
-.PHONY: zynq
-zynq:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) zynq
+.PHONY: static_dbg
+static_dbg: <a3<DEVICE>a3>_dbg $(BUILD_OBJS)
+	$(CC) $(LDFLAGS) -static $(BUILD_OBJS) $(LDLIBS_DBG) -lm -lpthread -o <a3<NAME>a3>
 
-.PHONY: zynqmp
-zynqmp:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) zynqmp
+.PHONY: shared_dbg
+shared_dbg: <a3<DEVICE>a3>_dbg $(BUILD_OBJS)
+	$(CC) $(LDFLAGS) $(BUILD_OBJS) $(LDLIBS_DBG) -o <a3<NAME>a3>
+
+.PHONY: <a3<DEVICE>a3>
+<a3<DEVICE>a3>:
+	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) <a3<DEVICE>a3>
+
+.PHONY: <a3<DEVICE>a3>_dbg
+<a3<DEVICE>a3>_dbg:
+	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) <a3<DEVICE>a3>_dbg
 
 .PHONY: clean
 clean:
