@@ -117,6 +117,3 @@
    Does it make sense to add both requirements in host PC (Vivado and
    Linux distro details) and embedded target (drivers and hacks)? The
    former can be edited on a3dk.txt.
-
-7. Enable debug mode in ARTICo3 library (its new version does not support
-   a3dk export_sw -d).
