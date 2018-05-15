@@ -846,7 +846,8 @@ begin
     block_size_reg <= reg_out(6);
     clk_gate_reg   <= reg_out(7)(C_MAX_SLOTS-1 downto 0); -- NOTE: compute units are DISABLED by default. To have them ENABLED by default, change to "not reg_out(7)"
 
-    reg_out(C_NUM_REG_RW + 0) <= std_logic_vector(resize(unsigned(ready_reg), C_S_AXI_DATA_WIDTH));
+    reg_out(C_NUM_REG_RW + 0) <= std_logic_vector(to_unsigned(C_MAX_SLOTS, C_S_AXI_DATA_WIDTH));    -- Firmware info: number of slots in THIS ARTICo3 implementation
+    reg_out(C_NUM_REG_RW + 1) <= std_logic_vector(resize(unsigned(ready_reg), C_S_AXI_DATA_WIDTH));
 
     -------------------
     -- PMC registers --
@@ -854,12 +855,12 @@ begin
 
     pmc_cycles_gen: for i in 0 to C_MAX_SLOTS-1 generate
     begin
-        reg_out(C_NUM_REG_RW + 1 + i) <= pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
+        reg_out(C_NUM_REG_RW + 2 + i) <= pmc_cycles(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
     end generate;
 
     pmc_errors_gen: for i in 0 to C_MAX_SLOTS-1 generate
     begin
-        reg_out(C_NUM_REG_RW + 1 + C_MAX_SLOTS + i) <= pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
+        reg_out(C_NUM_REG_RW + 2 + C_MAX_SLOTS + i) <= pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
         pmc_errors_rst(i) <= '1' when (unsigned(axi_araddr) = (C_NUM_REG_RW + 1 + C_MAX_SLOTS + i)) and (axi_rvalid = '1' and axi_rready = '1') else '0'; -- Reset PMC error counters after successful reads to the register.
     end generate;
 

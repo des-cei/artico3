@@ -44,7 +44,7 @@ entity shuffler is
         -- Number of software-accessible registers (requires at least 8)
         -- (Note that C_S_AXI_ADDR_WIDTH has to be set accordingly)
         C_NUM_REG_RW         : integer := 10;
-        -- Number of read-only software-accessible registers (requires at least 2*C_MAX_SLOTS + 1)
+        -- Number of read-only software-accessible registers (requires at least 2*C_MAX_SLOTS + 2)
         -- (Note that C_S_AXI_ADDR_WIDTH has to be set accordingly)
         C_NUM_REG_RO         : integer := 40;
         -- Number of pipeline stages (registers) between IF and hardware accelerators

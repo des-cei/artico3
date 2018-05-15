@@ -81,3 +81,8 @@ demos/*/*.os*/
 #
 *.dtso
 *.dtbo
+
+#
+# ARTICo3 Runtime Library products
+#
+lib/runtime/*/

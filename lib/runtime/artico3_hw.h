@@ -8,7 +8,6 @@
  *
  */
 
-<a3<artico3_preproc>a3>
 
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
@@ -21,30 +20,31 @@ extern volatile struct a3shuffler_t shuffler;
  * ARTICo3 hardware configuration parameters
  *
  */
-#define A3_MAXSLOTS (<a3<NUM_SLOTS>a3>)
 #define A3_MAXKERNS (0xF) // TODO: maybe make it configurable? Would also require additional VHDL parsing in Shuffler...
-<a3<if DEVICE=="zynq">a3>
-#define A3_SLOTADDR (0x8aa00000)
-<a3<end if>a3>
-<a3<if DEVICE=="zynqmp">a3>
+
+#ifdef ZYNQMP
 #define A3_SLOTADDR (0xb0000000)
-<a3<end if>a3>
+#else
+#define A3_SLOTADDR (0x8aa00000)
+#endif
+
 
 /*
  * ARTICo3 infrastructure register offsets (in 32-bit words)
  *
  */
-#define A3_ID_REG_LOW     (0x00000000 >> 2)                 // ID register (low)
-#define A3_ID_REG_HIGH    (0x00000004 >> 2)                 // ID register (high)
-#define A3_TMR_REG_LOW    (0x00000008 >> 2)                 // TMR register (low)
-#define A3_TMR_REG_HIGH   (0x0000000c >> 2)                 // TMR register (high)
-#define A3_DMR_REG_LOW    (0x00000010 >> 2)                 // DMR register (low)
-#define A3_DMR_REG_HIGH   (0x00000014 >> 2)                 // DMR register (high)
-#define A3_BLOCK_SIZE_REG (0x00000018 >> 2)                 // Block size register
-#define A3_CLOCK_GATE_REG (0x0000001c >> 2)                 // Clock gating register
-#define A3_READY_REG      (0x00000028 >> 2)                 // Ready register
-#define A3_PMC_CYCLES_REG (0x0000002c >> 2)                 // PMC (cycles)
-#define A3_PMC_ERRORS_REG (A3_PMC_CYCLES_REG + A3_MAXSLOTS) // PMC (errors)
+#define A3_ID_REG_LOW     (0x00000000 >> 2)                     // ID register (low)
+#define A3_ID_REG_HIGH    (0x00000004 >> 2)                     // ID register (high)
+#define A3_TMR_REG_LOW    (0x00000008 >> 2)                     // TMR register (low)
+#define A3_TMR_REG_HIGH   (0x0000000c >> 2)                     // TMR register (high)
+#define A3_DMR_REG_LOW    (0x00000010 >> 2)                     // DMR register (low)
+#define A3_DMR_REG_HIGH   (0x00000014 >> 2)                     // DMR register (high)
+#define A3_BLOCK_SIZE_REG (0x00000018 >> 2)                     // Block size register
+#define A3_CLOCK_GATE_REG (0x0000001c >> 2)                     // Clock gating register
+#define A3_NSLOTS_REG     (0x00000028 >> 2)                     // Firmware info : number of slots
+#define A3_READY_REG      (0x0000002c >> 2)                     // Ready register
+#define A3_PMC_CYCLES_REG (0x00000030 >> 2)                     // PMC (cycles)
+#define A3_PMC_ERRORS_REG (A3_PMC_CYCLES_REG + shuffler.nslots) // PMC (errors)
 
 
 /*
@@ -130,8 +130,21 @@ struct a3shuffler_t {
     uint64_t dmr_reg;
     uint32_t blksize_reg;
     uint32_t clkgate_reg;
+    uint32_t nslots;
     struct a3slot_t *slots;
 };
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Gets firmware information (number of ARTICo3 slots) of the current
+ * static system.
+ *
+ * Returns : number of slots
+ *
+ */
+uint32_t artico3_hw_get_nslots();
 
 
 /*

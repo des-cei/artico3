@@ -9,7 +9,6 @@
  *
  */
 
-<a3<artico3_preproc>a3>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +63,7 @@ volatile struct a3shuffler_t shuffler = {
     .dmr_reg     = 0x0000000000000000,
     .blksize_reg = 0x00000000,
     .clkgate_reg = 0x00000000,
+    .nslots      = 0,
     .slots       = NULL,
 };
 static struct a3kernel_t **kernels = NULL;
@@ -97,14 +97,13 @@ int artico3_init() {
      *       If the processor memory map is changed somehow, this has to
      *       be reflected in this file.
      *
-<a3<if DEVICE=="zynq">a3>
+     *       Zynq-7000 Devices
      *       ARTICo3 Shuffler Control -> 0x7aa00000 (uio)
      *       ARTICo3 Shuffler Data    -> 0x8aa00000 (dmaproxy)
-<a3<end if>a3>
-<a3<if DEVICE=="zynqmp">a3>
+     *
+     *       Zynq UltraScale+ MPSoC Devices
      *       ARTICo3 Shuffler Control -> 0xa0000000 (uio)
      *       ARTICo3 Shuffler Data    -> 0xb0000000 (dmaproxy)
-<a3<end if>a3>
      *
      */
 
@@ -112,12 +111,11 @@ int artico3_init() {
     fpga_load("system.bin", 0);
 
     // Find the appropriate UIO device
-<a3<if DEVICE=="zynq">a3>
-    d = opendir("/sys/bus/platform/devices/7aa00000.artico3_shuffler/uio/");
-<a3<end if>a3>
-<a3<if DEVICE=="zynqmp">a3>
+#ifdef ZYNQMP
     d = opendir("/sys/bus/platform/devices/a0000000.artico3_shuffler/uio/");
-<a3<end if>a3>
+#else
+    d = opendir("/sys/bus/platform/devices/7aa00000.artico3_shuffler/uio/");
+#endif
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
@@ -150,12 +148,11 @@ int artico3_init() {
     a3_print_debug("[artico3-hw] artico3_hw=%p\n", artico3_hw);
 
     // Find the appropriate DMA proxy device
-<a3<if DEVICE=="zynq">a3>
-    d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/dmaproxy/");
-<a3<end if>a3>
-<a3<if DEVICE=="zynqmp">a3>
+#ifdef ZYNQMP
     d = opendir("/sys/bus/platform/devices/b0000000.artico3_slots/dmaproxy/");
-<a3<end if>a3>
+#else
+    d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/dmaproxy/");
+#endif
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
@@ -180,14 +177,22 @@ int artico3_init() {
     }
     a3_print_debug("[artico3-hw] a3slots_fd=%d | dev=%s\n", a3slots_fd, filename);
 
+    // Get maximum number of ARTICo3 slots in the platform
+    shuffler.nslots = artico3_hw_get_nslots();
+    if (shuffler.nslots == 0) {
+        a3_print_error("[artico3-hw] firmware read (number of slots) failed\n");
+        ret = -ENODEV;
+        goto err_malloc_slots;
+    }
+
     // Initialize Shuffler structure (software)
-    shuffler.slots = malloc(A3_MAXSLOTS * sizeof (struct a3slot_t));
+    shuffler.slots = malloc(shuffler.nslots * sizeof (struct a3slot_t));
     if (!shuffler.slots) {
         a3_print_error("[artico3-hw] malloc() failed\n");
         ret = -ENOMEM;
         goto err_malloc_slots;
     }
-    for (i = 0; i < A3_MAXSLOTS; i++) {
+    for (i = 0; i < shuffler.nslots; i++) {
         shuffler.slots[i].kernel = NULL;
         shuffler.slots[i].state = S_EMPTY;
     }
@@ -275,6 +280,15 @@ void artico3_exit() {
 
     // Close UIO device file
     close(artico3_fd);
+
+    // Restore Data Shuffler structure
+    shuffler.id_reg      = 0x0000000000000000;
+    shuffler.tmr_reg     = 0x0000000000000000;
+    shuffler.dmr_reg     = 0x0000000000000000;
+    shuffler.blksize_reg = 0x00000000;
+    shuffler.clkgate_reg = 0x00000000;
+    shuffler.nslots      = 0;
+    shuffler.slots       = NULL;
 
 }
 
@@ -1017,8 +1031,8 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
     uint8_t reconf;
 
     // Check if slot is within range
-    if (slot >= A3_MAXSLOTS) {
-        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", A3_MAXSLOTS - 1);
+    if (slot >= shuffler.nslots) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
         return -ENODEV;
     }
 
@@ -1113,8 +1127,8 @@ err_fpga:
 int artico3_unload(size_t slot) {
 
     // Check if slot is within range
-    if (slot >= A3_MAXSLOTS) {
-        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", A3_MAXSLOTS - 1);
+    if (slot >= shuffler.nslots) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
         return -ENODEV;
     }
 
@@ -1250,7 +1264,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;
-        for (j = 0; j < A3_MAXSLOTS; j++) {
+        for (j = 0; j < shuffler.nslots; j++) {
             if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
                 shuffler.id_reg  |= (id << (4 * j));
                 shuffler.tmr_reg |= (i << (4 * j));
@@ -1269,7 +1283,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;
-        for (j = 0; j < A3_MAXSLOTS; j++) {
+        for (j = 0; j < shuffler.nslots; j++) {
             if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
                 shuffler.id_reg  |= (id << (4 * j));
                 shuffler.dmr_reg |= (i << (4 * j));
@@ -1284,7 +1298,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     }
 
     // Simplex blocks
-    for (j = 0; j < A3_MAXSLOTS; j++) {
+    for (j = 0; j < shuffler.nslots; j++) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;
@@ -1373,7 +1387,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;
-        for (j = 0; j < A3_MAXSLOTS; j++) {
+        for (j = 0; j < shuffler.nslots; j++) {
             if ((((id_reg >> (4 * j)) & 0xf) == id) && ((tmr_reg >> (4 * j) & 0xf) == i)) {
                 shuffler.id_reg  |= (id << (4 * j));
                 shuffler.tmr_reg |= (i << (4 * j));
@@ -1392,7 +1406,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;
-        for (j = 0; j < A3_MAXSLOTS; j++) {
+        for (j = 0; j < shuffler.nslots; j++) {
             if ((((id_reg >> (4 * j)) & 0xf) == id) && ((dmr_reg >> (4 * j) & 0xf) == i)) {
                 shuffler.id_reg  |= (id << (4 * j));
                 shuffler.dmr_reg |= (i << (4 * j));
@@ -1407,7 +1421,7 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     }
 
     // Simplex blocks
-    for (j = 0; j < A3_MAXSLOTS; j++) {
+    for (j = 0; j < shuffler.nslots; j++) {
         shuffler.id_reg  = 0x0000000000000000;
         shuffler.dmr_reg = 0x0000000000000000;
         shuffler.tmr_reg = 0x0000000000000000;

@@ -47,6 +47,7 @@ def info(args):
     print("  Xilinx Tools".ljust(20) + ",".join(prj.impl.xil))
     print("  CFlags".ljust(20) + prj.impl.cflags)
     print("  LdFlags".ljust(20) + prj.impl.ldflags)
+    print("  LdLibs".ljust(20) + prj.impl.ldlibs)
     print("-" * 40)
     print("Shuffler:")
     print("  Slots".ljust(20) + str(prj.shuffler.slots))

@@ -35,13 +35,15 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
+    parser.add_argument("-D", "--dynamic", help="enable dynamic linking, default is static", default=False, action="store_true")
+    parser.add_argument("-d", "--debug", help="compile runtime with debug capability", default=False, action="store_true")
     parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     return parser
 
 def build_cmd(args):
-    build(args, args.cross)
+    build(args, args.cross, args.dynamic, args.debug)
 
-def build(args, cross):
+def build(args, cross, dynamic, debug):
     prj = args.prj
     swdir = prj.basedir + ".sw"
 
@@ -60,10 +62,18 @@ def build(args, cross):
     else:
         cc = cross
 
+    if dynamic:
+        target = "shared"
+    else:
+        target = "static"
+
+    if debug:
+        target = target + "_dbg"
+
     subprocess.run("""
         bash -c "export CROSS_COMPILE={0} &&
-        make"
-        """.format(cc), shell=True, check=True)
+        make {1}"
+        """.format(cc, target), shell=True, check=True)
 
     print()
     shutil2.chdir(prj.dir)

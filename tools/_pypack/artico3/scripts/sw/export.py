@@ -35,7 +35,6 @@ def get_parser(prj):
         Exports the software project and generates all necessary files.
         """)
     parser.add_argument("-l", "--link", help="link sources instead of copying", default=False, action="store_true")
-    parser.add_argument("-d", "--debug", help="compile runtime with debug capability", default=False, action="store_true")
     parser.add_argument("swdir", help="alternative export directory", nargs="?")
     return parser
 
@@ -50,11 +49,9 @@ def export_sw(args, swdir, link):
 
     dictionary = {}
     dictionary["NAME"] = prj.name.lower()
-    if args.debug:
-        dictionary["CFLAGS"] = prj.impl.cflags + " -DA3_DEBUG"
-    else:
-        dictionary["CFLAGS"] = prj.impl.cflags
+    dictionary["CFLAGS"] = prj.impl.cflags
     dictionary["LDFLAGS"] = prj.impl.ldflags
+    dictionary["LDLIBS"] = prj.impl.ldlibs
 
     dictionary["NUM_SLOTS"] = prj.shuffler.slots
     dictionary["DEVICE"] = "zynqmp" if "xczu" in prj.impl.part else "zynq"
