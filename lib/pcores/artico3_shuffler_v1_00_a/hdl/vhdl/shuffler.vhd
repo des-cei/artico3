@@ -1002,7 +1002,8 @@ begin
                         else
                             voter_out <= aux;
                             pmc_errors_en(voter_idx0) <= '1';         -- PMC: voter_reg0 /= voter_reg1 (DMR)
-                        end if;                                       --      voter_reg0 /= not voter_reg1 (SCA)
+                            pmc_errors_en(voter_idx1) <= '1';         --      voter_reg0 /= not voter_reg1 (SCA)
+                        end if;
                     when 3 => -- TMR
                         -- Perform voting process
                         if voter_reg0 = voter_reg1 then
