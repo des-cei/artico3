@@ -407,7 +407,7 @@ err_malloc_kernel_name:
  *
  */
 int artico3_kernel_release(const char *name) {
-    unsigned int index;
+    unsigned int index, slot;
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -417,6 +417,16 @@ int artico3_kernel_release(const char *name) {
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
         return -ENODEV;
+    }
+
+    // Update ARTICo3 slot info
+    for (slot = 0; slot < shuffler.nslots; slot++) {
+        if (shuffler.slots[slot].state != S_EMPTY) {
+            if (shuffler.slots[slot].kernel == kernels[index]) {
+                shuffler.slots[slot].state = S_EMPTY;
+                shuffler.slots[slot].kernel = NULL;
+            }
+        }
     }
 
     // Free allocated memory
