@@ -13,7 +13,8 @@
 #ifndef _ARTICO3_H_
 #define _ARTICO3_H_
 
-#include <stdint.h>
+#include <stdlib.h> // size_t
+#include <stdint.h> // uint32_t
 
 /*
  * ARTICo3 data type
