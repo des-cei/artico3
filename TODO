@@ -117,3 +117,7 @@
    Does it make sense to add both requirements in host PC (Vivado and
    Linux distro details) and embedded target (drivers and hacks)? The
    former can be edited on a3dk.txt.
+
+7. Remove memtest demo and replace DMA proxy driver test applications with
+   a similar functionality (this is required to test memcpy and DMA transfer
+   overheads).
