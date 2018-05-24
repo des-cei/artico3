@@ -495,7 +495,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
             for (port = 0; port < nports; port++) {
                 size_t size, offset;
                 uint32_t idx_mem, idx_dat;
-                a3data_t *data = NULL;
+                volatile a3data_t *data = NULL;
 
                 if (port < ninputs) size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;           // Inputs
                 else                size = (kernels[id - 1]->inouts[port - ninputs]->size / sizeof (a3data_t)) / nrounds; // Bidirectional I/O ports
@@ -505,11 +505,11 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 if (port < ninputs) data = kernels[id - 1]->inputs[port]->data;           // Inputs
                 else                data = kernels[id - 1]->inouts[port - ninputs]->data; // Bidirectional I/O ports
 
-                //~ memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
-                unsigned int i;
-                for (i = 0; i < size; i++) {
-                    mem[idx_mem + i] = data[idx_dat + i];
-                }
+                memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
+                //~ unsigned int i;
+                //~ for (i = 0; i < size; i++) {
+                    //~ mem[idx_mem + i] = data[idx_dat + i];
+                //~ }
 
                 a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | i_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
@@ -599,7 +599,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
             for (port = 0; port < nports; port++) {
                 size_t size, offset;
                 uint32_t idx_mem, idx_dat;
-                a3data_t *data = NULL;
+                volatile a3data_t *data = NULL;
 
                 if (port < ninouts) size = (kernels[id - 1]->inouts[port]->size / sizeof (a3data_t)) / nrounds;            // Bidirectional I/O ports
                 else                size = (kernels[id - 1]->outputs[port - ninouts]->size / sizeof (a3data_t)) / nrounds; // Outputs
@@ -609,11 +609,11 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                 if (port < ninouts) data = kernels[id - 1]->inouts[port]->data;            // Bidirectional I/O ports
                 else                data = kernels[id - 1]->outputs[port - ninouts]->data; // Outputs
 
-                //~ memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
-                unsigned int i;
-                for (i = 0; i < size; i++) {
-                    data[idx_dat + i] = mem[idx_mem + i];
-                }
+                memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
+                //~ unsigned int i;
+                //~ for (i = 0; i < size; i++) {
+                    //~ data[idx_dat + i] = mem[idx_mem + i];
+                //~ }
 
                 a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | o_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
