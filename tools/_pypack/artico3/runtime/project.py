@@ -73,9 +73,9 @@ class Kernel:
 
     def __repr__(self):
         msg = ("<ARTICo\u00b3 Kernel> "
-               "name={},hwsrc={},mem=({},{}),reg={}")
+               "name={},hwsrc={},mem=({},{}),reg={},rst=active_{}")
         return msg.format(self.name, self.hwsrc, self.membytes,
-            self.membanks, self.regs)
+            self.membanks, self.regs, self.rstpol)
 
     def get_corename(self):
         return "a3_" + self.name.lower()
