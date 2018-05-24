@@ -1,9 +1,9 @@
 /*
  * ARTICo3 test application
- * Parallel "wait" kernels
+ * Vivado IP Integrator - CORDIC sin/cos
  *
  * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
- * Date   : August 2017
+ * Date   : May 2018
  *
  * Main application
  *

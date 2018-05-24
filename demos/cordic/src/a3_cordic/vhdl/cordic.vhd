@@ -1,3 +1,11 @@
+------------------------------------------------------------
+-- ARTICo3 test application                               --
+-- Vivado IP Integrator - CORDIC sin/cos                  --
+--                                                        --
+-- Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
+-- Date   : May 2018                                      --
+------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
