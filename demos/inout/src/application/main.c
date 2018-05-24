@@ -1,9 +1,9 @@
 /*
  * ARTICo3 test application
- * Array addition
+ * Array increment
  *
  * Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
- * Date   : August 2017
+ * Date   : April 2018
  *
  * Main application
  *

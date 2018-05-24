@@ -3,7 +3,7 @@
 -- Array increment                                        --
 --                                                        --
 -- Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
--- Date   : June 2017                                     --
+-- Date   : April 2018                                    --
 --                                                        --
 -- Hardware kernel (HDL)                                  --
 -- Core processing function                               --

@@ -4,6 +4,9 @@
 --                                                        --
 -- Author : Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
 -- Date   : August 2017                                   --
+--                                                        --
+-- Hardware kernel (HDL)                                  --
+-- Core processing function                               --
 ------------------------------------------------------------
 
 library ieee;
