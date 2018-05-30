@@ -1,11 +1,21 @@
 ===================
-ARTICo3 Runtime API
+ARTICo³ Runtime API
 ===================
 
 :Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
 
-The ARTICo3 runtime API contains the basic function calls that need to
-be used by user applications to access the ARTICo3 infrastructure.
+The ARTICo³ runtime API contains the basic function calls that need to
+be used by user applications to access the ARTICo³ infrastructure.
+
+See lib/runtime/aarchXX/include/artico3.h (after application build) for
+more info on function arguments, return values and usage.
+
+
+Data Types
+==========
+
+a3data_t
+a3pdir_t
 
 
 Infrastructure
@@ -15,6 +25,13 @@ artico3_init()
 artico3_exit()
 
 
+Runtime Management
+==================
+
+artico3_load()
+artico3_unload()
+
+
 Kernel Management
 =================
 
@@ -22,6 +39,9 @@ artico3_kernel_create()
 artico3_kernel_release()
 artico3_kernel_execute()
 artico3_kernel_wait()
+artico3_kernel_reset()
+artico3_kernel_wcfg()
+artico3_kernel_rcfg()
 
 
 Memory Management
@@ -31,7 +51,15 @@ artico3_alloc()
 artico3_free()
 
 
-Runtime Management
-==================
+Data Reinterpretation
+=====================
 
-TODO
+ftoa3()
+a3tof()
+
+
+Monitoring (PMCs)
+=================
+
+artico3_hw_get_pmc_cycles()
+artico3_hw_get_pmc_errors()

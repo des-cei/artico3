@@ -5,14 +5,14 @@ Adding New FPGA Device
 :Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
 
 This is a short manual on how to add custom FPGA parts to be used with
-the ARTICo3 toolchain.
+the ARTICo³ toolchain.
 
 
 Requirements
 ============
 
 In order to add a new FPGA device to the list of devices already supported
-by the ARTICo3 toolchain, developers need to follow these steps:
+by the ARTICo³ toolchain, developers need to follow these steps:
 
     1. Create a new reference design:
 
@@ -31,16 +31,16 @@ by the ARTICo3 toolchain, developers need to follow these steps:
            |--- (...)
 
     NOTE: the folder pcores contains the required IP blocks to be used in
-          Vivado IP integrator. The usual approach is to generate symlinks
-          to the elements in lib/pcores. In the previous hierarchy, the
+          Vivado IP integrator.  The usual approach is to generate symlinks
+          to the elements in lib/pcores.  In the previous hierarchy, the
           internal contents of the artico3_shuffler_v1_00_a folder have
           been removed for the sake of readability.
 
-    2. Write ARTICo3 infrastructure configuration in artico3.cfg
+    2. Write ARTICo³ infrastructure configuration in artico3.cfg
 
         Slots     - number of reconfigurable slots available in this device
 
-        PipeDepth - number of pipeline stages in the ARTICo3 infrastructure
+        PipeDepth - number of pipeline stages in the ARTICo³ infrastructure
                     (between Shuffler and accelerators, used to avoid timing
                     issues).
 

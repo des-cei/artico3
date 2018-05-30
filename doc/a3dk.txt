@@ -1,17 +1,17 @@
 ==============================
-ARTICo3 Development Kit (a3dk)
+ARTICo³ Development Kit (a3dk)
 ==============================
 
 :Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
 
-This is a quick reference on the ARTICo3 toolchain used to generate and
-build ARTICo3-based systems.
+This is a quick reference on the ARTICo³ toolchain used to generate and
+build ARTICo³-based systems.
 
 
 Project Specification
 =====================
 
-* ARTICo3 projects need to show the following structure:
+* ARTICo³ projects need to show the following structure:
 
       <project_name>
       |--- build.cfg
@@ -50,51 +50,64 @@ Project Specification
 Launch Instructions
 ===================
 
-The ARTICo3 Development Kit suite has to be launched in the same directory
-the build.cfg file is. The following commands can be used to launch it:
+The ARTICo³ Development Kit suite has to be launched in the same directory
+the build.cfg file is.  The following commands can be used to launch it:
 
     1.  Set up environment
             source $PATH_TO_A3_REPO/tools/settings.sh
             cd $PATH_TO_PROJ/<project_name>
 
-    2a. Launch ARTICo3 Development Kit
+    2a. Launch ARTICo³ Development Kit
             a3dk
 
-    2b. Run specific ARTICo3 Development Kit command
+    2b. Run specific ARTICo³ Development Kit command
             a3dk <command>
 
 
 Hardware System Generation
 ==========================
 
-ARTICo3 Development Kit> info
+ARTICo³ Development Kit> info
     Provides information on the current project.
 
-ARTICo3 Development Kit> export_hw
+ARTICo³ Development Kit> export_hw
     Generates Vivado IP Integrator block design for the current system.
 
-ARTICo3 Development Kit> build_hw
+ARTICo³ Development Kit> build_hw
     Generates bitstream for current system (requires export_hw).
 
-ARTICo3 Development Kit> clean_hw
+ARTICo³ Development Kit> clean_hw
     Cleans output products from hardware generation.
 
 
 Software Application
 ====================
 
-ARTICo3 Development Kit> info
+ARTICo³ Development Kit> info
     Provides information on the current project.
 
-ARTICo3 Development Kit> export_sw
+ARTICo³ Development Kit> export_sw
     Generates directory structrure and required Makefile to build the
     current system.
 
-ARTICo3 Development Kit> build_sw
+ARTICo³ Development Kit> build_sw
     Builds software application for the current system.
 
-ARTICo3 Development Kit> clean_sw
+ARTICo³ Development Kit> clean_sw
     Cleans output products from software compilation.
+
+
+Operating System Support
+========================
+
+ARTICo³ Development Kit> gen_driver
+    Builds the Linux driver to enable DMA Proxy devices.
+
+ARTICo³ Development Kit> gen_overlay
+    Builds the Device Tree overlay required to use ARTICo³ in Linux.
+
+ARTICo³ Development Kit> clean_os
+    Cleans output products from OS-related compilation.
 
 
 Further Help
