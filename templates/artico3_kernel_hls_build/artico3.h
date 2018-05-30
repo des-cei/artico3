@@ -25,9 +25,10 @@ typedef uint32_t a3data_t;
  */
 
 // Memory-based I/O
-#define a3in_t
-#define a3out_t
-#define a3inout_t
+#define a3const_t // Constant memory input port
+#define a3in_t    // Input port
+#define a3out_t   // Output port
+#define a3inout_t // Bidirectional I/O port
 
 // Register-based I/O
 #define a3reg_t

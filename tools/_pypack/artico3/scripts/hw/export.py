@@ -163,13 +163,16 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         #
         # NOTE: in order to comply with bank orderings (especially
         #       relevant for DMA transfers), memory ports are sorted
-        #       in alphabetical order and then arranged as I-IO-O.
+        #       in alphabetical order and then arranged as C-I-IO-O.
         #
+        argsC = []
         argsI = []
         argsO = []
         argsIO = []
         argsR = []
         for arg in match.group("ports").split(","):
+            if "a3const_t" in arg.split():
+                argsC.append(arg.split())
             if "a3in_t" in arg.split():
                 argsI.append(arg.split())
             if "a3out_t" in arg.split():
@@ -181,7 +184,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         argsI.sort()
         argsO.sort()
         argsIO.sort()
-        argsM = argsI + argsIO + argsO;
+        argsM = argsC + argsI + argsIO + argsO;
         argsR.sort()
         dictionary["REGS"] = []
         for i in range(len(argsR)):
