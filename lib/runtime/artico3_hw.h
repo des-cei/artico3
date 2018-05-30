@@ -12,8 +12,8 @@
 #ifndef _ARTICO3_HW_H_
 #define _ARTICO3_HW_H_
 
-extern volatile uint32_t *artico3_hw;
-extern volatile struct a3shuffler_t shuffler;
+extern uint32_t *artico3_hw;
+extern struct a3shuffler_t shuffler;
 
 
 /*
@@ -69,8 +69,11 @@ struct a3port_t {
  * @membytes : local memory inside kernel, in bytes
  * @membanks : number of local memory banks inside kernel
  * @regs     : number of read/write registers inside kernel
+ * @c_loaded : flag to check whether constant memories have been loaded
+ * @consts   : constant input port configuration for this kernel
  * @inputs   : input port configuration for this kernel
  * @outputs  : output port configuration for this kernel
+ * @inouts   : inout port configuration for this kernel
  *
  */
 struct a3kernel_t {
@@ -79,6 +82,8 @@ struct a3kernel_t {
     size_t membytes;
     size_t membanks;
     size_t regs;
+    uint8_t c_loaded;
+    struct a3port_t **consts;
     struct a3port_t **inputs;
     struct a3port_t **outputs;
     struct a3port_t **inouts;
