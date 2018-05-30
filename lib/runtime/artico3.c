@@ -921,427 +921,6 @@ int artico3_kernel_wait(const char *name) {
     return 0;
 }
 
-/*
- * ARTICo3 allocate buffer memory
- *
- * This function allocates dynamic memory to be used as a buffer between
- * the application and the local memories in the hardware kernels.
- *
- * @size  : amount of memory (in bytes) to be allocated for the buffer
- * @kname : hardware kernel name to associate this buffer with
- * @pname : port name to associate this buffer with
- * @dir   : data direction of the port
- *
- * Return : pointer to allocated memory on success, NULL otherwise
- *
- * TODO   : implement optimized version using qsort();
- *
- */
-void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
-    unsigned int index, p, i, j;
-    struct a3port_t *port = NULL;
-
-    // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, kname) == 0) break;
-    }
-    if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
-        return NULL;
-    }
-
-    // Allocate memory for kernel port configuration
-    port = malloc(sizeof *port);
-    if (!port) {
-        return NULL;
-    }
-
-    // Set port name
-    port->name = malloc(strlen(pname) + 1);
-    if (!port->name) {
-        goto err_malloc_port_name;
-    }
-    strcpy(port->name, pname);
-
-    // Set port size
-    port->size = size;
-
-    // Allocate memory for application
-    port->data = malloc(port->size);
-    if (!port->data) {
-        goto err_malloc_port_data;
-    }
-
-    // Check port direction flag : CONSTANTS
-    if (dir == A3_P_C) {
-
-        // Add port to constant memory inputs
-        p = 0;
-        while (kernels[index]->consts[p] && (p < kernels[index]->membanks)) p++;
-        if (p == kernels[index]->membanks) {
-            a3_print_error("[artico3-hw] no empty bank found for port\n");
-            goto err_noport;
-        }
-        kernels[index]->consts[p] = port;
-
-        // Bubble-sort constant memory inputs by name
-        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
-            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
-                if (!kernels[index]->consts[j + 1]) break;
-                if (strcmp(kernels[index]->consts[j]->name, kernels[index]->consts[j + 1]->name) > 0) {
-                    struct a3port_t *aux = kernels[index]->consts[j + 1];
-                    kernels[index]->consts[j + 1] = kernels[index]->consts[j];
-                    kernels[index]->consts[j] = aux;
-                }
-            }
-        }
-
-        // Set constant memory flag to 0 -> next transfer must load
-        kernels[index]->c_loaded = 0;
-
-        // Print sorted list
-        a3_print_debug("[artico3-hw] constant memory input ports after sorting: ");
-        for (p = 0; p < kernels[index]->membanks; p++) {
-            if (!kernels[index]->consts[p]) break;
-            a3_print_debug("%s ", kernels[index]->consts[p]->name);
-        }
-        a3_print_debug("\n");
-
-    }
-
-    // Check port direction flag : INPUTS
-    if (dir == A3_P_I) {
-
-        // Add port to inputs
-        p = 0;
-        while (kernels[index]->inputs[p] && (p < kernels[index]->membanks)) p++;
-        if (p == kernels[index]->membanks) {
-            a3_print_error("[artico3-hw] no empty bank found for port\n");
-            goto err_noport;
-        }
-        kernels[index]->inputs[p] = port;
-
-        // Bubble-sort inputs by name
-        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
-            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
-                if (!kernels[index]->inputs[j + 1]) break;
-                if (strcmp(kernels[index]->inputs[j]->name, kernels[index]->inputs[j + 1]->name) > 0) {
-                    struct a3port_t *aux = kernels[index]->inputs[j + 1];
-                    kernels[index]->inputs[j + 1] = kernels[index]->inputs[j];
-                    kernels[index]->inputs[j] = aux;
-                }
-            }
-        }
-
-        // Print sorted list
-        a3_print_debug("[artico3-hw] input ports after sorting: ");
-        for (p = 0; p < kernels[index]->membanks; p++) {
-            if (!kernels[index]->inputs[p]) break;
-            a3_print_debug("%s ", kernels[index]->inputs[p]->name);
-        }
-        a3_print_debug("\n");
-
-    }
-
-    // Check port direction flag : OUTPUTS
-    if (dir == A3_P_O) {
-
-        // Add port to outputs
-        p = 0;
-        while (kernels[index]->outputs[p] && (p < kernels[index]->membanks)) p++;
-        if (p == kernels[index]->membanks) {
-            a3_print_error("[artico3-hw] no empty bank found for port\n");
-            goto err_noport;
-        }
-        kernels[index]->outputs[p] = port;
-
-        // Bubble-sort outputs by name
-        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
-            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
-                if (!kernels[index]->outputs[j + 1]) break;
-                if (strcmp(kernels[index]->outputs[j]->name, kernels[index]->outputs[j + 1]->name) > 0) {
-                    struct a3port_t *aux = kernels[index]->outputs[j + 1];
-                    kernels[index]->outputs[j + 1] = kernels[index]->outputs[j];
-                    kernels[index]->outputs[j] = aux;
-                }
-            }
-        }
-
-        // Print sorted list
-        a3_print_debug("[artico3-hw] output ports after sorting: ");
-        for (p = 0; p < kernels[index]->membanks; p++) {
-            if (!kernels[index]->outputs[p]) break;
-            a3_print_debug("%s ", kernels[index]->outputs[p]->name);
-        }
-        a3_print_debug("\n");
-
-    }
-
-    // Check port direction flag : BIDIRECTIONAL I/O
-    if (dir == A3_P_IO) {
-
-        // Add port to bidirectional I/O ports
-        p = 0;
-        while (kernels[index]->inouts[p] && (p < kernels[index]->membanks)) p++;
-        if (p == kernels[index]->membanks) {
-            a3_print_error("[artico3-hw] no empty bank found for port\n");
-            goto err_noport;
-        }
-        kernels[index]->inouts[p] = port;
-
-        // Bubble-sort bidirectional I/O ports by name
-        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
-            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
-                if (!kernels[index]->inouts[j + 1]) break;
-                if (strcmp(kernels[index]->inouts[j]->name, kernels[index]->inouts[j + 1]->name) > 0) {
-                    struct a3port_t *aux = kernels[index]->inouts[j + 1];
-                    kernels[index]->inouts[j + 1] = kernels[index]->inouts[j];
-                    kernels[index]->inouts[j] = aux;
-                }
-            }
-        }
-
-        // Print sorted list
-        a3_print_debug("[artico3-hw] bidirectional I/O ports after sorting: ");
-        for (p = 0; p < kernels[index]->membanks; p++) {
-            if (!kernels[index]->inouts[p]) break;
-            a3_print_debug("%s ", kernels[index]->inouts[p]->name);
-        }
-        a3_print_debug("\n");
-
-    }
-
-    // Return allocated memory
-    return port->data;
-
-err_noport:
-    free(port->data);
-
-err_malloc_port_data:
-    free(port->name);
-
-err_malloc_port_name:
-    free(port);
-
-    return NULL;
-}
-
-
-/*
- * ARTICo3 release buffer memory
- *
- * This function frees dynamic memory allocated as a buffer between the
- * application and the hardware kernel.
- *
- * @kname : hardware kernel name this buffer is associanted with
- * @pname : port name this buffer is associated with
- *
- * Return : 0 on success, error code otherwise
- *
- */
-int artico3_free(const char *kname, const char *pname) {
-    unsigned int index, p;
-    struct a3port_t *port = NULL;
-
-    // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, kname) == 0) break;
-    }
-    if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
-        return -ENODEV;
-    }
-
-    // Search for port in port lists
-    for (p = 0; p < kernels[index]->membanks; p++) {
-        if (kernels[index]->consts[p]) {
-            if (strcmp(kernels[index]->consts[p]->name, pname) == 0) {
-                port = kernels[index]->consts[p];
-                kernels[index]->consts[p] = NULL;
-                break;
-            }
-        }
-        if (kernels[index]->inputs[p]) {
-            if (strcmp(kernels[index]->inputs[p]->name, pname) == 0) {
-                port = kernels[index]->inputs[p];
-                kernels[index]->inputs[p] = NULL;
-                break;
-            }
-        }
-        if (kernels[index]->outputs[p]) {
-            if (strcmp(kernels[index]->outputs[p]->name, pname) == 0) {
-                port = kernels[index]->outputs[p];
-                kernels[index]->outputs[p] = NULL;
-                break;
-            }
-        }
-        if (kernels[index]->inouts[p]) {
-            if (strcmp(kernels[index]->inouts[p]->name, pname) == 0) {
-                port = kernels[index]->inouts[p];
-                kernels[index]->inouts[p] = NULL;
-                break;
-            }
-        }
-    }
-    if (p == kernels[index]->membanks) {
-        a3_print_error("[artico3-hw] no port found with name %s\n", pname);
-        return -ENODEV;
-    }
-
-    // Free application memory
-    free(port->data);
-    free(port->name);
-    free(port);
-
-    return 0;
-}
-
-
-// TODO: add documentation for this function
-int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
-    unsigned int index;
-    char filename[128];
-    int ret;
-
-    uint8_t id;
-    uint8_t reconf;
-
-    // Check if slot is within range
-    if (slot >= shuffler.nslots) {
-        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
-        return -ENODEV;
-    }
-
-    // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
-    }
-    if (index == A3_MAXKERNS) {
-        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
-        return -ENODEV;
-    }
-
-    // Get kernel id
-    id = kernels[index]->id;
-
-    while (1) {
-        pthread_mutex_lock(&mutex);
-
-        // Only change configuration when no kernel is being executed
-        if (!running) {
-
-            // Check if partial reconfiguration is required
-            if (shuffler.slots[slot].state == S_EMPTY) {
-                reconf = 1;
-            }
-            else {
-                if (strcmp(shuffler.slots[slot].kernel->name, name) != 0) {
-                    reconf = 1;
-                }
-                else {
-                    reconf = 0;
-                }
-            }
-
-            // Even if reconfiguration is not required, it can be forced
-            //~ reconf |= force;
-            reconf = reconf || force;
-
-            // Perform DPR
-            if (reconf) {
-
-                // Set slot flag
-                shuffler.slots[slot].state = S_LOAD;
-
-                // Load partial bitstream
-                sprintf(filename, "pbs/a3_%s_a3_slot_%d_partial.bin", name, slot);
-                ret = fpga_load(filename, 1);
-                if (ret) {
-                    goto err_fpga;
-                }
-
-                // Set slot flag
-                shuffler.slots[slot].state = S_IDLE;
-
-            }
-
-            // Update ARTICo3 slot info
-            shuffler.slots[slot].kernel = kernels[index];
-
-            // Update ARTICo3 configuration registers
-            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
-            shuffler.id_reg |= (uint64_t)id << (4 * slot);
-
-            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
-            shuffler.tmr_reg |= (uint64_t)tmr << (4 * slot);
-
-            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
-            shuffler.dmr_reg |= (uint64_t)dmr << (4 * slot);
-
-            // Set constant memory flag to 0 -> next transfer must load
-            kernels[index]->c_loaded = 0;
-
-            // Exit infinite loop
-            break;
-
-        }
-
-        pthread_mutex_unlock(&mutex);
-    }
-    pthread_mutex_unlock(&mutex);
-
-    a3_print_debug("[artico3-hw] loaded accelerator \"%s\" on slot %d\n", name, slot);
-
-    return 0;
-
-err_fpga:
-    pthread_mutex_unlock(&mutex);
-
-    return ret;
-}
-
-
-// TODO: add documentation for this function
-int artico3_unload(size_t slot) {
-
-    // Check if slot is within range
-    if (slot >= shuffler.nslots) {
-        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
-        return -ENODEV;
-    }
-
-    while (1) {
-        pthread_mutex_lock(&mutex);
-
-        // Only change configuration when no kernel is being executed
-        if (!running) {
-
-            // Update ARTICo3 slot info
-            shuffler.slots[slot].state = S_EMPTY;
-            shuffler.slots[slot].kernel = NULL;
-
-            // Update ARTICo3 configuration registers
-            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
-            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
-            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
-
-            // Exit infinite loop
-            break;
-
-        }
-
-        pthread_mutex_unlock(&mutex);
-    }
-    pthread_mutex_unlock(&mutex);
-
-    a3_print_debug("[artico3-hw] removed accelerator from slot %d\n", slot);
-
-    return 0;
-}
-
 
 /*
  * ARTICo3 reset hardware kernel
@@ -1622,6 +1201,451 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
 
     // Release mutex
     pthread_mutex_unlock(&mutex);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 allocate buffer memory
+ *
+ * This function allocates dynamic memory to be used as a buffer between
+ * the application and the local memories in the hardware kernels.
+ *
+ * @size  : amount of memory (in bytes) to be allocated for the buffer
+ * @kname : hardware kernel name to associate this buffer with
+ * @pname : port name to associate this buffer with
+ * @dir   : data direction of the port
+ *
+ * Return : pointer to allocated memory on success, NULL otherwise
+ *
+ * TODO   : implement optimized version using qsort();
+ *
+ */
+void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
+    unsigned int index, p, i, j;
+    struct a3port_t *port = NULL;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, kname) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
+        return NULL;
+    }
+
+    // Allocate memory for kernel port configuration
+    port = malloc(sizeof *port);
+    if (!port) {
+        return NULL;
+    }
+
+    // Set port name
+    port->name = malloc(strlen(pname) + 1);
+    if (!port->name) {
+        goto err_malloc_port_name;
+    }
+    strcpy(port->name, pname);
+
+    // Set port size
+    port->size = size;
+
+    // Allocate memory for application
+    port->data = malloc(port->size);
+    if (!port->data) {
+        goto err_malloc_port_data;
+    }
+
+    // Check port direction flag : CONSTANTS
+    if (dir == A3_P_C) {
+
+        // Add port to constant memory inputs
+        p = 0;
+        while (kernels[index]->consts[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
+        kernels[index]->consts[p] = port;
+
+        // Bubble-sort constant memory inputs by name
+        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
+            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
+                if (!kernels[index]->consts[j + 1]) break;
+                if (strcmp(kernels[index]->consts[j]->name, kernels[index]->consts[j + 1]->name) > 0) {
+                    struct a3port_t *aux = kernels[index]->consts[j + 1];
+                    kernels[index]->consts[j + 1] = kernels[index]->consts[j];
+                    kernels[index]->consts[j] = aux;
+                }
+            }
+        }
+
+        // Set constant memory flag to 0 -> next transfer must load
+        kernels[index]->c_loaded = 0;
+
+        // Print sorted list
+        a3_print_debug("[artico3-hw] constant memory input ports after sorting: ");
+        for (p = 0; p < kernels[index]->membanks; p++) {
+            if (!kernels[index]->consts[p]) break;
+            a3_print_debug("%s ", kernels[index]->consts[p]->name);
+        }
+        a3_print_debug("\n");
+
+    }
+
+    // Check port direction flag : INPUTS
+    if (dir == A3_P_I) {
+
+        // Add port to inputs
+        p = 0;
+        while (kernels[index]->inputs[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
+        kernels[index]->inputs[p] = port;
+
+        // Bubble-sort inputs by name
+        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
+            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
+                if (!kernels[index]->inputs[j + 1]) break;
+                if (strcmp(kernels[index]->inputs[j]->name, kernels[index]->inputs[j + 1]->name) > 0) {
+                    struct a3port_t *aux = kernels[index]->inputs[j + 1];
+                    kernels[index]->inputs[j + 1] = kernels[index]->inputs[j];
+                    kernels[index]->inputs[j] = aux;
+                }
+            }
+        }
+
+        // Print sorted list
+        a3_print_debug("[artico3-hw] input ports after sorting: ");
+        for (p = 0; p < kernels[index]->membanks; p++) {
+            if (!kernels[index]->inputs[p]) break;
+            a3_print_debug("%s ", kernels[index]->inputs[p]->name);
+        }
+        a3_print_debug("\n");
+
+    }
+
+    // Check port direction flag : OUTPUTS
+    if (dir == A3_P_O) {
+
+        // Add port to outputs
+        p = 0;
+        while (kernels[index]->outputs[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
+        kernels[index]->outputs[p] = port;
+
+        // Bubble-sort outputs by name
+        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
+            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
+                if (!kernels[index]->outputs[j + 1]) break;
+                if (strcmp(kernels[index]->outputs[j]->name, kernels[index]->outputs[j + 1]->name) > 0) {
+                    struct a3port_t *aux = kernels[index]->outputs[j + 1];
+                    kernels[index]->outputs[j + 1] = kernels[index]->outputs[j];
+                    kernels[index]->outputs[j] = aux;
+                }
+            }
+        }
+
+        // Print sorted list
+        a3_print_debug("[artico3-hw] output ports after sorting: ");
+        for (p = 0; p < kernels[index]->membanks; p++) {
+            if (!kernels[index]->outputs[p]) break;
+            a3_print_debug("%s ", kernels[index]->outputs[p]->name);
+        }
+        a3_print_debug("\n");
+
+    }
+
+    // Check port direction flag : BIDIRECTIONAL I/O
+    if (dir == A3_P_IO) {
+
+        // Add port to bidirectional I/O ports
+        p = 0;
+        while (kernels[index]->inouts[p] && (p < kernels[index]->membanks)) p++;
+        if (p == kernels[index]->membanks) {
+            a3_print_error("[artico3-hw] no empty bank found for port\n");
+            goto err_noport;
+        }
+        kernels[index]->inouts[p] = port;
+
+        // Bubble-sort bidirectional I/O ports by name
+        for (i = 0; i < (kernels[index]->membanks - 1); i++) {
+            for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
+                if (!kernels[index]->inouts[j + 1]) break;
+                if (strcmp(kernels[index]->inouts[j]->name, kernels[index]->inouts[j + 1]->name) > 0) {
+                    struct a3port_t *aux = kernels[index]->inouts[j + 1];
+                    kernels[index]->inouts[j + 1] = kernels[index]->inouts[j];
+                    kernels[index]->inouts[j] = aux;
+                }
+            }
+        }
+
+        // Print sorted list
+        a3_print_debug("[artico3-hw] bidirectional I/O ports after sorting: ");
+        for (p = 0; p < kernels[index]->membanks; p++) {
+            if (!kernels[index]->inouts[p]) break;
+            a3_print_debug("%s ", kernels[index]->inouts[p]->name);
+        }
+        a3_print_debug("\n");
+
+    }
+
+    // Return allocated memory
+    return port->data;
+
+err_noport:
+    free(port->data);
+
+err_malloc_port_data:
+    free(port->name);
+
+err_malloc_port_name:
+    free(port);
+
+    return NULL;
+}
+
+
+/*
+ * ARTICo3 release buffer memory
+ *
+ * This function frees dynamic memory allocated as a buffer between the
+ * application and the hardware kernel.
+ *
+ * @kname : hardware kernel name this buffer is associanted with
+ * @pname : port name this buffer is associated with
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_free(const char *kname, const char *pname) {
+    unsigned int index, p;
+    struct a3port_t *port = NULL;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, kname) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
+        return -ENODEV;
+    }
+
+    // Search for port in port lists
+    for (p = 0; p < kernels[index]->membanks; p++) {
+        if (kernels[index]->consts[p]) {
+            if (strcmp(kernels[index]->consts[p]->name, pname) == 0) {
+                port = kernels[index]->consts[p];
+                kernels[index]->consts[p] = NULL;
+                break;
+            }
+        }
+        if (kernels[index]->inputs[p]) {
+            if (strcmp(kernels[index]->inputs[p]->name, pname) == 0) {
+                port = kernels[index]->inputs[p];
+                kernels[index]->inputs[p] = NULL;
+                break;
+            }
+        }
+        if (kernels[index]->outputs[p]) {
+            if (strcmp(kernels[index]->outputs[p]->name, pname) == 0) {
+                port = kernels[index]->outputs[p];
+                kernels[index]->outputs[p] = NULL;
+                break;
+            }
+        }
+        if (kernels[index]->inouts[p]) {
+            if (strcmp(kernels[index]->inouts[p]->name, pname) == 0) {
+                port = kernels[index]->inouts[p];
+                kernels[index]->inouts[p] = NULL;
+                break;
+            }
+        }
+    }
+    if (p == kernels[index]->membanks) {
+        a3_print_error("[artico3-hw] no port found with name %s\n", pname);
+        return -ENODEV;
+    }
+
+    // Free application memory
+    free(port->data);
+    free(port->name);
+    free(port);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 load accelerator / change accelerator configuration
+ *
+ * This function loads a hardware accelerator and/or sets its specific
+ * configuration.
+ *
+ * @name  : hardware kernel name
+ * @slot  : reconfigurable slot in which the accelerator is to be loaded
+ * @tmr   : TMR group ID (0x1-0xf)
+ * @dmr   : DMR group ID (0x1-0xf)
+ * @force : force reconfiguration even if the accelerator is already present
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+    unsigned int index;
+    char filename[128];
+    int ret;
+
+    uint8_t id;
+    uint8_t reconf;
+
+    // Check if slot is within range
+    if (slot >= shuffler.nslots) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
+        return -ENODEV;
+    }
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+
+    while (1) {
+        pthread_mutex_lock(&mutex);
+
+        // Only change configuration when no kernel is being executed
+        if (!running) {
+
+            // Check if partial reconfiguration is required
+            if (shuffler.slots[slot].state == S_EMPTY) {
+                reconf = 1;
+            }
+            else {
+                if (strcmp(shuffler.slots[slot].kernel->name, name) != 0) {
+                    reconf = 1;
+                }
+                else {
+                    reconf = 0;
+                }
+            }
+
+            // Even if reconfiguration is not required, it can be forced
+            //~ reconf |= force;
+            reconf = reconf || force;
+
+            // Perform DPR
+            if (reconf) {
+
+                // Set slot flag
+                shuffler.slots[slot].state = S_LOAD;
+
+                // Load partial bitstream
+                sprintf(filename, "pbs/a3_%s_a3_slot_%d_partial.bin", name, slot);
+                ret = fpga_load(filename, 1);
+                if (ret) {
+                    goto err_fpga;
+                }
+
+                // Set slot flag
+                shuffler.slots[slot].state = S_IDLE;
+
+            }
+
+            // Update ARTICo3 slot info
+            shuffler.slots[slot].kernel = kernels[index];
+
+            // Update ARTICo3 configuration registers
+            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.id_reg |= (uint64_t)id << (4 * slot);
+
+            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.tmr_reg |= (uint64_t)tmr << (4 * slot);
+
+            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.dmr_reg |= (uint64_t)dmr << (4 * slot);
+
+            // Set constant memory flag to 0 -> next transfer must load
+            kernels[index]->c_loaded = 0;
+
+            // Exit infinite loop
+            break;
+
+        }
+
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+
+    a3_print_debug("[artico3-hw] loaded accelerator \"%s\" on slot %d\n", name, slot);
+
+    return 0;
+
+err_fpga:
+    pthread_mutex_unlock(&mutex);
+
+    return ret;
+}
+
+
+/*
+ * ARTICo3 remove accelerator
+ *
+ * This function removes a hardware accelerator from a reconfigurable slot.
+ *
+ * @slot  : reconfigurable slot from which the accelerator is to be removed
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_unload(size_t slot) {
+
+    // Check if slot is within range
+    if (slot >= shuffler.nslots) {
+        a3_print_error("[artico3-hw] slot index out of range (0 ... %d)\n", shuffler.nslots - 1);
+        return -ENODEV;
+    }
+
+    while (1) {
+        pthread_mutex_lock(&mutex);
+
+        // Only change configuration when no kernel is being executed
+        if (!running) {
+
+            // Update ARTICo3 slot info
+            shuffler.slots[slot].state = S_EMPTY;
+            shuffler.slots[slot].kernel = NULL;
+
+            // Update ARTICo3 configuration registers
+            shuffler.id_reg ^= (shuffler.id_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.tmr_reg ^= (shuffler.tmr_reg & ((uint64_t)0xf << (4 * slot)));
+            shuffler.dmr_reg ^= (shuffler.dmr_reg & ((uint64_t)0xf << (4 * slot)));
+
+            // Exit infinite loop
+            break;
+
+        }
+
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+
+    a3_print_debug("[artico3-hw] removed accelerator from slot %d\n", slot);
 
     return 0;
 }

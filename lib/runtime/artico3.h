@@ -77,9 +77,36 @@ void artico3_exit();
  *
  */
 
-// TODO: add documentation for these functions
+/*
+ * ARTICo3 load accelerator / change accelerator configuration
+ *
+ * This function loads a hardware accelerator and/or sets its specific
+ * configuration.
+ *
+ * @name  : hardware kernel name
+ * @slot  : reconfigurable slot in which the accelerator is to be loaded
+ * @tmr   : TMR group ID (0x1-0xf)
+ * @dmr   : DMR group ID (0x1-0xf)
+ * @force : force reconfiguration even if the accelerator is already present
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
 int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
+
+
+/*
+ * ARTICo3 remove accelerator
+ *
+ * This function removes a hardware accelerator from a reconfigurable slot.
+ *
+ * @slot  : reconfigurable slot from which the accelerator is to be removed
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
 int artico3_unload(size_t slot);
+
 
 /*
  * KERNEL MANAGEMENT
@@ -141,6 +168,71 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
  *
  */
 int artico3_kernel_wait(const char *name);
+
+
+/*
+ * ARTICo3 reset hardware kernel
+ *
+ * This function resets all hardware accelerators of a given kernel.
+ *
+ * @name : hardware kernel to reset
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_reset(const char *name);
+
+
+/*
+ * ARTICo3 configuration register write
+ *
+ * This function writes configuration data to ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be written, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg);
+
+
+/*
+ * ARTICo3 configuration register read
+ *
+ * This function reads configuration data from ARTICo3 kernel registers.
+ *
+ * @name   : hardware kernel to be addressed
+ * @offset : memory offset of the register to be accessed
+ * @cfg    : array of configuration words to be read, one per
+ *           equivalent accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE : configuration registers need to be handled taking into account
+ *        execution priorities.
+ *
+ *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
+ *
+ *        The way in which the hardware infrastructure has been implemented
+ *        sequences first TMR transactions (in ascending group order), then
+ *        DMR transactions (in ascending group order) and finally, Simplex
+ *        transactions.
+ *
+ */
+int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg);
 
 
 /*
@@ -248,76 +340,5 @@ static inline float a3tof(a3data_t u) {
 // Documentation for these functions can be found in artico3_hw.h
 extern uint32_t artico3_hw_get_pmc_cycles(uint8_t slot);
 extern uint32_t artico3_hw_get_pmc_errors(uint8_t slot);
-
-
-/*
- * KERNEL CONFIGURATION (REGISTER-BASED I/O)
- *
- */
-
-/*
- * ARTICo3 reset hardware kernel
- *
- * This function resets all hardware accelerators of a given kernel.
- *
- * @name : hardware kernel to reset
- *
- * Return : 0 on success, error code otherwise
- *
- */
-int artico3_kernel_reset(const char *name);
-
-
-/*
- * ARTICo3 configuration register write
- *
- * This function writes configuration data to ARTICo3 kernel registers.
- *
- * @name   : hardware kernel to be addressed
- * @offset : memory offset of the register to be accessed
- * @cfg    : array of configuration words to be written, one per
- *           equivalent accelerator
- *
- * Return : 0 on success, error code otherwise
- *
- * NOTE : configuration registers need to be handled taking into account
- *        execution priorities.
- *
- *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
- *
- *        The way in which the hardware infrastructure has been implemented
- *        sequences first TMR transactions (in ascending group order), then
- *        DMR transactions (in ascending group order) and finally, Simplex
- *        transactions.
- *
- */
-int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg);
-
-
-/*
- * ARTICo3 configuration register read
- *
- * This function reads configuration data from ARTICo3 kernel registers.
- *
- * @name   : hardware kernel to be addressed
- * @offset : memory offset of the register to be accessed
- * @cfg    : array of configuration words to be read, one per
- *           equivalent accelerator
- *
- * Return : 0 on success, error code otherwise
- *
- * NOTE : configuration registers need to be handled taking into account
- *        execution priorities.
- *
- *        TMR == (0x1-0xf) > DMR == (0x1-0xf) > Simplex (TMR == 0 && DMR == 0)
- *
- *        The way in which the hardware infrastructure has been implemented
- *        sequences first TMR transactions (in ascending group order), then
- *        DMR transactions (in ascending group order) and finally, Simplex
- *        transactions.
- *
- */
-int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg);
-
 
 #endif /* _ARTICO3_H_ */
