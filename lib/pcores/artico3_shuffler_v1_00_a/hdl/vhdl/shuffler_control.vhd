@@ -121,8 +121,11 @@ entity shuffler_control is
 
         -- Other signals --
 
-        -- Software generated reset signal
+        -- Software-generated reset signal
         sw_aresetn     : out std_logic;
+
+        -- Software-generated start signal
+        sw_start       : out std_logic;
 
         ---------------------
         -- Interface ports --
@@ -819,12 +822,18 @@ begin
         if S_AXI_ACLK'event and S_AXI_ACLK = '1' then
             if S_AXI_ARESETN = '0' then
                 sw_aresetn <= '1';
+                sw_start   <= '0';
             else
-                -- Generate software reset right after WVALID/WREADY handshake, so that ID ACK is already generated
-                if (axi_wvalid = '1' and axi_wready = '1') and unsigned(reg_wop) = 1 then -- NOTE: SW reset operation code is "0001"
-                    sw_aresetn <= '0';
+                -- Generate software triggers right after WVALID/WREADY handshake, so that ID ACK is already generated
+                if (axi_wvalid = '1' and axi_wready = '1') then
+                    case to_integer(unsigned(reg_wop)) is
+                        when 1      => sw_aresetn <= '0'; -- NOTE: SW reset operation code is "0001"
+                        when 2      => sw_start   <= '1'; -- NOTE: SW start operation code is "0010"
+                        when others => null;              -- NOTE: Default case (normal register access)
+                    end case;
                 else
                     sw_aresetn <= '1';
+                    sw_start   <= '0';
                 end if;
             end if;
         end if;

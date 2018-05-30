@@ -315,7 +315,6 @@ architecture arch of shuffler is
     ---------------------------
 
     signal clk_gate_reg        : std_logic_vector(C_MAX_SLOTS-1 downto 0); -- Clock gating configuration register
-    signal sw_aresetn          : std_logic;                                -- Software-generated reset signal
 
     --------------------
     -- Pipeline logic --
@@ -335,6 +334,13 @@ architecture arch of shuffler is
     ---------------------
 
     signal interrupt_s         : std_logic; -- Internal signal to generate interrupt requests to an external uP
+
+    ----------------------------
+    -- Software-based signals --
+    ----------------------------
+
+    signal sw_aresetn          : std_logic;                                -- Software-generated reset signal
+    signal sw_start            : std_logic;                                -- Software-generated start signal
 
     -------------------------------
     -- Monitoring infrastructure --
@@ -435,13 +441,15 @@ architecture arch of shuffler is
     attribute mark_debug of red_macreg          : signal is "TRUE";
 
     attribute mark_debug of clk_gate_reg        : signal is "TRUE";
-    attribute mark_debug of sw_aresetn          : signal is "TRUE";
 
     attribute mark_debug of ready_reg           : signal is "TRUE";
     attribute mark_debug of id_current          : signal is "TRUE";
     attribute mark_debug of id_reg              : signal is "TRUE";
 
     attribute mark_debug of interrupt_s         : signal is "TRUE";
+
+    attribute mark_debug of sw_aresetn          : signal is "TRUE";
+    attribute mark_debug of sw_start            : signal is "TRUE";
 
     attribute mark_debug of pmc_cycles          : signal is "TRUE";
     attribute mark_debug of pmc_cycles_en       : signal is "TRUE";
@@ -497,6 +505,7 @@ begin
         pmc_errors     => pmc_errors,
         pmc_errors_rst => pmc_errors_rst,
         sw_aresetn     => sw_aresetn,
+        sw_start       => sw_start,
 --        S_AXI_ACLK     => s00_axi_aclk,
 --        S_AXI_ARESETN  => s00_axi_aresetn,
         S_AXI_ACLK     => s_axi_aclk,
@@ -1394,7 +1403,6 @@ begin
     nopipe_logic: if C_PIPE_DEPTH = 0 generate
     begin
 
-        artico3_start <= engen_start;
         ready_reg <= artico3_ready;
         artico3_en <= engen_out;
         artico3_we <= engen_out when axi_mem_W_hs = '1' or axi_reg_W_hs = '1' else (others => '0');
@@ -1402,6 +1410,8 @@ begin
 
         slot_logic: for i in 0 to C_MAX_SLOTS-1 generate
         begin
+
+            artico3_start(i) <= engen_start(i) or (sw_start and id_ack_reg(i));
 
             artico3_addr(i) <= red_araddr when red_en_base = '1' else
                                axi_mem_R_addr when axi_mem_R_hs = '1' else
@@ -1453,7 +1463,7 @@ begin
         begin
 
             -- Pipeline input
-            start <= engen_start(i);
+            start <= engen_start(i) or (sw_start and id_ack_reg(i));
             ready <= artico3_ready(i);
             en <= engen_out(i);
             we <= engen_out(i) when axi_mem_W_hs = '1' or axi_reg_W_hs = '1' else '0';

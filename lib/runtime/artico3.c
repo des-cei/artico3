@@ -445,6 +445,48 @@ int artico3_kernel_release(const char *name) {
 
 
 /*
+ * ARTICo3 start hardware kernel
+ *
+ * This function starts all hardware accelerators of a given kernel.
+ *
+ * NOTE: only the runtime can call this function, using it from user
+ *       applications is forbidden (and not possible due to the static
+ *       specifier).
+ *
+ * @name : hardware kernel to start
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+static int _artico3_kernel_start(const char *name) {
+    unsigned int index;
+    uint8_t id;
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        if (!kernels[index]) continue;
+        if (strcmp(kernels[index]->name, name) == 0) break;
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Get kernel id
+    id = kernels[index]->id;
+    a3_print_debug("[artico3-hw] sending kernel start signal to accelerator(s) with ID = %1x\n", id);
+
+    // Setup transfer (blksize needs to be 0 for register-based transactions)
+    artico3_hw_setup_transfer(0);
+    // Perform selective START (requires kernel ID and operation code 0x2
+    // and the value to be written is not used).
+    artico3_hw_regwrite(id, 0x2, 0x000, 0x00000000);
+
+    return 0;
+}
+
+
+/*
  * ARTICo3 data transfer to accelerators
  *
  * @id      : current kernel ID
