@@ -54,10 +54,10 @@
  *
  */
 static int artico3_fd;
-volatile uint32_t *artico3_hw = NULL;
+uint32_t *artico3_hw = NULL;
 static int a3slots_fd;
 
-volatile struct a3shuffler_t shuffler = {
+struct a3shuffler_t shuffler = {
     .id_reg      = 0x0000000000000000,
     .tmr_reg     = 0x0000000000000000,
     .dmr_reg     = 0x0000000000000000,
@@ -342,7 +342,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
     kernel->membanks = membanks;
     kernel->regs = regs;
 
-    // Initialize kernel constant inputs
+    // Initialize kernel constant memory inputs
     kernel->c_loaded = 0;
     kernel->consts = malloc(membanks * sizeof *kernel->consts);
     if (!kernel->consts) {
@@ -512,11 +512,11 @@ static int _artico3_kernel_start(const char *name) {
  *
  */
 int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
-    unsigned int acc, port;
-    unsigned int nports, nconsts, ninputs, ninouts;
+    int acc;
+    unsigned int port, nports, nconsts, ninputs, ninouts;
 
     struct dmaproxy_token token;
-    volatile a3data_t *mem = NULL;
+    a3data_t *mem = NULL;
 
     uint32_t blksize;
     uint8_t loaded;
@@ -565,31 +565,55 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
             for (port = 0; port < nports; port++) {
                 size_t size, offset;
                 uint32_t idx_mem, idx_dat;
-                volatile a3data_t *data = NULL;
+                a3data_t *data = NULL;
 
-                // Check whether constant memories need to be involved in the DMA transfer
+                // Constant memories ARE NOT involved in the DMA transfer
                 if (loaded) {
-                    if (port < ninputs) size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;                                    // Inputs
-                    else                size = (kernels[id - 1]->inouts[port - ninputs]->size / sizeof (a3data_t)) / nrounds;                          // Bidirectional I/O ports
-                    offset = round * size;
+                    // Compute offset in DMA-allocated memory buffer
                     idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                    // Get port data pointer (userspace memory buffer)
+                    if (port < ninputs)
+                        data = kernels[id - 1]->inputs[port]->data;                                                     // Inputs
+                    else
+                        data = kernels[id - 1]->inouts[port - ninputs]->data;                                           // Bidirectional I/O ports
+                    // Compute number of elements (32-bit words) to be copied between buffers
+                    if (port < ninputs)
+                        size = (kernels[id - 1]->inputs[port]->size / sizeof (a3data_t)) / nrounds;                     // Inputs
+                    else
+                        size = (kernels[id - 1]->inouts[port - ninputs]->size / sizeof (a3data_t)) / nrounds;           // Bidirectional I/O ports
+                    // Compute partial offset in userspace memory buffer
+                    offset = round * size;
+                    // Compute final offset in userspace memory buffer
                     idx_dat = (acc * size) + offset;
-                    if (port < ninputs) data = kernels[id - 1]->inputs[port]->data;                                                                    // Inputs
-                    else                data = kernels[id - 1]->inouts[port - ninputs]->data;                                                          // Bidirectional I/O ports
                 }
+                // Constant memories ARE involved in the DMA transfer
                 else {
-                    if      (port < nconsts)           size = (kernels[id - 1]->consts[port]->size / sizeof (a3data_t));                               // Constant inputs
-                    else if (port < nconsts + ninputs) size = (kernels[id - 1]->inputs[port - nconsts]->size / sizeof (a3data_t)) / nrounds;           // Inputs
-                    else                               size = (kernels[id - 1]->inouts[port - nconsts - ninputs]->size / sizeof (a3data_t)) / nrounds; // Bidirectional I/O ports
-                    offset = round * size;
+                    // Compute offset in DMA-allocated memory buffer
                     idx_mem = (port * (blksize / nports)) + (acc * blksize);
-                    if      (port < nconsts)           idx_dat = 0;                                                                                    // Constant inputs
-                    else                               idx_dat = (acc * size) + offset;                                                                // Inputs and Bidirectional I/O ports
-                    if      (port < nconsts)           data = kernels[id - 1]->consts[port]->data;                                                     // Constant inputs
-                    else if (port < nconsts + ninputs) data = kernels[id - 1]->inputs[port - nconsts]->data;                                           // Inputs
-                    else                               data = kernels[id - 1]->inouts[port - nconsts - ninputs]->data;                                 // Bidirectional I/O ports
+                    // Get port data pointer (userspace memory buffer)
+                    if (port < nconsts)
+                        data = kernels[id - 1]->consts[port]->data;                                                     // Constant memory inputs
+                    else if (port < nconsts + ninputs)
+                        data = kernels[id - 1]->inputs[port - nconsts]->data;                                           // Inputs
+                    else
+                        data = kernels[id - 1]->inouts[port - nconsts - ninputs]->data;                                 // Bidirectional I/O ports
+                    // Compute number of elements (32-bit words) to be copied between buffers
+                    if (port < nconsts)
+                        size = (kernels[id - 1]->consts[port]->size / sizeof (a3data_t));                               // Constant memory inputs
+                    else if (port < nconsts + ninputs)
+                        size = (kernels[id - 1]->inputs[port - nconsts]->size / sizeof (a3data_t)) / nrounds;           // Inputs
+                    else
+                        size = (kernels[id - 1]->inouts[port - nconsts - ninputs]->size / sizeof (a3data_t)) / nrounds; // Bidirectional I/O ports
+                    // Compute partial offset in userspace memory buffer
+                    offset = round * size;
+                    // Compute final offset in userspace memory buffer
+                    if (port < nconsts)
+                        idx_dat = 0;                                                                                    // Constant memory inputs
+                    else
+                        idx_dat = (acc * size) + offset;                                                                // Inputs and Bidirectional I/O ports
                 }
 
+                // Copy data from userspace memory buffer to DMA-allocated memory buffer
                 memcpy(&mem[idx_mem], &data[idx_dat], size * sizeof (a3data_t));
                 //~ unsigned int i;
                 //~ for (i = 0; i < size; i++) {
@@ -637,11 +661,11 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
  *
  */
 int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
-    unsigned int acc, port;
-    unsigned int nports, noutputs, ninouts;
+    int acc;
+    unsigned int port, nports, noutputs, ninouts;
 
     struct dmaproxy_token token;
-    volatile a3data_t *mem = NULL;
+    a3data_t *mem = NULL;
 
     uint32_t blksize;
 
@@ -689,16 +713,26 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
             for (port = 0; port < nports; port++) {
                 size_t size, offset;
                 uint32_t idx_mem, idx_dat;
-                volatile a3data_t *data = NULL;
+                a3data_t *data = NULL;
 
-                if (port < ninouts) size = (kernels[id - 1]->inouts[port]->size / sizeof (a3data_t)) / nrounds;            // Bidirectional I/O ports
-                else                size = (kernels[id - 1]->outputs[port - ninouts]->size / sizeof (a3data_t)) / nrounds; // Outputs
-                offset = round * size;
+                // Compute offset in DMA-allocated memory buffer
                 idx_mem = (port * (blksize / nports)) + (acc * blksize);
+                // Get port data pointer (userspace memory buffer)
+                if (port < ninouts)
+                    data = kernels[id - 1]->inouts[port]->data;                                            // Bidirectional I/O ports
+                else
+                    data = kernels[id - 1]->outputs[port - ninouts]->data;                                 // Outputs
+                // Compute number of elements (32-bit words) to be copied between buffers
+                if (port < ninouts)
+                    size = (kernels[id - 1]->inouts[port]->size / sizeof (a3data_t)) / nrounds;            // Bidirectional I/O ports
+                else
+                    size = (kernels[id - 1]->outputs[port - ninouts]->size / sizeof (a3data_t)) / nrounds; // Outputs
+                // Compute partial offset in userspace memory buffer
+                offset = round * size;
+                // Compute final offset in userspace memory buffer
                 idx_dat = (acc * size) + offset;
-                if (port < ninouts) data = kernels[id - 1]->inouts[port]->data;                                            // Bidirectional I/O ports
-                else                data = kernels[id - 1]->outputs[port - ninouts]->data;                                 // Outputs
 
+                // Copy data from DMA-allocated memory buffer to userspace memory buffer
                 memcpy(&data[idx_dat], &mem[idx_mem], size * sizeof (a3data_t));
                 //~ unsigned int i;
                 //~ for (i = 0; i < size; i++) {
@@ -942,7 +976,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     // Check port direction flag : CONSTANTS
     if (dir == A3_P_C) {
 
-        // Add port to constant inputs
+        // Add port to constant memory inputs
         p = 0;
         while (kernels[index]->consts[p] && (p < kernels[index]->membanks)) p++;
         if (p == kernels[index]->membanks) {
@@ -951,7 +985,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         }
         kernels[index]->consts[p] = port;
 
-        // Bubble-sort constant inputs by name
+        // Bubble-sort constant memory inputs by name
         for (i = 0; i < (kernels[index]->membanks - 1); i++) {
             for (j = 0; j < (kernels[index]->membanks - 1 - i); j++) {
                 if (!kernels[index]->consts[j + 1]) break;
@@ -967,7 +1001,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
         kernels[index]->c_loaded = 0;
 
         // Print sorted list
-        a3_print_debug("[artico3-hw] constant input ports after sorting: ");
+        a3_print_debug("[artico3-hw] constant memory input ports after sorting: ");
         for (p = 0; p < kernels[index]->membanks; p++) {
             if (!kernels[index]->consts[p]) break;
             a3_print_debug("%s ", kernels[index]->consts[p]->name);
