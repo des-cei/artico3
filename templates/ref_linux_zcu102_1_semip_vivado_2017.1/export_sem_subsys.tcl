@@ -15,10 +15,6 @@
 #       set subsystem "SEM_subsystem"
 #
 
-# TODO: REMOVE
-set subsystem "SEM_subsystem"
-delete_bd_objs [get_bd_cells $subsystem]
-
 # Create subsystem container
 create_bd_cell -type hier $subsystem
 
@@ -34,8 +30,7 @@ create_bd_pin -dir I -type CLK $subsystem/s_axi_aclk
 create_bd_pin -dir I -type RST $subsystem/s_axi_aresetn
 
 # GPIO
-create_bd_pin -dir I -from 15 -to 0 $subsystem/gpio_i
-create_bd_pin -dir O -from 15 -to 0 $subsystem/gpio_o
+create_bd_pin -dir O -type INTR $subsystem/gpio_interrupt
 
 # UART
 create_bd_pin -dir I $subsystem/uart_rx
@@ -48,7 +43,7 @@ create_bd_pin -dir O -type INTR $subsystem/uart_interrupt
 
 # AXI4 Interconnect
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 $subsystem/axi_sem
-set_property -dict [ list CONFIG.NUM_MI {2} CONFIG.NUM_SI {1}] [get_bd_cells $subsystem/axi_sem]
+set_property -dict [ list CONFIG.NUM_MI {3} CONFIG.NUM_SI {1}] [get_bd_cells $subsystem/axi_sem]
 
 # Clock buffer
 create_bd_cell -type ip -vlnv xilinx.com:ip:util_ds_buf:2.1 $subsystem/clkbuff_0
@@ -64,13 +59,15 @@ connect_bd_intf_net -intf_net ${subsystem}_s_axi [get_bd_intf_pins $subsystem/s_
 connect_bd_net -net ${subsystem}_clk [get_bd_pins $subsystem/s_axi_aclk] \
         [get_bd_pins $subsystem/clkbuff_0/BUFGCE_I] \
         [get_bd_pins $subsystem/axi_sem/ACLK] \
-        [get_bd_pins $subsystem/axi_sem/S00_ACLK]
+        [get_bd_pins $subsystem/axi_sem/S00_ACLK] \
+        [get_bd_pins $subsystem/axi_sem/M02_ACLK]
 
 # Connect main reset
 connect_bd_net -net ${subsystem}_resetn [get_bd_pins $subsystem/s_axi_aresetn] \
         [get_bd_pins $subsystem/reset_0/ext_reset_in] \
         [get_bd_pins $subsystem/axi_sem/ARESETN] \
-        [get_bd_pins $subsystem/axi_sem/S00_ARESETN]
+        [get_bd_pins $subsystem/axi_sem/S00_ARESETN] \
+        [get_bd_pins $subsystem/axi_sem/M02_ARESETN]
 
 # Connect secondary clock
 connect_bd_net -net ${subsystem}_sem_clk [get_bd_pins $subsystem/clkbuff_0/BUFGCE_O] \
@@ -159,6 +156,14 @@ connect_bd_net -net ${subsystem}_sem_periph_resetn [get_bd_pins $subsystem/reset
 # Rest of the block diagram
 #
 
+# Add AXI GPIO
+create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 $subsystem/sem_xgpio
+set_property -dict [list CONFIG.C_GPIO_WIDTH {15} \
+                         CONFIG.C_IS_DUAL {1} \
+                         CONFIG.C_INTERRUPT_PRESENT {1} \
+                         CONFIG.C_GPIO2_WIDTH {1} \
+                         CONFIG.C_ALL_INPUTS_2 {1}] [get_bd_cells $subsystem/sem_xgpio]
+
 # Add UART to SEM IP monitor interface
 create_bd_cell -type ip -vlnv cei.upm.es:artico3:sem_ultra_0_uart:1.0 $subsystem/uart2sem_0
 
@@ -190,12 +195,23 @@ set_property -dict [list CONFIG.C_BAUDRATE {115200}] [get_bd_cells $subsystem/ax
 connect_bd_net [get_bd_pins $subsystem/uart2sem_0/uart_tx] \
         [get_bd_pins $subsystem/axi_uartlite_0/rx]
 
-# Connect interrupt
+# Connect interrupts
 connect_bd_net -net ${subsystem}_uart_interrupt [get_bd_pins $subsystem/uart_interrupt] \
         [get_bd_pins $subsystem/axi_uartlite_0/interrupt]
+connect_bd_net -net ${subsystem}_gpio_interrupt [get_bd_pins $subsystem/gpio_interrupt] \
+        [get_bd_pins $subsystem/sem_xgpio/ip2intc_irpt]
 
 # Connect to AXI4 interface
 connect_bd_intf_net -intf_net ${subsystem}_s_axi_uart [get_bd_intf_pins $subsystem/axi_uartlite_0/S_AXI] [get_bd_intf_pins $subsystem/axi_sem/M01_AXI]
+connect_bd_intf_net -intf_net ${subsystem}_s_axi_gpio [get_bd_intf_pins $subsystem/sem_xgpio/S_AXI] [get_bd_intf_pins $subsystem/axi_sem/M02_AXI]
+
+# Connect to main clock
+connect_bd_net [get_bd_pins $subsystem/s_axi_aclk] \
+        [get_bd_pins $subsystem/sem_xgpio/s_axi_aclk]
+
+# Connect to main reset
+connect_bd_net [get_bd_pins $subsystem/s_axi_aresetn] \
+        [get_bd_pins $subsystem/sem_xgpio/s_axi_aresetn]
 
 # Connect to secondary clock
 connect_bd_net [get_bd_pins $subsystem/clkbuff_0/BUFGCE_O] \
@@ -207,34 +223,34 @@ connect_bd_net [get_bd_pins $subsystem/reset_0/peripheral_aresetn] \
         [get_bd_pins $subsystem/axi_uartlite_0/s_axi_aresetn]
 
 # Create bit isolators
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit12
+set_property -dict [list CONFIG.DIN_FROM {12} CONFIG.DIN_TO {12} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit12]
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit13
-set_property -dict [list CONFIG.DIN_FROM {13} CONFIG.DIN_TO {13} CONFIG.DIN_WIDTH {16}] [get_bd_cells $subsystem/xlslice_bit13]
+set_property -dict [list CONFIG.DIN_FROM {13} CONFIG.DIN_TO {13} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit13]
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit14
-set_property -dict [list CONFIG.DIN_FROM {14} CONFIG.DIN_TO {14} CONFIG.DIN_WIDTH {16}] [get_bd_cells $subsystem/xlslice_bit14]
-create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit15
-set_property -dict [list CONFIG.DIN_FROM {15} CONFIG.DIN_TO {15} CONFIG.DIN_WIDTH {16}] [get_bd_cells $subsystem/xlslice_bit15]
+set_property -dict [list CONFIG.DIN_FROM {14} CONFIG.DIN_TO {14} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit14]
 
 # Connect GPIO input
-connect_bd_net -net ${subsystem}_gpio_i [get_bd_pins $subsystem/gpio_i] \
+connect_bd_net -net ${subsystem}_gpio_i [get_bd_pins $subsystem/sem_xgpio/gpio_io_o] \
+        [get_bd_pins $subsystem/xlslice_bit12/Din] \
         [get_bd_pins $subsystem/xlslice_bit13/Din] \
-        [get_bd_pins $subsystem/xlslice_bit14/Din] \
-        [get_bd_pins $subsystem/xlslice_bit15/Din]
+        [get_bd_pins $subsystem/xlslice_bit14/Din]
 
 # Connect bit isolators
-connect_bd_net -net ${subsystem}_cap_gnt [get_bd_pins $subsystem/xlslice_bit13/Dout] \
+connect_bd_net -net ${subsystem}_cap_gnt [get_bd_pins $subsystem/xlslice_bit12/Dout] \
         [get_bd_pins $subsystem/sem_ultra_0/cap_gnt]
-connect_bd_net -net ${subsystem}_cap_rel [get_bd_pins $subsystem/xlslice_bit14/Dout] \
+connect_bd_net -net ${subsystem}_cap_rel [get_bd_pins $subsystem/xlslice_bit13/Dout] \
         [get_bd_pins $subsystem/sem_ultra_0/cap_rel]
-connect_bd_net -net ${subsystem}_clk_en [get_bd_pins $subsystem/xlslice_bit15/Dout] \
+connect_bd_net -net ${subsystem}_clk_en [get_bd_pins $subsystem/xlslice_bit14/Dout] \
         [get_bd_pins $subsystem/clkbuff_0/BUFGCE_CE]
 
 # Create concatenator
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 $subsystem/xlconcat_1
-set_property -dict [list CONFIG.NUM_PORTS {16}] [get_bd_cells $subsystem/xlconcat_1]
+set_property -dict [list CONFIG.NUM_PORTS {15}] [get_bd_cells $subsystem/xlconcat_1]
 
 # Connect concatenator output
 connect_bd_net -net ${subsystem}_gpio_o [get_bd_pins $subsystem/xlconcat_1/dout] \
-        [get_bd_pins $subsystem/gpio_o]
+        [get_bd_pins $subsystem/sem_xgpio/gpio_io_i]
 
 # Connect concatenator inputs
 connect_bd_net -net ${subsystem}_cap_reg [get_bd_pins $subsystem/xlconcat_1/In0] \
@@ -249,23 +265,25 @@ connect_bd_net -net ${subsystem}_status_diagnostic_scan [get_bd_pins $subsystem/
         [get_bd_pins $subsystem/sem_ultra_0/status_diagnostic_scan]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In5] \
         [get_bd_pins $subsystem/sem_ultra_0/status_essential]
-connect_bd_net -net ${subsystem}_status_heartbeat [get_bd_pins $subsystem/xlconcat_1/In6] \
-        [get_bd_pins $subsystem/sem_ultra_0/status_heartbeat]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In7] \
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In6] \
         [get_bd_pins $subsystem/sem_ultra_0/status_initialization]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In8] \
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In7] \
         [get_bd_pins $subsystem/sem_ultra_0/status_injection]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In9] \
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In8] \
         [get_bd_pins $subsystem/sem_ultra_0/status_observation]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In10] \
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In9] \
         [get_bd_pins $subsystem/sem_ultra_0/status_uncorrectable]
-connect_bd_net -net ${subsystem}_status_fatal_error [get_bd_pins $subsystem/xlconcat_1/In11] \
+connect_bd_net -net ${subsystem}_status_fatal_error [get_bd_pins $subsystem/xlconcat_1/In10] \
         [get_bd_pins $subsystem/and_8/Res]
-connect_bd_net -net ${subsystem}_status_idle [get_bd_pins $subsystem/xlconcat_1/In12] \
+connect_bd_net -net ${subsystem}_status_idle [get_bd_pins $subsystem/xlconcat_1/In11] \
         [get_bd_pins $subsystem/not_1/Res]
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In12] \
+        [get_bd_pins $subsystem/xlslice_bit12/Dout]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In13] \
         [get_bd_pins $subsystem/xlslice_bit13/Dout]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In14] \
         [get_bd_pins $subsystem/xlslice_bit14/Dout]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In15] \
-        [get_bd_pins $subsystem/xlslice_bit15/Dout]
+
+# Connect heartbeat
+connect_bd_net -net ${subsystem}_status_heartbeat [get_bd_pins $subsystem/sem_xgpio/gpio2_io_i] \
+        [get_bd_pins $subsystem/sem_ultra_0/status_heartbeat]

@@ -169,9 +169,6 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     # Set Frequencies
     set_property -dict [list CONFIG.PSU__FPGA_PL0_ENABLE {1} CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {100}] [get_bd_cells zynq_ultra_ps_e_0]
 
-    # Add GPIO ports through EMIO
-    set_property -dict [list CONFIG.PSU__GPIO_EMIO__PERIPHERAL__ENABLE {1} CONFIG.PSU__GPIO_EMIO__PERIPHERAL__IO {16}] [get_bd_cells zynq_ultra_ps_e_0]
-
 # APPLICATION CONFIGURATION
 
     # Create instance of ARTICo3 infrastructure
@@ -196,10 +193,6 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     # Create SEM IP Subsystem
     set subsystem "SEM_subsystem"
     source export_sem_subsys.tcl
-
-    # Connect GPIO ports
-    connect_bd_net -net gpio_i [get_bd_pins $subsystem/gpio_i] [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_o]
-    connect_bd_net -net gpio_o [get_bd_pins $subsystem/gpio_o] [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_i]
 
     # Make UART ports external
     create_bd_port -dir I uart_rx
@@ -255,10 +248,11 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
 
     # Connect interrupts
     create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0
-    set_property -dict [list CONFIG.NUM_PORTS {2}] [get_bd_cells xlconcat_0]
+    set_property -dict [list CONFIG.NUM_PORTS {3}] [get_bd_cells xlconcat_0]
 
     connect_bd_net [get_bd_pins artico3_shuffler_0/interrupt] [get_bd_pins xlconcat_0/In0]
     connect_bd_net [get_bd_pins $subsystem/uart_interrupt] [get_bd_pins xlconcat_0/In1]
+    connect_bd_net [get_bd_pins $subsystem/gpio_interrupt] [get_bd_pins xlconcat_0/In2]
     connect_bd_net [get_bd_pins xlconcat_0/dout] [get_bd_pins zynq_ultra_ps_e_0/pl_ps_irq0]
 
     # Connect ARTICo3 slots
@@ -271,6 +265,7 @@ proc artico3_hw_setup {new_project_path new_project_name artico3_ip_dir} {
     create_bd_addr_seg -range 1M -offset 0xb0000000 [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs artico3_shuffler_0/s01_axi/reg0] SEG1
     create_bd_addr_seg -range 4K -offset 0x80000000 [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs $subsystem/axi2sem_0/s00_axi/reg0] SEG2
     create_bd_addr_seg -range 4K -offset 0x80003000 [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs $subsystem/axi_uartlite_0/S_AXI/Reg] SEG3
+    create_bd_addr_seg -range 4K -offset 0x80010000 [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs $subsystem/sem_xgpio/S_AXI/Reg] SEG4
 
 # END
 
