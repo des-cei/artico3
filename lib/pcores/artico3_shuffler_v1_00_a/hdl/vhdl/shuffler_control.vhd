@@ -870,7 +870,7 @@ begin
     pmc_errors_gen: for i in 0 to C_MAX_SLOTS-1 generate
     begin
         reg_out(C_NUM_REG_RW + 2 + C_MAX_SLOTS + i) <= pmc_errors(((i + 1) * C_S_AXI_DATA_WIDTH)-1 downto (i * C_S_AXI_DATA_WIDTH));
-        pmc_errors_rst(i) <= '1' when (unsigned(axi_araddr) = (C_NUM_REG_RW + 1 + C_MAX_SLOTS + i)) and (axi_rvalid = '1' and axi_rready = '1') else '0'; -- Reset PMC error counters after successful reads to the register.
+        pmc_errors_rst(i) <= '1' when (unsigned(axi_araddr) = (C_NUM_REG_RW + 2 + C_MAX_SLOTS + i)) and (axi_rvalid = '1' and axi_rready = '1') else '0'; -- Reset PMC error counters after successful reads to the register.
     end generate;
 
 end behavioral;
