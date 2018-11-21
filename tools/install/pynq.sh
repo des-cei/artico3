@@ -109,8 +109,8 @@ pre_check "Git" "git" ALLCHECK "git"
 pre_check "Sed" "sed" ALLCHECK ""
 #~ pre_check "NFS" "nfsstat" ALLCHECK "nfs-kernel-server"
 pre_check "Make" "make" ALLCHECK "build-essential"
-#~ pre_check_lib "lib32z1" "/usr/lib32/libz.so.1" ALLCHECK "lib32z1"
-#~ pre_check_lib "libssl" "libssl.so$" ALLCHECK "libssl-dev"
+pre_check_lib "lib32z1" "/usr/lib32/libz.so.1" ALLCHECK "lib32z1"
+pre_check_lib "libssl" "libssl.so$" ALLCHECK "libssl-dev"
 
 # Device Tree Compiler (dtc) dependencies
 pre_check "Flex" "flex" ALLCHECK "flex"
