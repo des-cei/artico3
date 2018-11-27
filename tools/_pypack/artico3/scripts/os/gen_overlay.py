@@ -64,6 +64,7 @@ def gen_overlay(args, dtcdir, outdir, link):
     shutil2.chdir(outdir)
     subprocess.run("""
         bash -c "{0}/dtc -I dts -O dtb -@ -o artico3.dtbo artico3.dts"
+        bash -c "{0}/dtc -I dts -O dts -@ -o artico3.dtso artico3.dts"
         """.format(dtcdir), shell=True, check=True)
 
     print()
