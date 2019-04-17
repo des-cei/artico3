@@ -78,18 +78,6 @@ struct artico3_device {
     struct completion cmp;
 };
 
-static int max_devices = 16;
-module_param(max_devices, int, 0440);
-MODULE_PARM_DESC(max_devices, "Maximum number of proxy devices that can be created");
-
-//~ static int of_index = 0;
-//~ module_param(of_index, int, 0440);
-//~ MODULE_PARM_DESC(of_index, "DMA index in dma-names field (device tree)");
-
-// Minor numbers for char devices are assigned dynamically using this "table"
-static char *minor;
-DEFINE_MUTEX(minor_mutex);
-
 // Custom data structure to store allocated memory regions
 struct artico3_vm_list {
     struct artico3_device *artico3_dev;
@@ -613,34 +601,13 @@ static struct file_operations artico3_fops = {
 // Creates a char device to act as user-space entry point
 static int artico3_cdev_create(struct platform_device *pdev) {
     int res;
-    unsigned int i;
 
     // Retrieve custom device info using platform device (private data)
     struct artico3_device *artico3_dev = platform_get_drvdata(pdev);
 
     dev_info(&pdev->dev, "[ ] artico3_cdev_create()");
 
-    // Critical section: access dynamic minor number pool
-    dev_info(&pdev->dev, "[ ] Dynamic minor number allocation");
-    mutex_lock(&minor_mutex);
-    for (i = 0; i < max_devices; i++) {
-        if (minor[i]) {
-            continue;
-        }
-        else {
-            minor[i] = 1;
-            break;
-        }
-    }
-    mutex_unlock(&minor_mutex);
-    if (i == max_devices) {
-        dev_err(&pdev->dev, "[X] Dynamic minor number allocation failed, already using all (%d) devices", max_devices);
-        return -EBUSY;
-    }
-    dev_info(&pdev->dev, "[+] Dynamic minor number allocation -> %d", i);
-
     // Set device structure parameters
-    artico3_dev->id = i;
     artico3_dev->devt = MKDEV(MAJOR(devt), artico3_dev->id);
 
     // Add char device to the system
@@ -649,13 +616,13 @@ static int artico3_cdev_create(struct platform_device *pdev) {
     res = cdev_add(&artico3_dev->cdev, artico3_dev->devt, 1);
     if (res) {
         dev_err(&pdev->dev, "[X] cdev_add() -> %d:%d", MAJOR(artico3_dev->devt), MINOR(artico3_dev->devt));
-        goto err_cdev;
+        return res;
     }
     dev_info(&pdev->dev, "[+] cdev_add() -> %d:%d", MAJOR(artico3_dev->devt), MINOR(artico3_dev->devt));
 
     // Create char device
     dev_info(&pdev->dev, "[ ] device_create()");
-    artico3_dev->dev = device_create(artico3_class, &pdev->dev, artico3_dev->devt, artico3_dev, "%s%d", DRIVER_NAME, i);
+    artico3_dev->dev = device_create(artico3_class, &pdev->dev, artico3_dev->devt, artico3_dev, "%s", DRIVER_NAME);
     if (IS_ERR(artico3_dev->dev)) {
         dev_err(&pdev->dev, "[X] device_create() -> %d:%d", MAJOR(artico3_dev->devt), MINOR(artico3_dev->devt));
         res = PTR_ERR(artico3_dev->dev);
@@ -669,11 +636,6 @@ static int artico3_cdev_create(struct platform_device *pdev) {
 
 err_device:
     cdev_del(&artico3_dev->cdev);
-
-err_cdev:
-    mutex_lock(&minor_mutex);
-    minor[i] = 0;
-    mutex_unlock(&minor_mutex);
 
     return res;
 }
@@ -692,11 +654,6 @@ static void artico3_cdev_destroy(struct platform_device *pdev) {
     device_destroy(artico3_class, artico3_dev->devt);
     cdev_del(&artico3_dev->cdev);
 
-    // Release minor number
-    mutex_lock(&minor_mutex);
-    minor[artico3_dev->id] = 0;
-    mutex_unlock(&minor_mutex);
-
     dev_info(&pdev->dev, "[+] artico3_cdev_destroy()");
 }
 
@@ -708,12 +665,12 @@ static int artico3_cdev_init(void) {
 
     // Dynamically allocate major number for char device
     printk(KERN_INFO "%s [ ] alloc_chrdev_region()\n", DRIVER_NAME);
-    res = alloc_chrdev_region(&devt, 0, max_devices, DRIVER_NAME);
+    res = alloc_chrdev_region(&devt, 0, 1, DRIVER_NAME);
     if (res < 0) {
         printk(KERN_ERR "%s [X] alloc_chrdev_region()\n", DRIVER_NAME);
         return res;
     }
-    printk(KERN_INFO "%s [+] alloc_chrdev_region() -> %d:%d-%d\n", DRIVER_NAME, MAJOR(devt), MINOR(devt), MINOR(devt) + max_devices - 1);
+    printk(KERN_INFO "%s [+] alloc_chrdev_region() -> %d:%d-%d\n", DRIVER_NAME, MAJOR(devt), MINOR(devt), MINOR(devt));
 
     // Create sysfs class
     printk(KERN_INFO "%s [ ] class_create()\n", DRIVER_NAME);
@@ -729,7 +686,7 @@ static int artico3_cdev_init(void) {
     return 0;
 
 err_class:
-    unregister_chrdev_region(devt, max_devices);
+    unregister_chrdev_region(devt, 1);
     return res;
 }
 
@@ -737,7 +694,7 @@ err_class:
 static void artico3_cdev_exit(void) {
     printk(KERN_INFO "%s [ ] artico3_cdev_exit()\n", DRIVER_NAME);
     class_destroy(artico3_class);
-    unregister_chrdev_region(devt, max_devices);
+    unregister_chrdev_region(devt, 1);
     printk(KERN_INFO "%s [+] artico3_cdev_exit()\n", DRIVER_NAME);
 }
 
@@ -838,7 +795,6 @@ static struct platform_driver artico3_driver = {
 // Module initialization
 static int __init artico3_init(void) {
     int res;
-    unsigned int i;
 
     printk(KERN_INFO "%s [ ] artico3_init()\n", DRIVER_NAME);
 
@@ -848,23 +804,6 @@ static int __init artico3_init(void) {
         printk(KERN_ERR "%s [X] artico3_cdev_init()\n", DRIVER_NAME);
         return res;
     }
-
-    // Initialize dynamic minor number array
-    printk(KERN_INFO "%s [ ] kzmalloc()\n", DRIVER_NAME);
-    minor = kzalloc(max_devices * sizeof *minor, GFP_KERNEL);
-    if (!minor) {
-        printk(KERN_ERR "%s [X] kzmalloc() -> minor\n", DRIVER_NAME);
-        res = -ENOMEM;
-        goto err_kmalloc_minor;
-    }
-    printk(KERN_INFO "%s [+] kzmalloc() -> minor\n", DRIVER_NAME);
-
-    // Critical section: initialize dynamic minor number pool
-    mutex_lock(&minor_mutex);
-    for (i = 0; i < max_devices; i++) {
-        minor[i] = 0;
-    }
-    mutex_unlock(&minor_mutex);
 
     // Register platform driver
     printk(KERN_INFO "%s [ ] platform_driver_register()\n", DRIVER_NAME);
@@ -879,9 +818,6 @@ static int __init artico3_init(void) {
     return 0;
 
 err_driver:
-    kfree(minor);
-
-err_kmalloc_minor:
     artico3_cdev_exit();
     return res;
 }
@@ -891,7 +827,6 @@ static void __exit artico3_exit(void) {
     printk(KERN_INFO "%s [ ] artico3_exit()\n", DRIVER_NAME);
     platform_driver_unregister(&artico3_driver);
     artico3_cdev_exit();
-    kfree(minor);
     printk(KERN_INFO "%s [+] artico3_exit()\n", DRIVER_NAME);
 }
 
