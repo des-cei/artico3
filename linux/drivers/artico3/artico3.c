@@ -280,26 +280,10 @@ static int artico3_open(struct inode *inodep, struct file *fp) {
 // File operation on char device: release/close
 static int artico3_release(struct inode *inodep, struct file *fp) {
     struct artico3_device *artico3_dev = container_of(inodep->i_cdev, struct artico3_device, cdev);
-    //~ fp->private_data = NULL;
+    fp->private_data = NULL;
     dev_info(artico3_dev->dev, "[ ] release()");
     dev_info(artico3_dev->dev, "[+] release()");
     return 0;
-}
-
-// File operation on char device: read
-ssize_t artico3_read(struct file *fp, char __user *buffer, size_t size, loff_t *offset) {
-    struct artico3_device *artico3_dev = fp->private_data;
-    dev_info(artico3_dev->dev, "[ ] read()");
-    dev_info(artico3_dev->dev, "[+] read()");
-    return 0;
-}
-
-// File operation on char device: write
-ssize_t artico3_write(struct file *fp, const char __user *buffer, size_t size, loff_t *offset) {
-    struct artico3_device *artico3_dev = fp->private_data;
-    dev_info(artico3_dev->dev, "[ ] write()");
-    dev_info(artico3_dev->dev, "[+] write()");
-    return size;
 }
 
 // File operation on char device: ioctl
@@ -592,8 +576,6 @@ static struct file_operations artico3_fops = {
     .owner          = THIS_MODULE,
     .open           = artico3_open,
     .release        = artico3_release,
-    .read           = artico3_read,
-    .write          = artico3_write,
     .unlocked_ioctl = artico3_ioctl,
     .mmap           = artico3_mmap,
 };
