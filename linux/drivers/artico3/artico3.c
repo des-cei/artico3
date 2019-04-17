@@ -66,7 +66,6 @@
 
 // Custom device structure (DMA proxy device)
 struct artico3_device {
-    int id;
     dev_t devt;
     struct cdev cdev;
     struct device *dev;
@@ -590,7 +589,7 @@ static int artico3_cdev_create(struct platform_device *pdev) {
     dev_info(&pdev->dev, "[ ] artico3_cdev_create()");
 
     // Set device structure parameters
-    artico3_dev->devt = MKDEV(MAJOR(devt), artico3_dev->id);
+    artico3_dev->devt = MKDEV(MAJOR(devt), 0);
 
     // Add char device to the system
     dev_info(&pdev->dev, "[ ] cdev_add()");
