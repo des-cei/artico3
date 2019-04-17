@@ -756,7 +756,7 @@ static int artico3_remove(struct platform_device *pdev) {
 
 // Device tree (Open Firmware) matching table
 static const struct of_device_id artico3_of_match[] = {
-    { .compatible = "cei.upm,proxy-cdma-1.00.a", },
+    { .compatible = "cei.upm,artico3-1.00.a", },
     {}
 };
 
@@ -816,5 +816,5 @@ module_exit(artico3_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alfonso Rodriguez <alfonso.rodriguezm@upm.es>");
-MODULE_DESCRIPTION("DMA proxy driver to enable zero-copy, burst-based transfers from user-space");
+MODULE_DESCRIPTION("ARTICo\u00b3 kernel module");
 MODULE_VERSION("1.0");
