@@ -27,7 +27,7 @@
                 reg = <0x7aa00000 0x100000>;
             };
             artico3_slots_0: artico3_slots@8aa00000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
+                compatible = "cei.upm,artico3-1.00.a";
                 reg = <0x8aa00000 0x100000>;
                 dmas = <&dmac_s 0>;
                 dma-names = "ps-dma";
@@ -42,7 +42,7 @@
                 reg = <0x0 0xa0000000 0x0 0x100000>;
             };
             artico3_slots_0: artico3_slots@b0000000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
+                compatible = "cei.upm,artico3-1.00.a";
                 reg = <0x0 0xb0000000 0x0 0x100000>;
                 dmas = <&fpd_dma_chan1 0>;
                 dma-names = "ps-dma";

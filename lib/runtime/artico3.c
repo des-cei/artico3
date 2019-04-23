@@ -26,10 +26,10 @@
 #include <dirent.h>    // DIR, struct dirent, opendir(), readdir(), closedir()
 #include <sys/mman.h>  // mmap()
 #include <sys/ioctl.h> // ioctl()
-
+#include <sys/poll.h>  // poll()
 #include <sys/time.h>  // struct timeval, gettimeofday()
 
-#include "dmaproxy.h"
+#include "drivers/artico3/artico3.h"
 #include "artico3.h"
 #include "artico3_hw.h"
 #include "artico3_rcfg.h"
@@ -43,7 +43,7 @@
  *
  * @artico3_fd : /dev/uioX file descriptor (used for interrupt management)
  * @artico3_hw : user-space map of ARTICo3 hardware registers
- * @a3slots_fd : /dev/dmaproxyX file descriptor (used to access kernels)
+ * @a3slots_fd : /dev/artico3 file descriptor (used to access kernels)
  *
  * @shuffler   : current ARTICo3 infrastructure configuration
  * @kernels    : current kernel list
@@ -149,9 +149,9 @@ int artico3_init() {
 
     // Find the appropriate DMA proxy device
 #ifdef ZYNQMP
-    d = opendir("/sys/bus/platform/devices/b0000000.artico3_slots/dmaproxy/");
+    d = opendir("/sys/bus/platform/devices/b0000000.artico3_slots/artico3/");
 #else
-    d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/dmaproxy/");
+    d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/artico3/");
 #endif
     if (d) {
         while ((dir = readdir(d)) != NULL) {
@@ -521,6 +521,10 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     uint32_t blksize;
     uint8_t loaded;
 
+    struct pollfd pfd;
+    pfd.fd = a3slots_fd;
+    pfd.events = POLLIN;
+
     // Check if constant memory ports need to be loaded
     loaded = kernels[id - 1]->c_loaded;
 
@@ -634,7 +638,10 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     token.hwaddr = (void *)A3_SLOTADDR;
     token.hwoff = (id << 16) + (loaded ? (nconsts * (kernels[id - 1]->membytes / kernels[id - 1]->membanks)) : 0);
     token.size = naccs * blksize * sizeof *mem;
-    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_MEM2HW, &token);
+    ioctl(a3slots_fd, ARTICo3_IOC_DMA_MEM2HW, &token);
+
+    // Wait for DMA transfer to finish
+    poll(&pfd, 1, -1);
 
     // Release allocated DMA memory
     munmap(mem, naccs * blksize * sizeof *mem);
@@ -668,6 +675,10 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     a3data_t *mem = NULL;
 
     uint32_t blksize;
+
+    struct pollfd pfd;
+    pfd.fd = a3slots_fd;
+    pfd.events = POLLIN;
 
     // Get number of output ports
     ninouts = 0;
@@ -703,7 +714,10 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     token.hwaddr = (void *)A3_SLOTADDR;
     token.hwoff = (id << 16) + (kernels[id - 1]->membytes - (blksize * sizeof (a3data_t)));
     token.size = naccs * blksize * sizeof *mem;
-    ioctl(a3slots_fd, DMAPROXY_IOC_DMA_HW2MEM, &token);
+    ioctl(a3slots_fd, ARTICo3_IOC_DMA_HW2MEM, &token);
+
+    // Wait for DMA transfer to finish
+    poll(&pfd, 1, -1);
 
     // Copy outputs from physical memory (TODO: could it be possible to avoid this step?)
     for (acc = 0; acc < naccs; acc++) {

@@ -35,7 +35,7 @@
  * @size    - number of bytes to be transferred
  *
  */
-struct artico3_token {
+struct dmaproxy_token {
     void *memaddr;
     size_t memoff;
     void *hwaddr;
@@ -55,8 +55,8 @@ struct artico3_token {
 
 #define ARTICo3_IOC_MAGIC 'x'
 
-#define ARTICo3_IOC_DMA_MEM2HW _IOW(ARTICo3_IOC_MAGIC, 0, struct artico3_token)
-#define ARTICo3_IOC_DMA_HW2MEM _IOW(ARTICo3_IOC_MAGIC, 1, struct artico3_token)
+#define ARTICo3_IOC_DMA_MEM2HW _IOW(ARTICo3_IOC_MAGIC, 0, struct dmaproxy_token)
+#define ARTICo3_IOC_DMA_HW2MEM _IOW(ARTICo3_IOC_MAGIC, 1, struct dmaproxy_token)
 
 #define ARTICo3_IOC_MAXNR 1
 

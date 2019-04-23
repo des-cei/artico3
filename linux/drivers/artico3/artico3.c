@@ -39,6 +39,7 @@
 #include <linux/types.h>
 #include <linux/ioport.h>
 #include <linux/slab.h>
+#include <linux/poll.h>
 
 #include "artico3.h"
 #define DRIVER_NAME "artico3"
@@ -71,10 +72,11 @@ struct artico3_device {
     struct device *dev;
     struct platform_device *pdev;
     struct dma_chan *chan;
+    dma_cookie_t cookie;
     struct mutex mutex;
     struct list_head head;
-    rwlock_t lock;
-    struct completion cmp;
+    spinlock_t lock;
+    wait_queue_head_t queue;
 };
 
 // Custom data structure to store allocated memory regions
@@ -101,9 +103,9 @@ static void artico3_dma_callback(void *data) {
     unsigned long flags;
 
     dev_info(artico3_dev->dev, "[ ] artico3_dma_callback()");
-    write_lock_irqsave(&artico3_dev->lock, flags);
-    complete(&artico3_dev->cmp);
-    write_unlock_irqrestore(&artico3_dev->lock, flags);
+    spin_lock_irqsave(&artico3_dev->lock, flags);
+    wake_up(&artico3_dev->queue);
+    spin_unlock_irqrestore(&artico3_dev->lock, flags);
     dev_info(artico3_dev->dev, "[+] artico3_dma_callback()");
 }
 
@@ -111,10 +113,7 @@ static void artico3_dma_callback(void *data) {
 static int artico3_dma_transfer(struct artico3_device *artico3_dev, dma_addr_t dst, dma_addr_t src, size_t len) {
     struct dma_device *dma_dev = artico3_dev->chan->device;
     struct dma_async_tx_descriptor *tx = NULL;
-    dma_cookie_t cookie;
     enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
-    enum dma_status status;
-    unsigned long timeout = msecs_to_jiffies(3000);
     int res = 0;
 
     dev_info(dma_dev->dev, "[ ] DMA transfer");
@@ -133,75 +132,22 @@ static int artico3_dma_transfer(struct artico3_device *artico3_dev, dma_addr_t d
     }
     dev_info(dma_dev->dev, "[+] device_prep_dma_memcpy()");
 
-    // Initialize completion flag
-    write_lock_irq(&artico3_dev->lock);
-    reinit_completion(&artico3_dev->cmp);
-    write_unlock_irq(&artico3_dev->lock);
-
     // Set asynchronous DMA transfer callback
     tx->callback = artico3_dma_callback;
     tx->callback_param = artico3_dev;
 
     // Submit DMA transfer
     dev_info(dma_dev->dev, "[ ] dmaengine_submit()");
-    cookie = dmaengine_submit(tx);
-    if (dma_submit_error(cookie)) {
+    artico3_dev->cookie = dmaengine_submit(tx);
+    res = dma_submit_error(artico3_dev->cookie);
+    if (res) {
         dev_err(dma_dev->dev, "[X] dmaengine_submit()");
-        res = dma_submit_error(cookie);
         goto err_cookie;
     }
     dev_info(dma_dev->dev, "[+] dmaengine_submit()");
 
     // Start pending transfers
     dma_async_issue_pending(artico3_dev->chan);
-
-    /*
-     * NOTE: using rwlock_t to protect access to artico3_dev->cmp
-     *       (struct completion cmp), generates problems in the kernel,
-     *       even forcing system stall.
-     *       The problem seems to be calling wait_for_completion(),
-     *       since it implicitly calls schedule(), and doing so after
-     *       taking the rwlock_t causes malfunctioning.
-     *       The question here is: can we assume that removing the
-     *       read_lock() function is safe? If not, the code needs some
-     *       rethinking to remove the wait_for_completion() call.
-     *
-     *
-     * BUG: scheduling while atomic: dma1.elf/729/0x00000002
-     * Modules linked in: martico3(O)
-     * CPU: 0 PID: 729 Comm: dma1.elf Tainted: G           O    4.9.0-xilinx-dirty #1
-     * Hardware name: Xilinx Zynq Platform
-     * [<c010e48c>] (unwind_backtrace) from [<c010a664>] (show_stack+0x10/0x14)
-     * [<c010a664>] (show_stack) from [<c02df5cc>] (dump_stack+0x80/0xa0)
-     * [<c02df5cc>] (dump_stack) from [<c01379c8>] (__schedule_bug+0x60/0x84)
-     * [<c01379c8>] (__schedule_bug) from [<c060c270>] (__schedule+0x54/0x430)
-     * [<c060c270>] (__schedule) from [<c060c6fc>] (schedule+0xb0/0xcc)
-     * [<c060c6fc>] (schedule) from [<c060f24c>] (schedule_timeout+0x28c/0x2c4)
-     * [<c060f24c>] (schedule_timeout) from [<c060d18c>] (wait_for_common+0x110/0x150)
-     * [<c060d18c>] (wait_for_common) from [<bf000910>] (artico3_dma_transfer+0x94/0xfc [martico3])
-     * [<bf000910>] (artico3_dma_transfer [martico3]) from [<bf0003a0>] (artico3_ioctl+0x288/0x2ec [martico3])
-     * [<bf0003a0>] (artico3_ioctl [martico3]) from [<c01de5ec>] (vfs_ioctl+0x20/0x34)
-     * [<c01de5ec>] (vfs_ioctl) from [<c01dee88>] (do_vfs_ioctl+0x764/0x8b4)
-     * [<c01dee88>] (do_vfs_ioctl) from [<c01df00c>] (SyS_ioctl+0x34/0x5c)
-     * [<c01df00c>] (SyS_ioctl) from [<c0106e00>] (ret_fast_syscall+0x0/0x3c)
-     *
-     */
-
-    // Wait for transfer to finish or to timeout
-    dev_info(dma_dev->dev, "[ ] wait_for_completion_timeout()");
-    //~ read_lock_irq(&artico3_dev->lock);
-    timeout = wait_for_completion_timeout(&artico3_dev->cmp, timeout);
-    //~ read_unlock_irq(&artico3_dev->lock);
-    status = dma_async_is_tx_complete(artico3_dev->chan, cookie, NULL, NULL);
-    if (timeout == 0) {
-        dev_err(dma_dev->dev, "[X] wait_for_completion_timeout() -> timeout expired");
-        res = -EBUSY;
-    }
-    else if (status != DMA_COMPLETE) {
-        dev_err(dma_dev->dev, "[X] wait_for_completion_timeout() -> received callback, status is '%s'", (status == DMA_ERROR) ? "error" : "in progress");
-        res = -EBUSY;
-    }
-    dev_info(dma_dev->dev, "[+] wait_for_completion_timeout()");
 
 err_cookie:
     // Free descriptors
@@ -289,7 +235,7 @@ static int artico3_release(struct inode *inodep, struct file *fp) {
 static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) {
     struct artico3_device *artico3_dev = fp->private_data;
     struct artico3_vm_list *vm_list, *backup;
-    struct artico3_token token;
+    struct dmaproxy_token token;
     struct platform_device *pdev = artico3_dev->pdev;
     resource_size_t address, size;
     int res;
@@ -311,13 +257,13 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
         return -ENOTTY;
     }
 
-    // Lock mutex
-    mutex_lock(&artico3_dev->mutex);
-
     // Command decoding
     switch (cmd) {
 
         case ARTICo3_IOC_DMA_MEM2HW:
+
+            // Lock mutex (released in artico3_poll() after DMA transfer)
+            mutex_lock(&artico3_dev->mutex);
 
             // Copy data from user
             dev_info(artico3_dev->dev, "[ ] copy_from_user()");
@@ -386,6 +332,9 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
             break;
 
         case ARTICo3_IOC_DMA_HW2MEM:
+
+            // Lock mutex (released in artico3_poll() after DMA transfer)
+            mutex_lock(&artico3_dev->mutex);
 
             // Copy data from user
             dev_info(artico3_dev->dev, "[ ] copy_from_user()");
@@ -458,9 +407,6 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
             retval = -ENOTTY;
 
     }
-
-    // Release mutex
-    mutex_unlock(&artico3_dev->mutex);
 
     dev_info(artico3_dev->dev, "[+] ioctl()");
     return retval;
@@ -571,12 +517,45 @@ err_dma_mmap:
     return res;
 }
 
+// File operation on char device: poll
+static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait) {
+    struct artico3_device *artico3_dev = fp->private_data;
+    unsigned long flags;
+    unsigned int ret;
+    enum dma_status status;
+
+    dev_info(artico3_dev->dev, "[ ] poll()");
+    poll_wait(fp, &artico3_dev->queue, wait);
+    spin_lock_irqsave(&artico3_dev->lock, flags);
+        // Set default return value for poll()
+        ret = 0;
+        //
+        // DMA check
+        //
+        // NOTE: this implementation does not consider errors in the data
+        //       transfers.  If the callback is executed, it is assumed
+        //       that the following check will always render DMA_COMPLETE.
+        status = dma_async_is_tx_complete(artico3_dev->chan, artico3_dev->cookie, NULL, NULL);
+        if (status == DMA_COMPLETE) {
+            dev_info(artico3_dev->dev, "[i] poll() : DMA_COMPLETE -> ret = POLLIN");
+            ret = POLLIN;
+            // Release mutex (acquired in artico3_ioctl() before DMA transfer)
+            mutex_unlock(&artico3_dev->mutex);
+        }
+    spin_unlock_irqrestore(&artico3_dev->lock, flags);
+
+    dev_info(artico3_dev->dev, "[+] poll()");
+    return ret;
+}
+
+
 static struct file_operations artico3_fops = {
     .owner          = THIS_MODULE,
     .open           = artico3_open,
     .release        = artico3_release,
     .unlocked_ioctl = artico3_ioctl,
     .mmap           = artico3_mmap,
+    .poll           = artico3_poll,
 };
 
 // Creates a char device to act as user-space entry point
@@ -723,8 +702,8 @@ static int artico3_probe(struct platform_device *pdev) {
 
     // Initialize synchronization primitives
     mutex_init(&artico3_dev->mutex);
-    rwlock_init(&artico3_dev->lock);
-    init_completion(&artico3_dev->cmp);
+    spin_lock_init(&artico3_dev->lock);
+    init_waitqueue_head(&artico3_dev->queue);
 
     dev_info(&pdev->dev, "[+] artico3_probe()");
     return 0;
