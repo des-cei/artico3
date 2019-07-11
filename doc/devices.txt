@@ -28,13 +28,14 @@ by the ARTICo³ toolchain, developers need to follow these steps:
            |--- clean.tcl
            |--- create_ip_library.tcl
            |--- export.tcl
+           |--- <board>.xdc
            |--- (...)
 
-    NOTE: the folder pcores contains the required IP blocks to be used in
-          Vivado IP integrator.  The usual approach is to generate symlinks
-          to the elements in lib/pcores.  In the previous hierarchy, the
-          internal contents of the artico3_shuffler_v1_00_a folder have
-          been removed for the sake of readability.
+    NOTE: the folder pcores contains the required custom IP blocks to be
+          used in Vivado IP integrator.  The recommended approach is to
+          generate symlinks to the elements in lib/pcores.  In the previous
+          hierarchy, the internal contents of the artico3_shuffler_v1_00_a
+          folder have been removed for the sake of readability.
 
     2. Write ARTICo³ infrastructure configuration in artico3.cfg
 

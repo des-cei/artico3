@@ -26,7 +26,11 @@ Project Specification
            |    |    |--- (...)
            |    |
            |    |--- vhdl
-           |         |--- <kernel_0_name>.vhd
+           |    |    |--- <kernel_0_name>.vhd
+           |    |    |--- (...)
+           |    |
+           |    |--- verilog
+           |         |--- <kernel_0_name>.v
            |         |--- (...)
            |
            |--- (...)
@@ -37,7 +41,11 @@ Project Specification
                 |    |--- (...)
                 |
                 |--- vhdl
-                     |--- <kernel_n_name>.vhd
+                |    |--- <kernel_n_name>.vhd
+                |    |--- (...)
+                |
+                |--- verilog
+                     |--- <kernel_n_name>.v
                      |--- (...)
 
 * The file build.cfg contains all the required data to generate the

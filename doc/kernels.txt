@@ -15,9 +15,10 @@ ARTICo³ Wrapper
 Either using HDL or C source code, the toolchain generates a VHDL entity
 that is connected to a standard wrapper.  This wrapper provides the user
 logic with a configurable number of memory banks, each one acting as a
-single port BRAM.  In addition, the wrapper provides a data counter that
-can be used from the user logic to know how many 32-bit data words have
-been written to the local memory banks.
+single port BRAM.  It also provides a configurable number of R/W registers
+that can be used for control/status purposes.  In addition, the wrapper
+provides a data counter that can be used from the user logic to know how
+many 32-bit data words have been written to the local memory banks.
 
 
 ARTICo³ Kernel Memory Model
