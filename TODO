@@ -121,3 +121,13 @@
 7. Remove memtest demo and replace DMA proxy driver test applications with
    a similar functionality (this is required to test memcpy and DMA transfer
    overheads).
+
+8. Generate accessible Vivado HLS projects for debug/test purposes.
+
+9. Check possible bugs:
+   - Verify that a kernel exists before reserving ID in artico3_kernel_create
+   - Verify that there are no access errors (shared resources) in the kernels
+     variable (artico3.c)
+   - Verify the sorting algorithm for kernel ports (port10 before port2?)
+   - Verify the sca_mode signal in shuffler.vhd (never assigned, but used)
+   - Verify weird clock infrastructure when using NO_BUFFER in the shuffler
