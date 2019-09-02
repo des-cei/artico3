@@ -267,6 +267,7 @@ git clone https://github.com/Digilent/u-boot-digilent
 git clone https://github.com/xilinx/linux-xlnx
 git clone git://git.busybox.net/busybox
 git clone https://github.com/mkj/dropbear
+git clone https://github.com/des-cei/artico3.git
 
 
 #
@@ -1791,9 +1792,6 @@ fi
 # [11] Set up ARTICo3 system
 #
 
-# TODO: modify this to avoid private repository + move to step [4]
-cd $WD
-git clone https://alfonsorm@bitbucket.org/alfonsorm/artico3
 cd $WD/artico3
 
 # Build ARTICo3 Linux kernel modules

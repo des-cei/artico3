@@ -188,6 +188,7 @@ source "$XILINX_ROOT/Xilinx/Vivado/$XILINX_VERSION/settings64.sh"
 
 git clone https://github.com/Xilinx/u-boot-xlnx.git
 git clone https://github.com/xilinx/linux-xlnx
+git clone https://github.com/des-cei/artico3.git
 
 
 #
@@ -467,9 +468,6 @@ cd $WD/rootfs
 # [10] Set up ARTICo3 system
 #
 
-# TODO: modify this to avoid private repository + move to step [4]
-cd $WD
-git clone https://alfonsorm@bitbucket.org/alfonsorm/artico3
 cd $WD/artico3
 
 # Build ARTICo3 Linux kernel modules
