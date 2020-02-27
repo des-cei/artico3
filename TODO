@@ -16,7 +16,7 @@
 
 3. Check if memory barriers are needed for the DMA Proxy Linux driver. In case
    they are, the correct place to put them would be before starting the DMA
-   transfers, i.e. as part of dmaproxy_ioctl().
+   transfers, i.e. as part of artico3_ioctl().
 
        #include <asm/barrier.h>
 
@@ -34,15 +34,15 @@
 4. Check if a different implementation of the DMA Proxy driver using cached
    buffers renders better performance than the current one.
 
-       [In dmaproxy_mmap()]
+       [In artico3_mmap_dma()]
            Buffer allocation : dma_zalloc_coherent() -> kzalloc()
            Buffer remapping  : dma_mmap_coherent()   -> remap_pfn_range()
 
-       [In dmaproxy_ioctl(), before dmaproxy_dma_transfer()]
+       [In artico3_ioctl(), before artico3_dma_transfer()]
            DMA send          : dma_map_single(..., DMA_TO_DEVICE)
            DMA receive       : dma_map_single(..., DMA_FROM_DEVICE)
 
-       [In dmaproxy_ioctl(), after dmaproxy_dma_transfer()]
+       [In artico3_ioctl(), after artico3_dma_transfer()]
            DMA send          : dma_unmap_single(..., DMA_TO_DEVICE)
            DMA receive       : dma_unmap_single(..., DMA_FROM_DEVICE)
 
