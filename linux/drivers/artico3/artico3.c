@@ -40,6 +40,8 @@
 #include <linux/ioport.h>
 #include <linux/slab.h>
 #include <linux/poll.h>
+#include <linux/interrupt.h>
+#include <linux/of_irq.h>
 
 #include "artico3.h"
 #define DRIVER_NAME "artico3"
@@ -77,6 +79,8 @@ struct artico3_device {
     struct list_head head;
     spinlock_t lock;
     wait_queue_head_t queue;
+    unsigned int irq;
+    struct list_head pending;
 };
 
 // Custom data structure to store allocated memory regions
@@ -90,9 +94,40 @@ struct artico3_vm_list {
     struct list_head list;
 };
 
+// Custom data structure to store pending IRQ ACKs
+struct artico3_pending_list {
+    pid_t pid;
+    char flag;
+    struct list_head list;
+};
+
 // Char device parameters
 static dev_t devt;
 static struct class *artico3_class;
+
+
+/* IRQ MANAGEMENT */
+
+// TODO: make sure there are no race conditions (as in the RTEMS version) between poll() and isr().
+// TODO: check whether it makes sense to implement bottom-half via tasklet (or similar)
+
+// ARTICo3 ISR
+static irqreturn_t artico3_isr(unsigned int irq, void *data) {
+    struct artico3_device *artico3_dev = data;
+    struct artico3_pending_list *iterator = NULL, *iterator_b = NULL;
+    unsigned long flags;
+
+    dev_info(artico3_dev->dev, "[ ] artico3_isr()");
+    spin_lock_irqsave(&artico3_dev->lock, flags);
+        list_for_each_entry_safe(iterator, iterator_b, &artico3_dev->pending, list) {
+            iterator->flag = 1; // TODO: use PID?
+        }
+        wake_up(&artico3_dev->queue);
+    spin_unlock_irqrestore(&artico3_dev->lock, flags);
+    dev_info(artico3_dev->dev, "[+] artico3_isr()");
+
+    return IRQ_HANDLED;
+}
 
 
 /* DMA MANAGEMENT */
@@ -558,6 +593,7 @@ static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
 // File operation on char device: poll
 static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait) {
     struct artico3_device *artico3_dev = fp->private_data;
+    struct artico3_pending_list *token = NULL, *iterator = NULL, *iterator_b = NULL;
     unsigned long flags;
     unsigned int ret;
     enum dma_status status;
@@ -567,6 +603,7 @@ static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait
     spin_lock_irqsave(&artico3_dev->lock, flags);
         // Set default return value for poll()
         ret = 0;
+
         //
         // DMA check
         //
@@ -579,6 +616,28 @@ static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait
             ret |= POLLDMA;
             // Release mutex (acquired in artico3_ioctl() before DMA transfer)
             mutex_unlock(&artico3_dev->mutex);
+        }
+
+        //
+        // IRQ check
+        //
+        list_for_each_entry_safe(iterator, iterator_b, &artico3_dev->pending, list) {
+            if (iterator->pid == current->pid) {
+                token = iterator;
+                break;
+            }
+        }
+        if (token == NULL) {
+            token = kzalloc(sizeof *token, GFP_KERNEL);
+            token->pid = current->pid;
+            token->flag = 0;
+            INIT_LIST_HEAD(&token->list);
+            list_add(&token->list, &artico3_dev->pending);
+        }
+        if (token->flag == 1) {
+            list_del(&token->list);
+            kfree(token);
+            ret |= POLLIRQ;
         }
     spin_unlock_irqrestore(&artico3_dev->lock, flags);
 
@@ -715,8 +774,9 @@ static int artico3_probe(struct platform_device *pdev) {
     }
     dev_info(&pdev->dev, "[+] kzalloc() -> artico3_dev");
 
-    // Initialize list head
+    // Initialize list heads
     INIT_LIST_HEAD(&artico3_dev->head);
+    INIT_LIST_HEAD(&artico3_dev->pending);
 
     // Pass platform device pointer to custom device structure
     artico3_dev->pdev = pdev;
@@ -743,8 +803,18 @@ static int artico3_probe(struct platform_device *pdev) {
     spin_lock_init(&artico3_dev->lock);
     init_waitqueue_head(&artico3_dev->queue);
 
+    // Register IRQ
+    artico3_dev->irq = platform_get_irq(pdev, 0);
+    res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
+    if (res) {
+        dev_err(&pdev->dev, "[X] request_irq()");
+        goto err_irq;
+    }
+
     dev_info(&pdev->dev, "[+] artico3_probe()");
     return 0;
+
+err_irq:
 
 err_cdev_create:
     artico3_dma_exit(pdev);
@@ -762,6 +832,7 @@ static int artico3_remove(struct platform_device *pdev) {
 
     dev_info(&pdev->dev, "[ ] artico3_remove()");
 
+    free_irq(artico3_dev->irq, NULL);
     mutex_destroy(&artico3_dev->mutex);
     artico3_cdev_destroy(pdev);
     artico3_dma_exit(pdev);

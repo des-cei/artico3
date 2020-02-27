@@ -753,7 +753,7 @@ void *_artico3_kernel_execute(void *data) {
 
         // Wait until transfer is complete
         gettimeofday(&t0, NULL);
-        while (!artico3_hw_transfer_isdone(readymask)) ;
+        while (!artico3_hw_transfer_isdone(readymask)) { struct pollfd pfd = { .fd = artico3_fd, .events = POLLIRQ, };  poll(&pfd, 1, -1); }
         gettimeofday(&tf, NULL);
         texec += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
