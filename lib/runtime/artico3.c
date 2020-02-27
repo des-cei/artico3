@@ -41,9 +41,8 @@
 /*
  * ARTICo3 global variables
  *
- * @artico3_fd : /dev/uioX file descriptor (used for interrupt management)
  * @artico3_hw : user-space map of ARTICo3 hardware registers
- * @a3slots_fd : /dev/artico3 file descriptor (used to access kernels)
+ * @artico3_fd : /dev/artico3 file descriptor (used to access kernels)
  *
  * @shuffler   : current ARTICo3 infrastructure configuration
  * @kernels    : current kernel list
@@ -55,7 +54,6 @@
  */
 static int artico3_fd;
 uint32_t *artico3_hw = NULL;
-static int a3slots_fd;
 
 struct a3shuffler_t shuffler = {
     .id_reg      = 0x0000000000000000,
@@ -85,9 +83,7 @@ static int running = 0;
  * Return : 0 on success, error code otherwise
  */
 int artico3_init() {
-    DIR *d;
-    struct dirent *dir;
-    char filename[32];
+    const char *filename = "/dev/artico3";
     unsigned int i;
     int ret;
 
@@ -98,39 +94,19 @@ int artico3_init() {
      *       be reflected in this file.
      *
      *       Zynq-7000 Devices
-     *       ARTICo3 Shuffler Control -> 0x7aa00000 (uio)
-     *       ARTICo3 Shuffler Data    -> 0x8aa00000 (dmaproxy)
+     *       ARTICo3 Control -> 0x7aa00000
+     *       ARTICo3 Data    -> 0x8aa00000
      *
      *       Zynq UltraScale+ MPSoC Devices
-     *       ARTICo3 Shuffler Control -> 0xa0000000 (uio)
-     *       ARTICo3 Shuffler Data    -> 0xb0000000 (dmaproxy)
+     *       ARTICo3 Control -> 0xa0000000
+     *       ARTICo3 Data    -> 0xb0000000
      *
      */
 
     // Load static system (global FPGA reconfiguration)
     fpga_load("system.bin", 0);
 
-    // Find the appropriate UIO device
-#ifdef ZYNQMP
-    d = opendir("/sys/bus/platform/devices/a0000000.artico3_shuffler/uio/");
-#else
-    d = opendir("/sys/bus/platform/devices/7aa00000.artico3_shuffler/uio/");
-#endif
-    if (d) {
-        while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
-                continue;
-            }
-            sprintf(filename, "/dev/%s", dir->d_name);
-        }
-        closedir(d);
-    }
-    else {
-        a3_print_error("[artico3-hw] no UIO device found (check device tree address?)\n");
-        return -ENODEV;
-    }
-
-    // Open UIO device file
+    // Open ARTICo3 device file
     artico3_fd = open(filename, O_RDWR);
     if (artico3_fd < 0) {
         a3_print_error("[artico3-hw] open() %s failed\n", filename);
@@ -146,36 +122,6 @@ int artico3_init() {
         goto err_mmap;
     }
     a3_print_debug("[artico3-hw] artico3_hw=%p\n", artico3_hw);
-
-    // Find the appropriate DMA proxy device
-#ifdef ZYNQMP
-    d = opendir("/sys/bus/platform/devices/b0000000.artico3_slots/artico3/");
-#else
-    d = opendir("/sys/bus/platform/devices/8aa00000.artico3_slots/artico3/");
-#endif
-    if (d) {
-        while ((dir = readdir(d)) != NULL) {
-            if ((strcmp(dir->d_name, ".") == 0) || (strcmp(dir->d_name, "..") == 0)) {
-                continue;
-            }
-            sprintf(filename, "/dev/%s", dir->d_name);
-        }
-        closedir(d);
-    }
-    else {
-        a3_print_error("[artico3-hw] no DMA proxy device found (check device tree address?)\n");
-        ret = -ENODEV;
-        goto err_dmaproxy;
-    }
-
-    // Open DMA proxy device file
-    a3slots_fd = open(filename, O_RDWR);
-    if (a3slots_fd < 0) {
-        a3_print_error("[artico3-hw] open() %s failed\n", filename);
-        ret = -ENODEV;
-        goto err_dmaproxy;
-    }
-    a3_print_debug("[artico3-hw] a3slots_fd=%d | dev=%s\n", a3slots_fd, filename);
 
     // Get maximum number of ARTICo3 slots in the platform
     shuffler.nslots = artico3_hw_get_nslots();
@@ -237,9 +183,6 @@ err_malloc_kernels:
     free(shuffler.slots);
 
 err_malloc_slots:
-    close(a3slots_fd);
-
-err_dmaproxy:
     munmap(artico3_hw, 0x100000);
 
 err_mmap:
@@ -272,13 +215,10 @@ void artico3_exit() {
     // Release allocated memory for slot info
     free(shuffler.slots);
 
-    // Close DMA proxy device file
-    close(a3slots_fd);
-
     // Release memory obtained with mmap()
     munmap(artico3_hw, 0x100000);
 
-    // Close UIO device file
+    // Close ARTICo3 device file
     close(artico3_fd);
 
     // Restore Data Shuffler structure
@@ -522,7 +462,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     uint8_t loaded;
 
     struct pollfd pfd;
-    pfd.fd = a3slots_fd;
+    pfd.fd = artico3_fd;
     pfd.events = POLLDMA;
 
     // Check if constant memory ports need to be loaded
@@ -555,7 +495,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     blksize = nports * ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) / (sizeof (a3data_t)));
 
     // Allocate DMA physical memory
-    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
+    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, artico3_fd, sysconf(_SC_PAGESIZE));
     if (mem == MAP_FAILED) {
         a3_print_error("[artico3-hw] mmap() failed\n");
         return -ENOMEM;
@@ -638,7 +578,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     token.hwaddr = (void *)A3_SLOTADDR;
     token.hwoff = (id << 16) + (loaded ? (nconsts * (kernels[id - 1]->membytes / kernels[id - 1]->membanks)) : 0);
     token.size = naccs * blksize * sizeof *mem;
-    ioctl(a3slots_fd, ARTICo3_IOC_DMA_MEM2HW, &token);
+    ioctl(artico3_fd, ARTICo3_IOC_DMA_MEM2HW, &token);
 
     // Wait for DMA transfer to finish
     poll(&pfd, 1, -1);
@@ -677,7 +617,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     uint32_t blksize;
 
     struct pollfd pfd;
-    pfd.fd = a3slots_fd;
+    pfd.fd = artico3_fd;
     pfd.events = POLLDMA;
 
     // Get number of output ports
@@ -699,7 +639,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     blksize = nports * ((kernels[id - 1]->membytes / kernels[id - 1]->membanks) / (sizeof (a3data_t)));
 
     // Allocate DMA physical memory
-    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, a3slots_fd, 0);
+    mem = mmap(NULL, naccs * blksize * sizeof *mem, PROT_READ | PROT_WRITE, MAP_SHARED, artico3_fd, sysconf(_SC_PAGESIZE));
     if (mem == MAP_FAILED) {
         a3_print_error("[artico3-hw] mmap() failed\n");
         return -ENOMEM;
@@ -714,7 +654,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
     token.hwaddr = (void *)A3_SLOTADDR;
     token.hwoff = (id << 16) + (kernels[id - 1]->membytes - (blksize * sizeof (a3data_t)));
     token.size = naccs * blksize * sizeof *mem;
-    ioctl(a3slots_fd, ARTICo3_IOC_DMA_HW2MEM, &token);
+    ioctl(artico3_fd, ARTICo3_IOC_DMA_HW2MEM, &token);
 
     // Wait for DMA transfer to finish
     poll(&pfd, 1, -1);

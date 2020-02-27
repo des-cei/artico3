@@ -1762,7 +1762,7 @@ fi
 cat >> etc/init.d/rcS << EOF
 echo "++ Loading DMA proxy driver..."
 /opt/artico3/artico3_init.sh
-modprobe mdmaproxy
+modprobe martico3
 
 echo "++ Loading ARTICo3 device tree overlay..."
 mkdir /sys/kernel/config/device-tree/overlays/artico3
@@ -1797,7 +1797,7 @@ git clone https://alfonsorm@bitbucket.org/alfonsorm/artico3
 cd $WD/artico3
 
 # Build ARTICo3 Linux kernel modules
-cd $WD/artico3/linux/drivers/dmaproxy
+cd $WD/artico3/linux/drivers/artico3
 make -j"$(nproc)" PREFIX=$WD/nfs/opt/artico3 install
 
 # Compile ARTICo3 device tree overlay
@@ -1809,15 +1809,13 @@ cat > $WD/nfs/lib/firmware/overlays/artico3.dts << EOF
     fragment@0 {
         target = <&amba_pl>;
         __overlay__ {
-            artico3_shuffler_0: artico3_shuffler@7aa00000 {
-                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+            artico3: artico3@fpga {
+                compatible = "cei.upm,artico3-1.00.a";
                 interrupt-parent = <&intc>;
                 interrupts = <0 29 1>;
-                reg = <0x7aa00000 0x100000>;
-            };
-            artico3_slots_0: artico3_slots@8aa00000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
-                reg = <0x8aa00000 0x100000>;
+                interrupt-names = "irq";
+                reg = <0x7aa00000 0x100000 0x8aa00000 0x100000>;
+                reg-names = "ctrl", "data";
                 dmas = <&dmac_s 0>;
                 dma-names = "ps-dma";
             };
@@ -1830,9 +1828,9 @@ dtc -I dts -O dtb -@ -o $WD/nfs/lib/firmware/overlays/artico3.dtbo $WD/nfs/lib/f
 # Create script to move kernel module to /lib/modules/...
 cat > $WD/nfs/opt/artico3/artico3_init.sh << EOF
 mkdir -p /lib/modules/\$(uname -r)
-mv /opt/artico3/mdmaproxy.ko /lib/modules/\$(uname -r)
-modprobe mdmaproxy
-modprobe -r mdmaproxy
+mv /opt/artico3/martico3.ko /lib/modules/\$(uname -r)
+modprobe martico3
+modprobe -r martico3
 sed -i '/.*artico3_init.sh.*/d' /etc/init.d/rcS
 rm -f /opt/artico3/artico3_init.sh
 EOF

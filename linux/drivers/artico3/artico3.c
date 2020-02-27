@@ -240,6 +240,7 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
     resource_size_t address, size;
     int res;
     int retval = 0;
+    struct resource *rsrc;
 
     dev_info(artico3_dev->dev, "[ ] ioctl()");
     dev_info(artico3_dev->dev, "[i] ioctl() -> magic   = '%c'", _IOC_TYPE(cmd));
@@ -290,26 +291,15 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                         retval = -EINVAL;
                         break;
                     }
-                    // Check number of resources available in platform device (obtained from device tree fields reg, interrupts)
-                    if (pdev->num_resources != 1) {
-                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong number of resources in device tree (make sure only one range is present in 'reg' field");
-                        retval = -EINVAL;
-                        break;
-                    }
-                    // Check if the resource is a memory map
-                    if (pdev->resource[0].flags != IORESOURCE_MEM) {
-                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong type of resources in device tree (make sure no 'interrupts' field is present)");
-                        retval = -EINVAL;
-                        break;
-                    }
-                    // Print resource info
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource name  = %s", pdev->resource[0].name);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource start = %lx", pdev->resource[0].start);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource end   = %lx", pdev->resource[0].end);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource flags = %lx", pdev->resource[0].flags);
+                    // Get resource info
+                    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "data");
+                    dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
+                    dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
+                    dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
+                    dev_info(&pdev->dev, "[i] resource flags = %lx", rsrc->flags);
                     // Get memory map base address and size
-                    address = pdev->resource[0].start;
-                    size = pdev->resource[0].end - pdev->resource[0].start + 1;
+                    address = rsrc->start;
+                    size = rsrc->end - rsrc->start + 1;
                     // Hardware check
                     if (size < (token.hwoff + token.size)) {
                         dev_err(artico3_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
@@ -361,26 +351,15 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                         retval = -EINVAL;
                         break;
                     }
-                    // Check number of resources available in platform device (obtained from device tree fields reg, interrupts)
-                    if (pdev->num_resources != 1) {
-                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong number of resources in device tree (make sure only one range is present in 'reg' field");
-                        retval = -EINVAL;
-                        break;
-                    }
-                    // Check if the resource is a memory map
-                    if (pdev->resource[0].flags != IORESOURCE_MEM) {
-                        dev_err(&pdev->dev, "[X] DMA Slave -> wrong type of resources in device tree (make sure no 'interrupts' field is present)");
-                        retval = -EINVAL;
-                        break;
-                    }
-                    // Print resource info
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource name  = %s", pdev->resource[0].name);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource start = %lx", pdev->resource[0].start);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource end   = %lx", pdev->resource[0].end);
-                    dev_info(&pdev->dev, "[i] Platform Device -> resource flags = %lx", pdev->resource[0].flags);
+                    // Get resource info
+                    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "data");
+                    dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
+                    dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
+                    dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
+                    dev_info(&pdev->dev, "[i] resource flags = %lx", rsrc->flags);
                     // Get memory map base address and size
-                    address = pdev->resource[0].start;
-                    size = pdev->resource[0].end - pdev->resource[0].start + 1;
+                    address = rsrc->start;
+                    size = rsrc->end - rsrc->start + 1;
                     // Hardware check
                     if (size < (token.hwoff + token.size)) {
                         dev_err(artico3_dev->dev, "[X] DMA Slave -> requested transfer out of hardware region");
@@ -412,7 +391,7 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
     return retval;
 }
 
-// mmap close function (required to free allocated memory)
+// mmap close function (required to free allocated memory) - DMA transfers
 static void artico3_mmap_close(struct vm_area_struct *vma) {
     struct artico3_vm_list *token = vma->vm_private_data;
     struct artico3_device *artico3_dev = token->artico3_dev;
@@ -436,13 +415,13 @@ static void artico3_mmap_close(struct vm_area_struct *vma) {
     dev_info(artico3_dev->dev, "[+] munmap()");
 }
 
-// mmap specific operations
-static struct vm_operations_struct artico3_mmap_ops = {
+// mmap specific operations - DMA transfers
+static struct vm_operations_struct artico3_mmap_dma_ops = {
     .close = artico3_mmap_close,
 };
 
-// File operation on char device: mmap
-static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
+// File operation on char device: mmap - DMA transfers
+static int artico3_mmap_dma(struct file *fp, struct vm_area_struct *vma) {
     struct artico3_device *artico3_dev = fp->private_data;
     struct dma_device *dma_dev = artico3_dev->chan->device;
     void *addr_vir = NULL;
@@ -450,7 +429,7 @@ static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
     struct artico3_vm_list *token = NULL;
     int res;
 
-    dev_info(artico3_dev->dev, "[ ] mmap()");
+    dev_info(artico3_dev->dev, "[ ] mmap_dma()");
     dev_info(artico3_dev->dev, "[i] vma->vm_start = %p", (void *)vma->vm_start);
     dev_info(artico3_dev->dev, "[i] vma->vm_end   = %p", (void *)vma->vm_end);
     dev_info(artico3_dev->dev, "[i] vma size      = %ld bytes", vma->vm_end - vma->vm_start);
@@ -472,10 +451,10 @@ static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
     //~ res = dma_common_mmap(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
     res = dma_mmap_coherent(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
     if (res) {
-        dev_err(dma_dev->dev, "[X] dma_common_mmap()");
+        dev_err(dma_dev->dev, "[X] dma_mmap_coherent() %d", res);
         goto err_dma_mmap;
     }
-    dev_info(dma_dev->dev, "[+] dma_common_mmap()");
+    dev_info(dma_dev->dev, "[+] dma_mmap_coherent()");
 
     // Create data structure with allocated memory info
     dev_info(artico3_dev->dev, "[ ] kzalloc()");
@@ -502,18 +481,77 @@ static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
     mutex_unlock(&artico3_dev->mutex);
 
     // Set virtual memory structure operations
-    vma->vm_ops = &artico3_mmap_ops;
+    vma->vm_ops = &artico3_mmap_dma_ops;
 
     // Pass data to virtual memory structure (private data) to enable proper cleanup
     vma->vm_private_data = token;
 
-    dev_info(artico3_dev->dev, "[+] mmap()");
+    dev_info(artico3_dev->dev, "[+] mmap_dma()");
     return 0;
 
 err_kmalloc_token:
 
 err_dma_mmap:
     dma_free_coherent(dma_dev->dev, vma->vm_end - vma->vm_start, addr_vir, addr_phy);
+    return res;
+}
+
+// mmap specific operations - HW access
+static struct vm_operations_struct artico3_mmap_hw_ops = {
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+    .access = generic_access_phys,
+#endif
+};
+
+// File operation on char device: mmap - HW access
+static int artico3_mmap_hw(struct file *fp, struct vm_area_struct *vma) {
+    struct artico3_device *artico3_dev = fp->private_data;
+    struct resource *rsrc;
+
+    dev_info(artico3_dev->dev, "[ ] mmap_hw()");
+    dev_info(artico3_dev->dev, "[i] vma->vm_start = %p", (void *)vma->vm_start);
+    dev_info(artico3_dev->dev, "[i] vma->vm_end   = %p", (void *)vma->vm_end);
+    dev_info(artico3_dev->dev, "[i] vma size      = %ld bytes", vma->vm_end - vma->vm_start);
+
+    vma->vm_private_data = artico3_dev;
+    vma->vm_ops = &artico3_mmap_hw_ops;
+    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "ctrl");
+    dev_info(artico3_dev->dev, "[i] resource name  = %s", rsrc->name);
+    dev_info(artico3_dev->dev, "[i] resource start = 0x%x", rsrc->start);
+    dev_info(artico3_dev->dev, "[i] resource end   = 0x%x", rsrc->end);
+
+    dev_info(artico3_dev->dev, "[+] mmap_hw()");
+
+    return remap_pfn_range(vma, vma->vm_start, rsrc->start >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot);
+}
+
+// File operation on char device: mmap
+static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
+    struct artico3_device *artico3_dev = fp->private_data;
+    int res;
+    int mem_idx = (int)vma->vm_pgoff;
+
+    dev_info(artico3_dev->dev, "[ ] mmap()");
+    dev_info(artico3_dev->dev, "[i] memory index : %d", mem_idx);
+    switch (mem_idx) {
+        case 0:
+            dev_info(artico3_dev->dev, "[i] ARTICo\u00b3 control map");
+            res = artico3_mmap_hw(fp, vma);
+            break;
+        case 1:
+            dev_info(artico3_dev->dev, "[i] ARTICo\u00b3 data map");
+            vma->vm_pgoff = 0; // Trick to avoid errors on dma_mmap_coherent()
+            res = artico3_mmap_dma(fp, vma);
+            break;
+        default:
+            dev_info(artico3_dev->dev, "[i] YOU SHOULD NOT BE HERE");
+            res = -EINVAL;
+            break;
+    }
+    dev_info(artico3_dev->dev, "[+] mmap()");
+
     return res;
 }
 
