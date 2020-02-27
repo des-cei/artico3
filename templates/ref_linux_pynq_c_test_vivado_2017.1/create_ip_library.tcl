@@ -154,6 +154,10 @@ proc add_artico3_interface {path_to_ip bus_name aclk_signal_name aresetn_signal_
 
     ipx::current_core $path_to_ip/component.xml
 
+    # Remove previously inferred interfaces (if any)
+    ipx::remove_bus_interface -quiet s [ipx::current_core]
+    ipx::remove_bus_interface -quiet m [ipx::current_core]
+
     #
     # Set specific interface (master for Shuffler, slave for accelerators)
     #
@@ -215,31 +219,34 @@ proc add_artico3_interface {path_to_ip bus_name aclk_signal_name aresetn_signal_
 
 proc import_pcore { repo_path ip_name {libs ""} } {
 
+    set temp_dir "/tmp/artico3_tmp"
+    create_project -force $ip_name $temp_dir/$ip_name -part xc7z020clg400-1
+    set_property  ip_repo_paths  $repo_path [current_project]
+
     set artico3_pcore $ip_name  ;#[file tail $argv]
     set artico3_pcore_name [string range $artico3_pcore 0 [expr [string length $artico3_pcore]-9] ] ;# cuts of version string
     set artico3_pcore_dir $repo_path ;#[file dirname $argv]
-    set temp_dir "/tmp/artico3_tmp/"
 
     puts "\[A3DK\] $artico3_pcore $artico3_pcore_name $artico3_pcore_dir $temp_dir"
 
     # Create additional subcores (required in HLS-based designs with floating point operations)
     foreach {subcore_script} [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.tcl] {
-        # Copy IP cores
         source $subcore_script
-        set subcore_name [file rootname [file tail $subcore_script]]
-        regsub {_ip$} $subcore_name {} subcore_name
-        puts "\[A3DK\] found subcore: $subcore_name"
-        file mkdir $artico3_pcore_dir/$artico3_pcore/ip
-        file copy -force $temp_dir/managed_ip_project/managed_ip_project.srcs/sources_1/ip/$subcore_name $artico3_pcore_dir/$artico3_pcore/ip/$subcore_name
     }
 
-    # Create core
-    if { $artico3_pcore_name == "artico3" } {
-        ipx::infer_core -set_current true -as_library true -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
-        set_property display_name artico3lib [ipx::current_core]
-    } else {
-        ipx::infer_core -set_current true -as_library false -vendor cei.upm.es -taxonomy /ARTICo3  $artico3_pcore_dir/$artico3_pcore
-    }
+    # Import files (VHDL, Verilog, XCI, and DAT)
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.vhd]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.v]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.xci]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.dat]
+
+    # Set top modules
+    if { $artico3_pcore_name == "artico3_shuffler" } { set_property top shuffler [current_fileset] }
+    if { [string range $artico3_pcore_name 0 2] == "a3_" } { set_property top a3_wrapper [current_fileset] }
+    update_compile_order -fileset sources_1
+
+    # Package IP project
+    ipx::package_project -root_dir $artico3_pcore_dir/$artico3_pcore -import_files -vendor cei.upm.es -taxonomy /ARTICo3
 
     # Configure core parameters
     puts "\[A3DK\] After infer_core"
@@ -283,6 +290,9 @@ proc import_pcore { repo_path ip_name {libs ""} } {
     ipx::save_core [ipx::current_core]
     puts "\[A3DK\] After save_core"
 
+    close_project
+    file delete -force $artico3_pcore_dir/$artico3_pcore/hdl
+
 }
 
 #
@@ -317,6 +327,7 @@ foreach kernel $kerns_list {
 
 # Create as many ARTICo3 master interfaces as required in Shuffler
 set ip_name "artico3_shuffler_v1_00_a"
+ipx::open_core $ip_repo/$ip_name/component.xml
 <a3<generate for SLOTS>a3>
 add_artico3_interface $ip_repo/$ip_name "m<a3<id>a3>_artico3" "m<a3<id>a3>_artico3_aclk" "m<a3<id>a3>_artico3_aresetn" "m<a3<id>a3>_artico3_start" "m<a3<id>a3>_artico3_ready" "m<a3<id>a3>_artico3_en" "m<a3<id>a3>_artico3_we" "m<a3<id>a3>_artico3_mode" "m<a3<id>a3>_artico3_addr" "m<a3<id>a3>_artico3_wdata" "m<a3<id>a3>_artico3_rdata" "master"
 <a3<end generate>a3>
@@ -324,6 +335,7 @@ add_artico3_interface $ip_repo/$ip_name "m<a3<id>a3>_artico3" "m<a3<id>a3>_artic
 # Create one ARTICo3 slave interface in each kernel
 foreach kernel $kerns_list {
     set ip_name $kernel
+    ipx::open_core $ip_repo/$ip_name/component.xml
     add_artico3_interface $ip_repo/$ip_name "s_artico3" "s_artico3_aclk" "s_artico3_aresetn" "s_artico3_start" "s_artico3_ready" "s_artico3_en" "s_artico3_we" "s_artico3_mode" "s_artico3_addr" "s_artico3_wdata" "s_artico3_rdata" "slave"
 }
 
