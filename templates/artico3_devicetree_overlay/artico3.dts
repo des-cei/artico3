@@ -19,29 +19,25 @@
         target = <&amba_pl>;
         __overlay__ {
 <a3<if DEVICE=="zynq">a3>
-            artico3_shuffler_0: artico3_shuffler@7aa00000 {
-                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+            artico3: artico3@fpga {
+                compatible = "cei.upm,artico3-1.00.a";
                 interrupt-parent = <&intc>;
                 interrupts = <0 29 1>;
-                reg = <0x7aa00000 0x100000>;
-            };
-            artico3_slots_0: artico3_slots@8aa00000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
-                reg = <0x8aa00000 0x100000>;
+                interrupt-names = "irq";
+                reg = <0x7aa00000 0x100000 0x8aa00000 0x100000>;
+                reg-names = "ctrl", "data";
                 dmas = <&dmac_s 0>;
                 dma-names = "ps-dma";
             };
 <a3<end if>a3>
 <a3<if DEVICE=="zynqmp">a3>
-            artico3_shuffler_0: artico3_shuffler@a0000000 {
-                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+            artico3: artico3@fpga {
+                compatible = "cei.upm,artico3-1.00.a";
                 interrupt-parent = <&gic>;
                 interrupts = <0 89 1>;
-                reg = <0x0 0xa0000000 0x0 0x100000>;
-            };
-            artico3_slots_0: artico3_slots@b0000000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
-                reg = <0x0 0xb0000000 0x0 0x100000>;
+                interrupt-names = "irq";
+                reg = <0x0 0xa0000000 0x0 0x100000 0x0 0xb0000000 0x0 0x100000>;
+                reg-names = "ctrl", "data";
                 dmas = <&fpd_dma_chan1 0>;
                 dma-names = "ps-dma";
             };

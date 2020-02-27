@@ -471,7 +471,7 @@ cd $WD/rootfs
 cd $WD/artico3
 
 # Build ARTICo3 Linux kernel modules
-cd $WD/artico3/linux/drivers/dmaproxy
+cd $WD/artico3/linux/drivers/artico3
 make -j $(nproc)
 
 # Compile ARTICo3 device tree overlay
@@ -483,15 +483,13 @@ cat > $WD/rootfs/artico3.dts << EOF
     fragment@0 {
         target = <&amba_pl>;
         __overlay__ {
-            artico3_shuffler_0: artico3_shuffler@a0000000 {
-                compatible = "cei.upm,artico3-shuffler-1.0", "generic-uio";
+            artico3: artico3@fpga {
+                compatible = "cei.upm,artico3-1.00.a";
                 interrupt-parent = <&gic>;
                 interrupts = <0 89 1>;
-                reg = <0x0 0xa0000000 0x0 0x100000>;
-            };
-            artico3_slots_0: artico3_slots@b0000000 {
-                compatible = "cei.upm,proxy-cdma-1.00.a";
-                reg = <0x0 0xb0000000 0x0 0x100000>;
+                interrupt-names = "irq";
+                reg = <0x0 0xa0000000 0x0 0x100000 0x0 0xb0000000 0x0 0x100000>;
+                reg-names = "ctrl", "data";
                 dmas = <&fpd_dma_chan1 0>;
                 dma-names = "ps-dma";
             };
@@ -578,7 +576,7 @@ echo overlays/artico3.dtbo > /sys/kernel/config/device-tree/overlays/artico3/pat
 
 # Load DMA proxy driver
 echo "Loading DMA proxy driver..."
-modprobe mdmaproxy
+modprobe martico3
 
 # Remove kernel messages from serial port
 echo 1 > /proc/sys/kernel/printk
@@ -588,7 +586,7 @@ chmod +x $WD/rootfs/setup.sh
 # Create script to move kernel modules to /lib/modules/...
 cat > $WD/rootfs/artico3_init.sh << EOF
 mkdir -p /lib/modules/\$(uname -r)
-mv /root/mdmaproxy.ko /lib/modules/\$(uname -r)
+mv /root/martico3.ko /lib/modules/\$(uname -r)
 touch /lib/modules/\$(uname -r)/modules.order
 touch /lib/modules/\$(uname -r)/modules.builtin
 depmod
@@ -600,7 +598,7 @@ chmod +x $WD/rootfs/artico3_init.sh
 sudo -H mkdir -p $WD/rootfs/root/lib/firmware/overlays
 sudo -H mv $WD/rootfs/artico3.dts $WD/rootfs/root/lib/firmware/overlays
 sudo -H mv $WD/rootfs/artico3.dtbo $WD/rootfs/root/lib/firmware/overlays
-sudo -H cp $WD/artico3/linux/drivers/dmaproxy/mdmaproxy.ko $WD/rootfs/root/root
+sudo -H cp $WD/artico3/linux/drivers/artico3/martico3.ko $WD/rootfs/root/root
 sudo -H mv $WD/rootfs/setup.sh $WD/rootfs/root/root
 sudo -H mv $WD/rootfs/artico3_init.sh $WD/rootfs/root/root
 sync
