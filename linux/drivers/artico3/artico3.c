@@ -537,8 +537,8 @@ static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait
         //       that the following check will always render DMA_COMPLETE.
         status = dma_async_is_tx_complete(artico3_dev->chan, artico3_dev->cookie, NULL, NULL);
         if (status == DMA_COMPLETE) {
-            dev_info(artico3_dev->dev, "[i] poll() : DMA_COMPLETE -> ret = POLLIN");
-            ret = POLLIN;
+            dev_info(artico3_dev->dev, "[i] poll() : DMA_COMPLETE -> ret = POLLDMA");
+            ret |= POLLDMA;
             // Release mutex (acquired in artico3_ioctl() before DMA transfer)
             mutex_unlock(&artico3_dev->mutex);
         }

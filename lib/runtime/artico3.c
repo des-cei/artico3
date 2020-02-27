@@ -523,7 +523,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
     struct pollfd pfd;
     pfd.fd = a3slots_fd;
-    pfd.events = POLLIN;
+    pfd.events = POLLDMA;
 
     // Check if constant memory ports need to be loaded
     loaded = kernels[id - 1]->c_loaded;
@@ -678,7 +678,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
     struct pollfd pfd;
     pfd.fd = a3slots_fd;
-    pfd.events = POLLIN;
+    pfd.events = POLLDMA;
 
     // Get number of output ports
     ninouts = 0;

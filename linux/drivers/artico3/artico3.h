@@ -60,4 +60,17 @@ struct dmaproxy_token {
 
 #define ARTICo3_IOC_MAXNR 1
 
+
+/*
+ * poll() definitions for ARTICo³
+ *
+ * polldma - wait for DMA transfer to finish
+ * pollirq - wait for ARTICo³ accelerators to finish
+ *
+ */
+
+#define POLLDMA 0x0001
+#define POLLIRQ 0x0002
+
+
 #endif /* _ARTICo3_H_ */
