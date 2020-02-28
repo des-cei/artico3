@@ -2,7 +2,8 @@
 # ARTICo3 IP library script for Vivado
 #
 # Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
-# Date        : May 2018
+#             : Arturo Perez <arturo.perez@upm.es>
+# Date        : February 2020
 #
 # Description : This additional script is used to generate an encapsulated
 #               subsystem with Xilinx SEM IP to enable fault mitigation and
@@ -158,7 +159,7 @@ connect_bd_net -net ${subsystem}_sem_periph_resetn [get_bd_pins $subsystem/reset
 
 # Add AXI GPIO
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 $subsystem/sem_xgpio
-set_property -dict [list CONFIG.C_GPIO_WIDTH {15} \
+set_property -dict [list CONFIG.C_GPIO_WIDTH {14} \
                          CONFIG.C_IS_DUAL {1} \
                          CONFIG.C_INTERRUPT_PRESENT {1} \
                          CONFIG.C_GPIO2_WIDTH {1} \
@@ -223,30 +224,30 @@ connect_bd_net [get_bd_pins $subsystem/reset_0/peripheral_aresetn] \
         [get_bd_pins $subsystem/axi_uartlite_0/s_axi_aresetn]
 
 # Create bit isolators
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit11
+set_property -dict [list CONFIG.DIN_FROM {11} CONFIG.DIN_TO {11} CONFIG.DIN_WIDTH {14}] [get_bd_cells $subsystem/xlslice_bit11]
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit12
-set_property -dict [list CONFIG.DIN_FROM {12} CONFIG.DIN_TO {12} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit12]
+set_property -dict [list CONFIG.DIN_FROM {12} CONFIG.DIN_TO {12} CONFIG.DIN_WIDTH {14}] [get_bd_cells $subsystem/xlslice_bit12]
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit13
-set_property -dict [list CONFIG.DIN_FROM {13} CONFIG.DIN_TO {13} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit13]
-create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 $subsystem/xlslice_bit14
-set_property -dict [list CONFIG.DIN_FROM {14} CONFIG.DIN_TO {14} CONFIG.DIN_WIDTH {15}] [get_bd_cells $subsystem/xlslice_bit14]
+set_property -dict [list CONFIG.DIN_FROM {13} CONFIG.DIN_TO {13} CONFIG.DIN_WIDTH {14}] [get_bd_cells $subsystem/xlslice_bit13]
 
 # Connect GPIO input
 connect_bd_net -net ${subsystem}_gpio_i [get_bd_pins $subsystem/sem_xgpio/gpio_io_o] \
+        [get_bd_pins $subsystem/xlslice_bit11/Din] \
         [get_bd_pins $subsystem/xlslice_bit12/Din] \
-        [get_bd_pins $subsystem/xlslice_bit13/Din] \
-        [get_bd_pins $subsystem/xlslice_bit14/Din]
+        [get_bd_pins $subsystem/xlslice_bit13/Din]
 
 # Connect bit isolators
-connect_bd_net -net ${subsystem}_cap_gnt [get_bd_pins $subsystem/xlslice_bit12/Dout] \
+connect_bd_net -net ${subsystem}_cap_gnt [get_bd_pins $subsystem/xlslice_bit11/Dout] \
         [get_bd_pins $subsystem/sem_ultra_0/cap_gnt]
-connect_bd_net -net ${subsystem}_cap_rel [get_bd_pins $subsystem/xlslice_bit13/Dout] \
+connect_bd_net -net ${subsystem}_cap_rel [get_bd_pins $subsystem/xlslice_bit12/Dout] \
         [get_bd_pins $subsystem/sem_ultra_0/cap_rel]
-connect_bd_net -net ${subsystem}_clk_en [get_bd_pins $subsystem/xlslice_bit14/Dout] \
+connect_bd_net -net ${subsystem}_clk_en [get_bd_pins $subsystem/xlslice_bit13/Dout] \
         [get_bd_pins $subsystem/clkbuff_0/BUFGCE_CE]
 
 # Create concatenator
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 $subsystem/xlconcat_1
-set_property -dict [list CONFIG.NUM_PORTS {15}] [get_bd_cells $subsystem/xlconcat_1]
+set_property -dict [list CONFIG.NUM_PORTS {14}] [get_bd_cells $subsystem/xlconcat_1]
 
 # Connect concatenator output
 connect_bd_net -net ${subsystem}_gpio_o [get_bd_pins $subsystem/xlconcat_1/dout] \
@@ -268,22 +269,20 @@ connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In5] \
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In6] \
         [get_bd_pins $subsystem/sem_ultra_0/status_initialization]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In7] \
-        [get_bd_pins $subsystem/sem_ultra_0/status_injection]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In8] \
         [get_bd_pins $subsystem/sem_ultra_0/status_observation]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In9] \
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In8] \
         [get_bd_pins $subsystem/sem_ultra_0/status_uncorrectable]
-connect_bd_net -net ${subsystem}_status_fatal_error [get_bd_pins $subsystem/xlconcat_1/In10] \
+connect_bd_net -net ${subsystem}_status_fatal_error [get_bd_pins $subsystem/xlconcat_1/In9] \
         [get_bd_pins $subsystem/and_8/Res]
-connect_bd_net -net ${subsystem}_status_idle [get_bd_pins $subsystem/xlconcat_1/In11] \
+connect_bd_net -net ${subsystem}_status_idle [get_bd_pins $subsystem/xlconcat_1/In10] \
         [get_bd_pins $subsystem/not_1/Res]
+connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In11] \
+        [get_bd_pins $subsystem/xlslice_bit11/Dout]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In12] \
         [get_bd_pins $subsystem/xlslice_bit12/Dout]
 connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In13] \
         [get_bd_pins $subsystem/xlslice_bit13/Dout]
-connect_bd_net [get_bd_pins $subsystem/xlconcat_1/In14] \
-        [get_bd_pins $subsystem/xlslice_bit14/Dout]
 
-# Connect heartbeat
-connect_bd_net -net ${subsystem}_status_heartbeat [get_bd_pins $subsystem/sem_xgpio/gpio2_io_i] \
-        [get_bd_pins $subsystem/sem_ultra_0/status_heartbeat]
+# Connect injection
+connect_bd_net -net ${subsystem}_status_injection [get_bd_pins $subsystem/sem_xgpio/gpio2_io_i] \
+        [get_bd_pins $subsystem/sem_ultra_0/status_injection]
