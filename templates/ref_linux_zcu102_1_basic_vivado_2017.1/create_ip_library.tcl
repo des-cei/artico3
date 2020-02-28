@@ -229,16 +229,16 @@ proc import_pcore { repo_path ip_name {libs ""} } {
 
     puts "\[A3DK\] $artico3_pcore $artico3_pcore_name $artico3_pcore_dir $temp_dir"
 
+    # Import files (VHDL, Verilog, XCI, and DAT)
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.vhd]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.v]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.xci]
+    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.dat]
+
     # Create additional subcores (required in HLS-based designs with floating point operations)
-    foreach {subcore_script} [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.tcl] {
+    foreach {subcore_script} [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.tcl] {
         source $subcore_script
     }
-
-    # Import files (VHDL, Verilog, XCI, and DAT)
-    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.vhd]
-    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.v]
-    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.xci]
-    import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl/vhdl *.dat]
 
     # Set top modules
     if { $artico3_pcore_name == "artico3_shuffler" } { set_property top shuffler [current_fileset] }

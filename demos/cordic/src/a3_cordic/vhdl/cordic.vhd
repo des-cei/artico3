@@ -57,6 +57,18 @@ end cordic;
 architecture behavioral of cordic is
 
     -- CORDIC
+    component cordic_0 is
+        port (
+            aclk                : in  std_logic;
+            aresetn             : in  std_logic;
+            s_axis_phase_tvalid : in  std_logic;
+            s_axis_phase_tready : out std_logic;
+            s_axis_phase_tdata  : in  std_logic_vector(31 downto 0);
+            m_axis_dout_tvalid  : out std_logic;
+            m_axis_dout_tdata   : out std_logic_vector(63 downto 0)
+        );
+    end component;
+
     signal phase_tvalid  : std_logic;
     signal phase_tready  : std_logic;
     signal phase_tdata   : std_logic_vector(31 downto 0);
@@ -131,7 +143,7 @@ begin
     ---------------
 
     -- CORDIC
-    cordic_inst: entity work.cordic_0
+    cordic_inst: cordic_0
     port map (
         aclk                => clk,
         aresetn             => reset,

@@ -133,7 +133,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
 
         log.info("Generating export files ...")
-        prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir, link)
+        prj.apply_template("artico3_kernel_hdl_pcore", dictionary, hwdir, link)
 
     elif kernel.hwsrc == "hls":
         tmp = tempfile.TemporaryDirectory()
@@ -247,7 +247,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
 
         log.info("Generating export files ...")
-        prj.apply_template("artico3_kernel_vhdl_pcore", dictionary, hwdir)
+        prj.apply_template("artico3_kernel_hdl_pcore", dictionary, hwdir)
 
         shutil2.rmtree("/tmp/artico3_hls")
         shutil2.mkdir("/tmp/artico3_hls")
