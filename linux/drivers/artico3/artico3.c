@@ -41,6 +41,7 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/interrupt.h>
+#include <linux/workqueue.h>
 #include <linux/of_irq.h>
 
 #include "artico3.h"
@@ -80,7 +81,8 @@ struct artico3_device {
     spinlock_t lock;
     wait_queue_head_t queue;
     unsigned int irq;
-    struct list_head pending;
+    struct work_struct workqueue;
+    uint8_t ready[MAX_ID];
 };
 
 // Custom data structure to store allocated memory regions
@@ -94,13 +96,6 @@ struct artico3_vm_list {
     struct list_head list;
 };
 
-// Custom data structure to store pending IRQ ACKs
-struct artico3_pending_list {
-    pid_t pid;
-    char flag;
-    struct list_head list;
-};
-
 // Char device parameters
 static dev_t devt;
 static struct class *artico3_class;
@@ -108,22 +103,65 @@ static struct class *artico3_class;
 
 /* IRQ MANAGEMENT */
 
-// TODO: make sure there are no race conditions (as in the RTEMS version) between poll() and isr().
-// TODO: check whether it makes sense to implement bottom-half via tasklet (or similar)
+// Work queue (bottom-half)
+static void artico3_work(struct work_struct *work) {
+    struct artico3_device *artico3_dev = container_of(work, struct artico3_device, workqueue);
+    unsigned long flags;
+    unsigned int i, id;
+    uint64_t id_reg;
+    uint32_t ready_reg, ready;
+    void __iomem *regs = NULL;
+    struct resource *rsrc;
 
-// ARTICo3 ISR
+    dev_info(artico3_dev->dev, "[ ] artico3_work()");
+
+    spin_lock_irqsave(&artico3_dev->lock, flags);
+
+        // Get access to hardware registers
+        rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "ctrl");
+        regs = ioremap(rsrc->start, rsrc->end - rsrc->start);
+
+        // Iterate for all kernel IDs
+        for (id = 1; id < MAX_ID; id++) {
+
+            // Get current kernel ID registers
+            id_reg = (uint64_t)ioread32(regs + 0x4) << 32 | (uint32_t)ioread32(regs + 0x0);
+            // Get current ready flags
+            ready_reg = ioread32(regs + 0x2c);
+            dev_info(artico3_dev->dev, "[+] id_reg    : %016lx", id_reg);
+            dev_info(artico3_dev->dev, "[+] ready_reg : %08lx", ready_reg);
+
+            // Compute expected ready flag
+            ready = 0;
+            i = 0;
+            while (id_reg) {
+                if ((id_reg  & 0xf) == id) ready |= 0x1 << i;
+                i++;
+                id_reg >>= 4;
+            }
+
+            // Check if kernel has finished
+            artico3_dev->ready[id-1] = ((ready != 0) && ((ready & ready_reg) == ready)) ? 1 : 0;
+
+        }
+
+        // Free memory
+        iounmap(regs);
+
+        // Inform poll() queue
+        wake_up(&artico3_dev->queue);
+
+    spin_unlock_irqrestore(&artico3_dev->lock, flags);
+
+    dev_info(artico3_dev->dev, "[+] artico3_work()");
+}
+
+// ARTICo3 ISR (top-half)
 static irqreturn_t artico3_isr(unsigned int irq, void *data) {
     struct artico3_device *artico3_dev = data;
-    struct artico3_pending_list *iterator = NULL, *iterator_b = NULL;
-    unsigned long flags;
 
     dev_info(artico3_dev->dev, "[ ] artico3_isr()");
-    spin_lock_irqsave(&artico3_dev->lock, flags);
-        list_for_each_entry_safe(iterator, iterator_b, &artico3_dev->pending, list) {
-            iterator->flag = 1; // TODO: use PID?
-        }
-        wake_up(&artico3_dev->queue);
-    spin_unlock_irqrestore(&artico3_dev->lock, flags);
+    schedule_work(&artico3_dev->workqueue);
     dev_info(artico3_dev->dev, "[+] artico3_isr()");
 
     return IRQ_HANDLED;
@@ -348,6 +386,8 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                         retval = -EINVAL;
                         break;
                     }
+                    // Set ready flag to 0
+                    artico3_dev->ready[((token.hwoff >> 16) & 0xf) - 1] = 0;
                     // Perform transfer
                     retval = artico3_dma_transfer(artico3_dev, address + token.hwoff, vm_list->addr_phy + token.memoff, token.size);
                     break;
@@ -427,7 +467,7 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
 }
 
 // mmap close function (required to free allocated memory) - DMA transfers
-static void artico3_mmap_close(struct vm_area_struct *vma) {
+static void artico3_mmap_dma_close(struct vm_area_struct *vma) {
     struct artico3_vm_list *token = vma->vm_private_data;
     struct artico3_device *artico3_dev = token->artico3_dev;
     struct dma_device *dma_dev = artico3_dev->chan->device;
@@ -452,7 +492,7 @@ static void artico3_mmap_close(struct vm_area_struct *vma) {
 
 // mmap specific operations - DMA transfers
 static struct vm_operations_struct artico3_mmap_dma_ops = {
-    .close = artico3_mmap_close,
+    .close = artico3_mmap_dma_close,
 };
 
 // File operation on char device: mmap - DMA transfers
@@ -593,9 +633,8 @@ static int artico3_mmap(struct file *fp, struct vm_area_struct *vma) {
 // File operation on char device: poll
 static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait) {
     struct artico3_device *artico3_dev = fp->private_data;
-    struct artico3_pending_list *token = NULL, *iterator = NULL, *iterator_b = NULL;
     unsigned long flags;
-    unsigned int ret;
+    unsigned int ret, id;
     enum dma_status status;
 
     dev_info(artico3_dev->dev, "[ ] poll()");
@@ -612,32 +651,20 @@ static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait
         //       that the following check will always render DMA_COMPLETE.
         status = dma_async_is_tx_complete(artico3_dev->chan, artico3_dev->cookie, NULL, NULL);
         if (status == DMA_COMPLETE) {
-            dev_info(artico3_dev->dev, "[i] poll() : DMA_COMPLETE -> ret = POLLDMA");
+            dev_info(artico3_dev->dev, "[i] poll() : ret |= POLLDMA");
             ret |= POLLDMA;
             // Release mutex (acquired in artico3_ioctl() before DMA transfer)
             mutex_unlock(&artico3_dev->mutex);
         }
 
         //
-        // IRQ check
+        // IRQ/Ready check
         //
-        list_for_each_entry_safe(iterator, iterator_b, &artico3_dev->pending, list) {
-            if (iterator->pid == current->pid) {
-                token = iterator;
-                break;
+        for (id = 1; id <= MAX_ID; id++) {
+            if (artico3_dev->ready[id-1] == 1) {
+                dev_info(artico3_dev->dev, "[i] poll() : ret |= POLLIRQ(%d)", id);
+                ret |= POLLIRQ(id);
             }
-        }
-        if (token == NULL) {
-            token = kzalloc(sizeof *token, GFP_KERNEL);
-            token->pid = current->pid;
-            token->flag = 0;
-            INIT_LIST_HEAD(&token->list);
-            list_add(&token->list, &artico3_dev->pending);
-        }
-        if (token->flag == 1) {
-            list_del(&token->list);
-            kfree(token);
-            ret |= POLLIRQ;
         }
     spin_unlock_irqrestore(&artico3_dev->lock, flags);
 
@@ -760,7 +787,7 @@ static void artico3_cdev_exit(void) {
 
 // Actions to perform when the device is added (shows up in the device tree)
 static int artico3_probe(struct platform_device *pdev) {
-    int res;
+    int res, id;
     struct artico3_device *artico3_dev = NULL;
 
     dev_info(&pdev->dev, "[ ] artico3_probe()");
@@ -774,9 +801,8 @@ static int artico3_probe(struct platform_device *pdev) {
     }
     dev_info(&pdev->dev, "[+] kzalloc() -> artico3_dev");
 
-    // Initialize list heads
+    // Initialize list head
     INIT_LIST_HEAD(&artico3_dev->head);
-    INIT_LIST_HEAD(&artico3_dev->pending);
 
     // Pass platform device pointer to custom device structure
     artico3_dev->pdev = pdev;
@@ -803,7 +829,15 @@ static int artico3_probe(struct platform_device *pdev) {
     spin_lock_init(&artico3_dev->lock);
     init_waitqueue_head(&artico3_dev->queue);
 
-    // Register IRQ
+    // Initialize shadow ready register
+    for (id = 1; id <= MAX_ID; id++) {
+        artico3_dev->ready[id-1] = 0;
+    }
+
+    // Initialize work queue (bottom-half ISR)
+    INIT_WORK(&artico3_dev->workqueue, artico3_work);
+
+    // Register IRQ (top-half ISR)
     artico3_dev->irq = platform_get_irq(pdev, 0);
     res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
     if (res) {

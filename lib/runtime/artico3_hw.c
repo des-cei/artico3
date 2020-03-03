@@ -110,39 +110,6 @@ int artico3_hw_get_naccs(uint8_t id) {
 /*
  * ARTICo3 low-level hardware function
  *
- * Gets, for the current accelerator setup, the expected mask to be used
- * when checking the ready register in the Data Shuffler.
- *
- * @id : current kernel ID
- *
- * Return : ready mask on success, 0 otherwise
- *
- */
-uint32_t artico3_hw_get_readymask(uint8_t id) {
-    unsigned int i;
-
-    uint32_t ready;
-    uint64_t id_reg;
-
-    // Get current shadow registers
-    id_reg = shuffler.id_reg;
-
-    // Compute expected ready flag
-    ready = 0;
-    i = 0;
-    while (id_reg) {
-        if ((id_reg  & 0xf) == id) ready |= 0x1 << i;
-        i++;
-        id_reg >>= 4;
-    }
-
-    return ready;
-}
-
-
-/*
- * ARTICo3 low-level hardware function
- *
  * Prints the current ARTICo3 configuration by directly accessing the
  * configuration registers in the Data Shuffler.
  *
@@ -186,22 +153,6 @@ void artico3_hw_setup_transfer(uint32_t blksize) {
     artico3_hw[A3_DMR_REG_LOW]    = shuffler.dmr_reg & 0xFFFFFFFF;         // DMR register low
     artico3_hw[A3_DMR_REG_HIGH]   = (shuffler.dmr_reg >> 32) & 0xFFFFFFFF; // DMR register high
     artico3_hw[A3_BLOCK_SIZE_REG] = blksize;                               // Block size (# 32-bit words)
-}
-
-
-/*
- * ARTICo3 low-level hardware function
- *
- * Checks if a processing round is finished. The configuration of the
- * specific round is passed using the expected ready mask.
- *
- * @readymask : expected ready register contents (mask)
- *
- * Return : 0 when still working, 1 when finished
- *
- */
-int artico3_hw_transfer_isdone(uint32_t readymask) {
-    return ((artico3_hw[A3_READY_REG] & readymask) == readymask) ? 1 : 0;
 }
 
 

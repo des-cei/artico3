@@ -717,7 +717,6 @@ void *_artico3_kernel_execute(void *data) {
     int naccs;
 
     uint8_t id;
-    uint32_t readymask;
 
     struct timeval t0, tf;
     float tsend = 0, texec = 0, trecv = 0;
@@ -738,10 +737,8 @@ void *_artico3_kernel_execute(void *data) {
         // Increase "running" count
         running++;
 
-        // For each iteration, compute number of (equivalent) accelerators,
-        // and the corresponding expected mask to check the ready register.
+        // For each iteration, compute number of (equivalent) accelerators
         naccs = artico3_hw_get_naccs(id);
-        readymask = artico3_hw_get_readymask(id);
 
         // Send data
         gettimeofday(&t0, NULL);
@@ -753,7 +750,7 @@ void *_artico3_kernel_execute(void *data) {
 
         // Wait until transfer is complete
         gettimeofday(&t0, NULL);
-        while (!artico3_hw_transfer_isdone(readymask)) { struct pollfd pfd = { .fd = artico3_fd, .events = POLLIRQ, };  poll(&pfd, 1, -1); }
+        { struct pollfd pfd = { .fd = artico3_fd, .events = POLLIRQ(id), };  poll(&pfd, 1, -1); }
         gettimeofday(&tf, NULL);
         texec += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 

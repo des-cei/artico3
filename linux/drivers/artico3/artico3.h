@@ -66,11 +66,13 @@ struct dmaproxy_token {
  *
  * polldma - wait for DMA transfer to finish
  * pollirq - wait for ARTICo³ accelerators to finish
+ *           1 << kernel_id (i.e., 1 << 1 ... 1 << 15)
  *
  */
 
 #define POLLDMA 0x0001
-#define POLLIRQ 0x0002
+#define POLLIRQ(id) (1 << id)
+#define MAX_ID (15)
 
 
 #endif /* _ARTICo3_H_ */
