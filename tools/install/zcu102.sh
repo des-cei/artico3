@@ -176,7 +176,7 @@ export ARCH="arm64"
 export CROSS_COMPILE="$XILINX_ROOT/Xilinx/SDK/$XILINX_VERSION/gnu/aarch64/lin/aarch64-linux/bin/aarch64-linux-gnu-"
 export KDIR="$WD/linux-xlnx"
 export PATH="$WD/devicetree/dtc:$PATH"
-export PATH="$WD/u-boot-digilent/tools:$PATH"
+export PATH="$WD/u-boot-xlnx/tools:$PATH"
 
 # Source Xilinx tools script (add Xilinx tools to the path)
 source "$XILINX_ROOT/Xilinx/Vivado/$XILINX_VERSION/settings64.sh"
