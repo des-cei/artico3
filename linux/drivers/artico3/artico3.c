@@ -789,6 +789,7 @@ static void artico3_cdev_exit(void) {
 static int artico3_probe(struct platform_device *pdev) {
     int res, id;
     struct artico3_device *artico3_dev = NULL;
+    struct resource *rsrc;
 
     dev_info(&pdev->dev, "[ ] artico3_probe()");
 
@@ -838,7 +839,8 @@ static int artico3_probe(struct platform_device *pdev) {
     INIT_WORK(&artico3_dev->workqueue, artico3_work);
 
     // Register IRQ (top-half ISR)
-    artico3_dev->irq = platform_get_irq(pdev, 0);
+    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_IRQ, "irq");
+    artico3_dev->irq = rsrc->start;
     res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
     if (res) {
         dev_err(&pdev->dev, "[X] request_irq()");
