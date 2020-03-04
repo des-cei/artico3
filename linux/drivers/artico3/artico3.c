@@ -866,7 +866,7 @@ static int artico3_remove(struct platform_device *pdev) {
 
     dev_info(&pdev->dev, "[ ] artico3_remove()");
 
-    free_irq(artico3_dev->irq, NULL);
+    free_irq(artico3_dev->irq, artico3_dev);
     mutex_destroy(&artico3_dev->mutex);
     artico3_cdev_destroy(pdev);
     artico3_dma_exit(pdev);
