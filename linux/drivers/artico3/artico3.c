@@ -47,10 +47,8 @@
 #include "artico3.h"
 #define DRIVER_NAME "artico3"
 
-//~ #define dev_err(...)
 #define dev_info(...)
 #define printk(KERN_INFO ...)
-//~ #define printk(...)
 
 /*
  * NOTE: using Xilinx DMA driver crashes the system, which means that,
@@ -110,7 +108,7 @@ static struct class *artico3_class;
 
 /* IRQ MANAGEMENT */
 
-// ARTICo3 ISR
+// ARTICo³ ISR
 static irqreturn_t artico3_isr(unsigned int irq, void *data) {
 
     struct artico3_device *artico3_dev = data;
@@ -369,7 +367,6 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                     dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
                     dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
                     dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
-                    dev_info(&pdev->dev, "[i] resource flags = %lx", rsrc->flags);
                     // Get memory map base address and size
                     address = rsrc->start;
                     size = rsrc->end - rsrc->start + 1;
@@ -440,7 +437,6 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                     dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
                     dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
                     dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
-                    dev_info(&pdev->dev, "[i] resource flags = %lx", rsrc->flags);
                     // Get memory map base address and size
                     address = rsrc->start;
                     size = rsrc->end - rsrc->start + 1;
@@ -531,8 +527,7 @@ static int artico3_mmap_dma(struct file *fp, struct vm_area_struct *vma) {
     dev_info(dma_dev->dev, "[i] dma_zalloc_coherent() -> %ld bytes", vma->vm_end - vma->vm_start);
 
     // Map kernel-space memory to DMA space
-    dev_info(dma_dev->dev, "[ ] dma_common_mmap()");
-    //~ res = dma_common_mmap(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
+    dev_info(dma_dev->dev, "[ ] dma_mmap_coherent()");
     res = dma_mmap_coherent(dma_dev->dev, vma, addr_vir, addr_phy, vma->vm_end - vma->vm_start);
     if (res) {
         dev_err(dma_dev->dev, "[X] dma_mmap_coherent() %d", res);
@@ -541,7 +536,7 @@ static int artico3_mmap_dma(struct file *fp, struct vm_area_struct *vma) {
     dev_info(dma_dev->dev, "[+] dma_mmap_coherent()");
 
     // Create data structure with allocated memory info
-    dev_info(artico3_dev->dev, "[ ] kzalloc()");
+    dev_info(artico3_dev->dev, "[ ] kzalloc() -> token");
     token = kzalloc(sizeof *token, GFP_KERNEL);
     if (!token) {
         dev_err(artico3_dev->dev, "[X] kzalloc() -> token");
@@ -803,7 +798,7 @@ static int artico3_probe(struct platform_device *pdev) {
     dev_info(&pdev->dev, "[ ] artico3_probe()");
 
     // Allocate memory for custom device structure
-    dev_info(&pdev->dev, "[ ] kzalloc()");
+    dev_info(&pdev->dev, "[ ] kzalloc() -> artico3_dev");
     artico3_dev = kzalloc(sizeof *artico3_dev, GFP_KERNEL);
     if (!artico3_dev) {
         dev_err(&pdev->dev, "[X] kzalloc() -> artico3_dev");
@@ -840,7 +835,11 @@ static int artico3_probe(struct platform_device *pdev) {
     init_waitqueue_head(&artico3_dev->queue);
 
     // Initialize hardware information
+    dev_info(&pdev->dev, "[ ] ioremap()");
     rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "ctrl");
+    dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
+    dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
+    dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
     artico3_dev->hw.regs = ioremap(rsrc->start, rsrc->end - rsrc->start);
     if (!artico3_dev->hw.regs) {
         dev_err(&pdev->dev, "[X] ioremap()");
@@ -852,15 +851,21 @@ static int artico3_probe(struct platform_device *pdev) {
         artico3_dev->hw.ready[id-1] = 0x00000000;
         artico3_dev->hw.readymask[id-1] = 0x00000000;
     }
+    dev_info(&pdev->dev, "[+] ioremap()");
 
     // Register IRQ
+    dev_info(&pdev->dev, "[ ] request_irq()");
     rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_IRQ, "irq");
+    dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
+    dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
+    dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
     artico3_dev->irq = rsrc->start;
     res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
     if (res) {
         dev_err(&pdev->dev, "[X] request_irq()");
         goto err_irq;
     }
+    dev_info(&pdev->dev, "[+] request_irq()");
 
     dev_info(&pdev->dev, "[+] artico3_probe()");
     return 0;
