@@ -485,6 +485,14 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
 
     // If all inputs are constant memories, and they have been already loaded...
     if (nports == 0) {
+        // ... set up fake data transfer...
+        artico3_hw_setup_transfer(0);
+        token.memaddr = 0x00000000;
+        token.memoff = 0x00000000;
+        token.hwaddr = (void *)A3_SLOTADDR;
+        token.hwoff = (id << 16);
+        token.size = 0;
+        ioctl(artico3_fd, ARTICo3_IOC_DMA_MEM2HW, &token);
         // ...launch kernel execution using software command...
         _artico3_kernel_start(kernels[id - 1]->name);
         // ...and return

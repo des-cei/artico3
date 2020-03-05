@@ -355,6 +355,16 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
             dev_info(artico3_dev->dev, "[i] DMA -> hardware offset  = %p", (void *)token.hwoff);
             dev_info(artico3_dev->dev, "[i] DMA -> transfer size    = %d bytes", token.size);
 
+            // Transfers to constant input memories (transfer size is 0)
+            if (token.size == 0) {
+                // Set ready flag to 0
+                artico3_dev->ready[((token.hwoff >> 16) & 0xf) - 1] = 0;
+                // Early release of mutex (this is not an actual transfer)
+                mutex_unlock(&artico3_dev->mutex);
+                // Exit ioctl()
+                break;
+            }
+
             // Search if the requested memory region is allocated
             list_for_each_entry_safe(vm_list, backup, &artico3_dev->head, list) {
                 if ((vm_list->pid == current->pid) && (vm_list->addr_usr == token.memaddr)) {
