@@ -68,6 +68,14 @@
  */
 
 
+// ARTICo³ hardware information
+struct artico3_hw {
+    void __iomem *regs;                 // Hardware registers in ARTICo³
+    uint32_t ready_prev;                // Previous ready register value
+    uint32_t ready[ARTICo3_MAX_ID];     // Currently finished accelerators per kernel ID
+    uint32_t readymask[ARTICo3_MAX_ID]; // Expected ready register values per kernel ID
+};
+
 // Custom device structure (DMA proxy device)
 struct artico3_device {
     dev_t devt;
@@ -81,8 +89,7 @@ struct artico3_device {
     spinlock_t lock;
     wait_queue_head_t queue;
     unsigned int irq;
-    struct work_struct workqueue;
-    uint8_t ready[MAX_ID];
+    struct artico3_hw hw;
 };
 
 // Custom data structure to store allocated memory regions
@@ -103,66 +110,38 @@ static struct class *artico3_class;
 
 /* IRQ MANAGEMENT */
 
-// Work queue (bottom-half)
-static void artico3_work(struct work_struct *work) {
-    struct artico3_device *artico3_dev = container_of(work, struct artico3_device, workqueue);
+// ARTICo3 ISR
+static irqreturn_t artico3_isr(unsigned int irq, void *data) {
+
+    struct artico3_device *artico3_dev = data;
     unsigned long flags;
-    unsigned int i, id;
-    uint64_t id_reg;
-    uint32_t ready_reg, ready;
-    void __iomem *regs = NULL;
-    struct resource *rsrc;
+    unsigned int id;
+    uint32_t ready_reg, rising;
 
-    dev_info(artico3_dev->dev, "[ ] artico3_work()");
-
+    //~ dev_info(artico3_dev->dev, "[ ] artico3_isr()");
     spin_lock_irqsave(&artico3_dev->lock, flags);
 
-        // Get access to hardware registers
-        rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "ctrl");
-        regs = ioremap(rsrc->start, rsrc->end - rsrc->start);
+        // Read current ready register
+        ready_reg = ioread32(artico3_dev->hw.regs + ARTICo3_READY_REG);
+        //~ dev_info(artico3_dev->dev, "[i] ready : %08x | ready_prev : %08x", ready_reg, artico3_dev->hw.ready_prev);
 
-        // Iterate for all kernel IDs
-        for (id = 1; id < MAX_ID; id++) {
-
-            // Get current kernel ID registers
-            id_reg = (uint64_t)ioread32(regs + 0x4) << 32 | (uint32_t)ioread32(regs + 0x0);
-            // Get current ready flags
-            ready_reg = ioread32(regs + 0x2c);
-            dev_info(artico3_dev->dev, "[+] id_reg    : %016lx", id_reg);
-            dev_info(artico3_dev->dev, "[+] ready_reg : %08lx", ready_reg);
-
-            // Compute expected ready flag
-            ready = 0;
-            i = 0;
-            while (id_reg) {
-                if ((id_reg  & 0xf) == id) ready |= 0x1 << i;
-                i++;
-                id_reg >>= 4;
+        // Only act when rising edges are detected
+        rising = (artico3_dev->hw.ready_prev ^ ready_reg) & ready_reg;
+        if (rising) {
+            // Iterate for all kernel IDs
+            for (id = 1; id <= ARTICo3_MAX_ID; id++) {
+                artico3_dev->hw.ready[id-1] |= rising & artico3_dev->hw.readymask[id-1];
+                //~ dev_info(artico3_dev->dev, "[i] id : %2d | ready : %08x | mask : %08x", id, artico3_dev->hw.ready[id-1], artico3_dev->hw.readymask[id-1]);
             }
-
-            // Check if kernel has finished
-            artico3_dev->ready[id-1] = ((ready != 0) && ((ready & ready_reg) == ready)) ? 1 : 0;
-
+            // Inform poll() queue
+            wake_up(&artico3_dev->queue);
         }
 
-        // Free memory
-        iounmap(regs);
-
-        // Inform poll() queue
-        wake_up(&artico3_dev->queue);
+        // Update previous ready register
+        artico3_dev->hw.ready_prev = ready_reg;
 
     spin_unlock_irqrestore(&artico3_dev->lock, flags);
-
-    dev_info(artico3_dev->dev, "[+] artico3_work()");
-}
-
-// ARTICo3 ISR (top-half)
-static irqreturn_t artico3_isr(unsigned int irq, void *data) {
-    struct artico3_device *artico3_dev = data;
-
-    dev_info(artico3_dev->dev, "[ ] artico3_isr()");
-    schedule_work(&artico3_dev->workqueue);
-    dev_info(artico3_dev->dev, "[+] artico3_isr()");
+    //~ dev_info(artico3_dev->dev, "[+] artico3_isr()");
 
     return IRQ_HANDLED;
 }
@@ -173,12 +152,12 @@ static irqreturn_t artico3_isr(unsigned int irq, void *data) {
 // DMA asynchronous callback function
 static void artico3_dma_callback(void *data) {
     struct artico3_device *artico3_dev = data;
-    unsigned long flags;
+    //~ unsigned long flags;
 
     dev_info(artico3_dev->dev, "[ ] artico3_dma_callback()");
-    spin_lock_irqsave(&artico3_dev->lock, flags);
-    wake_up(&artico3_dev->queue);
-    spin_unlock_irqrestore(&artico3_dev->lock, flags);
+    //~ spin_lock_irqsave(&artico3_dev->lock, flags);
+        wake_up(&artico3_dev->queue);
+    //~ spin_unlock_irqrestore(&artico3_dev->lock, flags);
     dev_info(artico3_dev->dev, "[+] artico3_dma_callback()");
 }
 
@@ -314,6 +293,8 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
     int res;
     int retval = 0;
     struct resource *rsrc;
+    uint64_t id_reg;
+    unsigned int i;
 
     dev_info(artico3_dev->dev, "[ ] ioctl()");
     dev_info(artico3_dev->dev, "[i] ioctl() -> magic   = '%c'", _IOC_TYPE(cmd));
@@ -357,8 +338,17 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
 
             // Transfers to constant input memories (transfer size is 0)
             if (token.size == 0) {
-                // Set ready flag to 0
-                artico3_dev->ready[((token.hwoff >> 16) & 0xf) - 1] = 0;
+                // Get current ID register
+                id_reg = (uint64_t)ioread32(artico3_dev->hw.regs + ARTICo3_ID_REG_HIGH) << 32 | (uint64_t)ioread32(artico3_dev->hw.regs + ARTICo3_ID_REG_LOW);
+                // Compute expected ready value
+                artico3_dev->hw.ready[((token.hwoff >> 16) & 0xf) - 1] = 0x00000000;
+                artico3_dev->hw.readymask[((token.hwoff >> 16) & 0xf) - 1] = 0x00000000;
+                i = 0;
+                while (id_reg) {
+                    if ((id_reg  & 0xf) == ((token.hwoff >> 16) & 0xf)) artico3_dev->hw.readymask[((token.hwoff >> 16) & 0xf) - 1] |= 0x1 << i;
+                    i++;
+                    id_reg >>= 4;
+                }
                 // Early release of mutex (this is not an actual transfer)
                 mutex_unlock(&artico3_dev->mutex);
                 // Exit ioctl()
@@ -396,8 +386,17 @@ static long artico3_ioctl(struct file *fp, unsigned int cmd, unsigned long arg) 
                         retval = -EINVAL;
                         break;
                     }
-                    // Set ready flag to 0
-                    artico3_dev->ready[((token.hwoff >> 16) & 0xf) - 1] = 0;
+                    // Get current ID register
+                    id_reg = (uint64_t)ioread32(artico3_dev->hw.regs + ARTICo3_ID_REG_HIGH) << 32 | (uint64_t)ioread32(artico3_dev->hw.regs + ARTICo3_ID_REG_LOW);
+                    // Compute expected ready value
+                    artico3_dev->hw.ready[((token.hwoff >> 16) & 0xf) - 1] = 0x00000000;
+                    artico3_dev->hw.readymask[((token.hwoff >> 16) & 0xf) - 1] = 0x00000000;
+                    i = 0;
+                    while (id_reg) {
+                        if ((id_reg  & 0xf) == ((token.hwoff >> 16) & 0xf)) artico3_dev->hw.readymask[((token.hwoff >> 16) & 0xf) - 1] |= 0x1 << i;
+                        i++;
+                        id_reg >>= 4;
+                    }
                     // Perform transfer
                     retval = artico3_dma_transfer(artico3_dev, address + token.hwoff, vm_list->addr_phy + token.memoff, token.size);
                     break;
@@ -545,7 +544,7 @@ static int artico3_mmap_dma(struct file *fp, struct vm_area_struct *vma) {
     dev_info(artico3_dev->dev, "[ ] kzalloc()");
     token = kzalloc(sizeof *token, GFP_KERNEL);
     if (!token) {
-        dev_err(artico3_dev->dev, "[X] kzalloc()");
+        dev_err(artico3_dev->dev, "[X] kzalloc() -> token");
         res = -ENOMEM;
         goto err_kmalloc_token;
     }
@@ -670,8 +669,8 @@ static unsigned int artico3_poll(struct file *fp, struct poll_table_struct *wait
         //
         // IRQ/Ready check
         //
-        for (id = 1; id <= MAX_ID; id++) {
-            if (artico3_dev->ready[id-1] == 1) {
+        for (id = 1; id <= ARTICo3_MAX_ID; id++) {
+            if ((artico3_dev->hw.readymask[id-1] != 0) && ((artico3_dev->hw.ready[id-1] & artico3_dev->hw.readymask[id-1]) == artico3_dev->hw.readymask[id-1])) {
                 dev_info(artico3_dev->dev, "[i] poll() : ret |= POLLIRQ(%d)", id);
                 ret |= POLLIRQ(id);
             }
@@ -808,7 +807,7 @@ static int artico3_probe(struct platform_device *pdev) {
     artico3_dev = kzalloc(sizeof *artico3_dev, GFP_KERNEL);
     if (!artico3_dev) {
         dev_err(&pdev->dev, "[X] kzalloc() -> artico3_dev");
-        res = -ENOMEM;
+        return -ENOMEM;
     }
     dev_info(&pdev->dev, "[+] kzalloc() -> artico3_dev");
 
@@ -840,15 +839,21 @@ static int artico3_probe(struct platform_device *pdev) {
     spin_lock_init(&artico3_dev->lock);
     init_waitqueue_head(&artico3_dev->queue);
 
-    // Initialize shadow ready register
-    for (id = 1; id <= MAX_ID; id++) {
-        artico3_dev->ready[id-1] = 0;
+    // Initialize hardware information
+    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_MEM, "ctrl");
+    artico3_dev->hw.regs = ioremap(rsrc->start, rsrc->end - rsrc->start);
+    if (!artico3_dev->hw.regs) {
+        dev_err(&pdev->dev, "[X] ioremap()");
+        res = -ENOMEM;
+        goto err_ioremap;
+    }
+    artico3_dev->hw.ready_prev = 0x00000000;
+    for (id = 1; id <= ARTICo3_MAX_ID; id++) {
+        artico3_dev->hw.ready[id-1] = 0x00000000;
+        artico3_dev->hw.readymask[id-1] = 0x00000000;
     }
 
-    // Initialize work queue (bottom-half ISR)
-    INIT_WORK(&artico3_dev->workqueue, artico3_work);
-
-    // Register IRQ (top-half ISR)
+    // Register IRQ
     rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_IRQ, "irq");
     artico3_dev->irq = rsrc->start;
     res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
@@ -861,6 +866,10 @@ static int artico3_probe(struct platform_device *pdev) {
     return 0;
 
 err_irq:
+    iounmap(artico3_dev->hw.regs);
+
+err_ioremap:
+    artico3_cdev_destroy(pdev);
 
 err_cdev_create:
     artico3_dma_exit(pdev);
@@ -879,6 +888,7 @@ static int artico3_remove(struct platform_device *pdev) {
     dev_info(&pdev->dev, "[ ] artico3_remove()");
 
     free_irq(artico3_dev->irq, artico3_dev);
+    iounmap(artico3_dev->hw.regs);
     mutex_destroy(&artico3_dev->mutex);
     artico3_cdev_destroy(pdev);
     artico3_dma_exit(pdev);

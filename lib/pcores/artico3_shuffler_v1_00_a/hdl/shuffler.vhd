@@ -1567,12 +1567,6 @@ begin
     -- Interrupt logic --
     ---------------------
 
-    -- NOTE: in this version, interrupts are generated when all hardware accelerators involved in a
-    --       processing round have finished and therefore data are ready to be read from them to the
-    --       external memory. Although this is not the best implementation, since it increases the
-    --       amount of dead times (no processing nor data transfers taking place) per round, it is
-    --       a valid and easy-to-implement approach.
-
     -- Rising-edge sensitive interrupt generation logic.
     interrupt_gen: process(s_axi_aclk)
         variable ready_reg_dly1 : std_logic_vector(C_MAX_SLOTS-1 downto 0);
@@ -1584,12 +1578,10 @@ begin
             else
                 -- Interrupt generation
                 interrupt_s <= '0';
-                for i in 0 to C_MAX_SLOTS-1 loop
-                    -- Interrupts are generated whenever a hardware accelerator finishes its processing
-                    if ready_reg(i) /= ready_reg_dly1(i) and ready_reg(i) = '1' then
-                        interrupt_s <= '1';
-                    end if;
-                end loop;
+                -- Interrupts are generated whenever a change in the ready register happens
+                if ready_reg /= ready_reg_dly1 then
+                    interrupt_s <= '1';
+                end if;
                 -- The register containing the number of accelerators that have finished
                 -- has to be registered in order to be able to detect changes in its contents.
                 ready_reg_dly1 := ready_reg;

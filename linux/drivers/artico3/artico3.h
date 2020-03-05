@@ -72,7 +72,21 @@ struct dmaproxy_token {
 
 #define POLLDMA 0x0001
 #define POLLIRQ(id) (1 << id)
-#define MAX_ID (15)
+
+/*
+ * Hardware definitions for ARTICo³
+ *
+ * max_id      - maximum number of kernel IDs
+ * id_reg_low  - ID register (low) offset
+ * id_reg_high - ID register (high) offset
+ * ready_reg   - ready register offset
+ *
+ */
+
+#define ARTICo3_MAX_ID      (15)
+#define ARTICo3_ID_REG_LOW  (0x00000000)
+#define ARTICo3_ID_REG_HIGH (0x00000004)
+#define ARTICo3_READY_REG   (0x0000002c)
 
 
 #endif /* _ARTICo3_H_ */
