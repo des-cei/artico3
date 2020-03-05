@@ -52,12 +52,12 @@ end a3_wrapper;
 
 architecture behavioral of a3_wrapper is
 
+<a3<if NAME!="dummy">a3>
+<a3<=if HWSRC=="verilog"=>a3>
     ----------------
     -- User Logic --
     ----------------
 
-<a3<if NAME!="dummy">a3>
-<a3<=if HWSRC=="verilog"=>a3>
     -- Verilog-based hardware kernel
     component <a3<NAME>a3>
     port (
@@ -85,6 +85,10 @@ architecture behavioral of a3_wrapper is
     end component;
 <a3<=end if=>a3>
 <a3<=if HWSRC=="hls"=>a3>
+    ----------------
+    -- User Logic --
+    ----------------
+
     -- HLS control signals
     signal ap_start      : std_logic;
     signal ap_done       : std_logic;
@@ -110,6 +114,7 @@ architecture behavioral of a3_wrapper is
     signal mem_din  : mem_data_t;                             -- Input data signal from user logic to PORTB of memory banks
     signal mem_dout : mem_data_t;                             -- Output data signal from PORTB of memory banks to user logic
 
+<a3<if NUMREGS!=0>a3>
     --------------------------------
     -- Configurable register bank --
     --------------------------------
@@ -120,6 +125,7 @@ architecture behavioral of a3_wrapper is
     signal reg_din  : reg_data_t;                             -- Input data signal from user logic to registers
     signal reg_dout : reg_data_t;                             -- Output data signal from registers to user logic
 
+<a3<end if>a3>
     ---------------------
     -- Output data MUX --
     ---------------------
@@ -165,11 +171,13 @@ architecture behavioral of a3_wrapper is
     attribute mark_debug of mem_din       : signal is "TRUE";
     attribute mark_debug of mem_dout      : signal is "TRUE";
 
+<a3<if NUMREGS!=0>a3>
     attribute mark_debug of reg_out       : signal is "TRUE";
     attribute mark_debug of reg_we        : signal is "TRUE";
     attribute mark_debug of reg_din       : signal is "TRUE";
     attribute mark_debug of reg_dout      : signal is "TRUE";
 
+<a3<end if>a3>
     attribute mark_debug of mem_path      : signal is "TRUE";
     attribute mark_debug of reg_path      : signal is "TRUE";
 
