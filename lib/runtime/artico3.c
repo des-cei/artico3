@@ -323,7 +323,7 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
         kernel->inouts[i] = NULL;
     }
 
-    a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%d,membanks=%d,regs=%d)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regs);
+    a3_print_debug("[artico3-hw] created kernel (name=%s,id=%x,membytes=%zd,membanks=%zd,regs=%zd)\n", kernel->name, kernel->id, kernel->membytes, kernel->membanks, kernel->regs);
 
     // Store kernel configuration in kernel list
     kernels[index] = kernel;
@@ -572,7 +572,7 @@ int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                     //~ mem[idx_mem + i] = data[idx_dat + i];
                 //~ }
 
-                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | i_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | i_port %2d | mem %10d | dat %10d | size %10zd\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
@@ -701,7 +701,7 @@ int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds
                     //~ data[idx_dat + i] = mem[idx_mem + i];
                 //~ }
 
-                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | o_port %2d | mem %10d | dat %10d | size %10d\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
+                a3_print_debug("[artico3-hw] id %x | round %4d | acc %2d | o_port %2d | mem %10d | dat %10d | size %10zd\n", id, round + acc, acc, port, idx_mem, idx_dat, size * sizeof (a3data_t));
             }
         }
     }
@@ -790,7 +790,7 @@ void *_artico3_kernel_execute(void *data) {
     }
 
     // Print elapsed times per stage (send - process - receive)
-    a3_print_debug("[artico3-hw] delegate scheduler thread ID : %x | tsend(ms) : %8.3f | texec(ms) : %8.3f | trecv(ms) : %8.3f\n", id, tsend, texec, trecv);
+    a3_print_info("[artico3-hw] delegate scheduler thread ID : %x | tsend(ms) : %8.3f | texec(ms) : %8.3f | trecv(ms) : %8.3f\n", id, tsend, texec, trecv);
 
     return NULL;
 }
@@ -835,12 +835,12 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
 
     // Given current configuration, compute number of rounds
     if (gsize % lsize) {
-        a3_print_error("[artico3-hw] gsize (%d) not integer multiple of lsize (%d)\n", gsize, lsize);
+        a3_print_error("[artico3-hw] gsize (%zd) not integer multiple of lsize (%zd)\n", gsize, lsize);
         return -EINVAL;
     }
     nrounds = gsize / lsize;
 
-    a3_print_debug("[artico3-hw] executing kernel \"%s\" (gsize=%d,lsize=%d,rounds=%d)\n", name, gsize, lsize, nrounds);
+    a3_print_debug("[artico3-hw] executing kernel \"%s\" (gsize=%zd,lsize=%zd,rounds=%d)\n", name, gsize, lsize, nrounds);
 
     // Launch delegate thread to manage work scheduling/dispatching
     unsigned int *tdata = malloc(2 * sizeof *tdata);
@@ -1467,7 +1467,7 @@ int artico3_free(const char *kname, const char *pname) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
     unsigned int index;
     char filename[128];
     int ret;
@@ -1581,7 +1581,7 @@ err_fpga:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_unload(size_t slot) {
+int artico3_unload(uint8_t slot) {
 
     // Check if slot is within range
     if (slot >= shuffler.nslots) {

@@ -92,7 +92,7 @@ void artico3_exit();
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
+int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
 
 
 /*
@@ -105,7 +105,7 @@ int artico3_load(const char *name, size_t slot, uint8_t tmr, uint8_t dmr, uint8_
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_unload(size_t slot);
+int artico3_unload(uint8_t slot);
 
 
 /*
