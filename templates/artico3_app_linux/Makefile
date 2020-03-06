@@ -2,7 +2,7 @@
 # ARTICo3 Linux Application
 #
 # Author   : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
-# Date     : May 2018
+# Date     : March 2020
 #
 
 <a3<artico3_preproc>a3>
@@ -11,58 +11,49 @@ CC = $(CROSS_COMPILE)gcc
 MAKE = make
 
 <a3<if DEVICE=="zynq">a3>
-CFLAGS = -Wall -Wextra -I <a3<REPO_REL>a3>/lib/runtime/aarch32/include <a3<CFLAGS>a3>
-LDFLAGS = -L <a3<REPO_REL>a3>/lib/runtime/aarch32 -Wl,-R,. <a3<LDFLAGS>a3>
+CFLAGS_ARTICo3 = $(CFLAGS_IN)-Wall -Wextra -fpic -I <a3<REPO_REL>a3>/linux
 <a3<end if>a3>
 <a3<if DEVICE=="zynqmp">a3>
-CFLAGS = -Wall -Wextra -I <a3<REPO_REL>a3>/lib/runtime/aarch64/include <a3<CFLAGS>a3>
-LDFLAGS = -L <a3<REPO_REL>a3>/lib/runtime/aarch64 -Wl,-R,. <a3<LDLIBS>a3>
+CFLAGS_ARTICo3 = $(CFLAGS_IN)-DZYNQMP -Wall -Wextra -fpic -I <a3<REPO_REL>a3>/linux
 <a3<end if>a3>
-LDLIBS = -lartico3 <a3<LDLIBS>a3>
-LDLIBS_DBG = -lartico3dbg <a3<LDLIBS>a3>
+LDFLAGS_ARTICo3 = -Wl,-R,. -shared
+LDLIBS_ARTICo3 = -lm -lpthread
+
+CFLAGS_APP = $(CFLAGS_IN)-Wall -Wextra -I runtime <a3<CFLAGS>a3>
+LDFLAGS_APP = $(LDFLAGS_IN)-L . -Wl,-R,. <a3<LDFLAGS>a3>
+LDLIBS_APP = -lartico3 -lm -lpthread <a3<LDLIBS>a3>
+
+OBJS1 = runtime/artico3_rcfg.o runtime/artico3_hw.o runtime/artico3.o
+ARTICo3_OBJS = $(OBJS1:%=_build/%)
+
+OBJS2 = <a3<generate for OBJS>a3><a3<Source>a3> <a3<end generate>a3>
+
+APP_OBJS = $(OBJS2:%=_build/%)
 
 MKDIRP = mkdir -p
+CPF = cp -f
 
-OBJS = <a3<generate for OBJS>a3><a3<Source>a3> <a3<end generate>a3>
+.PHONY: app
+app: runtime $(APP_OBJS)
+	$(CC) $(LDFLAGS_APP) $(APP_OBJS) $(LDLIBS_APP) -o <a3<NAME>a3>
 
-BUILD_OBJS = $(OBJS:%=_build/%)
-
-.PHONY: static
-static: <a3<DEVICE>a3> $(BUILD_OBJS)
-	$(CC) $(LDFLAGS) -static $(BUILD_OBJS) $(LDLIBS) -lm -lpthread -o <a3<NAME>a3>
-
-.PHONY: shared
-shared: <a3<DEVICE>a3> $(BUILD_OBJS)
-	$(CC) $(LDFLAGS) $(BUILD_OBJS) $(LDLIBS) -o <a3<NAME>a3>
-
-.PHONY: static_dbg
-static_dbg: <a3<DEVICE>a3>_dbg $(BUILD_OBJS)
-	$(CC) $(LDFLAGS) -static $(BUILD_OBJS) $(LDLIBS_DBG) -lm -lpthread -o <a3<NAME>a3>
-
-.PHONY: shared_dbg
-shared_dbg: <a3<DEVICE>a3>_dbg $(BUILD_OBJS)
-	$(CC) $(LDFLAGS) $(BUILD_OBJS) $(LDLIBS_DBG) -o <a3<NAME>a3>
-
-.PHONY: <a3<DEVICE>a3>
-<a3<DEVICE>a3>:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) clean && $(MAKE) <a3<DEVICE>a3>
-
-.PHONY: <a3<DEVICE>a3>_dbg
-<a3<DEVICE>a3>_dbg:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) clean && $(MAKE) <a3<DEVICE>a3>_dbg
+.PHONY: runtime
+runtime: $(ARTICo3_OBJS)
+	$(CC) $(LDFLAGS_ARTICo3) $^ $(LDLIBS_ARTICo3) -o libartico3.so
+	$(AR) rcs libartico3.a $^
 
 .PHONY: clean
 clean:
-	rm -rf _build <a3<NAME>a3>
+	rm -rf _build libartico3.so libartico3.a <a3<NAME>a3>
 
-.PHONY: distclean
-distclean: clean
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) clean
-
-_build/%.o: %.c
+_build/runtime/%.o: runtime/%.c
 	$(MKDIRP) $(@D)
-	$(CC) $(CFLAGS) -x c -c $< -o $@
+	$(CC) $(CFLAGS_ARTICo3) -c $< -o $@
 
-_build/%.o: %.cpp
+_build/application/%.o: application/%.c
 	$(MKDIRP) $(@D)
-	$(CC) $(CFLAGS) -x c -c $< -o $@
+	$(CC) $(CFLAGS_APP) -x c -c $< -o $@
+
+_build/application/%.o: application/%.cpp
+	$(MKDIRP) $(@D)
+	$(CC) $(CFLAGS_APP) -x c -c $< -o $@

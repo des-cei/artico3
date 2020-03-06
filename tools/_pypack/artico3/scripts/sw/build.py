@@ -35,7 +35,7 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
-    parser.add_argument("-d", "--debug", help="compile runtime with debug capability", default=False, action="store_true")
+    parser.add_argument("-d", "--debug", help="compile runtime with debug capabilities", default="no", choices=["no", "time", "yes"])
     parser.add_argument("--dynamic", help="enable dynamic linking, default is static", default=False, action="store_true")
     parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     parser.add_argument("--busy-wait", help="use busy-wait instead of interrupt-based management in runtime library", default=False, action="store_true", dest="busy")
@@ -63,24 +63,27 @@ def build(args, cross, dynamic, debug, busy):
     else:
         cc = cross
 
-    if dynamic:
-        target = "shared"
-    else:
-        target = "static"
+    cflags = ""
+    ldflags = ""
 
-    if debug:
-        target = target + "_dbg"
+    if debug == "no":
+        cflags += "-O3 "            # Compile with full optimization
+    elif debug == "time":
+        cflags += "-O3 -DA3_INFO "  # Compile with full optimization and performance measurements
+    elif debug == "yes":
+        cflags += "-g -DA3_DEBUG "  # Compile with debug support and enable ARTICo³ log messages
 
     if busy:
-        cflags = "-DA3_BUSY_WAIT"
-    else:
-        cflags = ""
+        cflags += "-DA3_BUSY_WAIT " # Compile with support for busy-wait management of ready register in ARTICo³
+
+    if not dynamic:
+        ldflags += "-static "       # Generate statically linked executable file
 
     subprocess.run("""
-        bash -c "export CROSS_COMPILE={0} &&
-        export CFLAGS_A3={1} &&
-        make {2}"
-        """.format(cc, cflags, target), shell=True, check=True)
+        bash -c "export CROSS_COMPILE={0} CFLAGS_IN='{1}' LDFLAGS_IN='{2}' &&
+        make clean &&
+        make app"
+        """.format(cc, cflags, ldflags), shell=True, check=True)
 
     print()
     shutil2.chdir(prj.dir)

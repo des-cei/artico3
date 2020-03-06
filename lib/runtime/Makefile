@@ -2,7 +2,7 @@
 # ARTICo3 Runtime Library
 #
 # Author   : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
-# Date     : May 2018
+# Date     : March 2020
 #
 # Notes:
 #     - This Makefile requires the following environment variables to
@@ -16,17 +16,14 @@
 CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 
-CFLAGS = $(CFLAGS_A3) -Wall -Wextra -O3 -fpic -I../../linux
+CFLAGS = -Wall -Wextra -O3 -fpic -I ../../linux
 LDFLAGS = -Wl,-R,. -shared
 LDLIBS = -lm -lpthread
 
 OBJS = artico3_rcfg.o artico3_hw.o artico3.o
 
-ZYNQ_OBJS = $(OBJS:%=aarch32/_build/Release/%)
-ZYNQMP_OBJS = $(OBJS:%=aarch64/_build/Release/%)
-
-ZYNQ_OBJS_DBG = $(OBJS:%=aarch32/_build/Debug/%)
-ZYNQMP_OBJS_DBG = $(OBJS:%=aarch64/_build/Debug/%)
+ZYNQ_OBJS = $(OBJS:%=aarch32/_build/%)
+ZYNQMP_OBJS = $(OBJS:%=aarch64/_build/%)
 
 MKDIRP = mkdir -p
 CPF = cp -f
@@ -45,36 +42,14 @@ zynqmp: $(ZYNQMP_OBJS)
 	$(MKDIRP) aarch64/include
 	$(CPF) artico3.h aarch64/include
 
-.PHONY: zynq_dbg
-zynq_dbg: $(ZYNQ_OBJS_DBG)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o aarch32/libartico3dbg.so
-	$(AR) rcs aarch32/libartico3dbg.a $^
-	$(MKDIRP) aarch32/include
-	$(CPF) artico3.h aarch32/include
-
-.PHONY: zynqmp_dbg
-zynqmp_dbg: $(ZYNQMP_OBJS_DBG)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o aarch64/libartico3dbg.so
-	$(AR) rcs aarch64/libartico3dbg.a $^
-	$(MKDIRP) aarch64/include
-	$(CPF) artico3.h aarch64/include
-
 .PHONY: clean
 clean:
 	rm -rf aarch32 aarch64
 
-aarch32/_build/Release/%.o: %.c
+aarch32/_build/%.o: %.c
 	$(MKDIRP) $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-aarch64/_build/Release/%.o: %.c
+aarch64/_build/%.o: %.c
 	$(MKDIRP) $(@D)
 	$(CC) -DZYNQMP $(CFLAGS) -c $< -o $@
-
-aarch32/_build/Debug/%.o: %.c
-	$(MKDIRP) $(@D)
-	$(CC) -DA3_DEBUG $(CFLAGS) -c $< -o $@
-
-aarch64/_build/Debug/%.o: %.c
-	$(MKDIRP) $(@D)
-	$(CC) -DA3_DEBUG -DZYNQMP $(CFLAGS) -c $< -o $@

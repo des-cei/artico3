@@ -66,6 +66,6 @@ def export_sw(args, swdir, link):
     dictionary = {}
     dictionary["REPO_REL"] = shutil2.relpath(prj.impl.repo, swdir)
     dictionary["OBJS"] = [{"Source": shutil2.trimext(_) + ".o"}
-                           for _ in shutil2.listfiles(swdir, True, "c[p]*$")]
+                           for _ in shutil2.listfiles(swdir, True, "c[p]*$") if "artico3" not in _]
 
     template.preproc(shutil2.join(swdir, "Makefile"), dictionary, "overwrite", force=True)
