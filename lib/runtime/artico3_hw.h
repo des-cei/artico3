@@ -169,6 +169,20 @@ int artico3_hw_get_naccs(uint8_t id);
 /*
  * ARTICo3 low-level hardware function
  *
+ * Gets, for the current accelerator setup, the expected mask to be used
+ * when checking the ready register in the Data Shuffler.
+ *
+ * @id : current kernel ID
+ *
+ * Return : ready mask on success, 0 otherwise
+ *
+ */
+uint32_t artico3_hw_get_readymask(uint8_t id);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
  * Prints the current ARTICo3 configuration by directly accessing the
  * configuration registers in the Data Shuffler.
  *
@@ -186,6 +200,20 @@ void artico3_hw_print_regs();
  *
  */
 void artico3_hw_setup_transfer(uint32_t blksize);
+
+
+/*
+ * ARTICo3 low-level hardware function
+ *
+ * Checks if a processing round is finished. The configuration of the
+ * specific round is passed using the expected ready mask.
+ *
+ * @readymask : expected ready register contents (mask)
+ *
+ * Return : 0 when still working, 1 when finished
+ *
+ */
+int artico3_hw_transfer_isdone(uint32_t readymask);
 
 
 /*

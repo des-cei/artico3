@@ -45,11 +45,11 @@ shared_dbg: <a3<DEVICE>a3>_dbg $(BUILD_OBJS)
 
 .PHONY: <a3<DEVICE>a3>
 <a3<DEVICE>a3>:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) <a3<DEVICE>a3>
+	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) clean && $(MAKE) <a3<DEVICE>a3>
 
 .PHONY: <a3<DEVICE>a3>_dbg
 <a3<DEVICE>a3>_dbg:
-	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) <a3<DEVICE>a3>_dbg
+	cd <a3<REPO_REL>a3>/lib/runtime && $(MAKE) clean && $(MAKE) <a3<DEVICE>a3>_dbg
 
 .PHONY: clean
 clean:

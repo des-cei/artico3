@@ -35,15 +35,16 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
-    parser.add_argument("-D", "--dynamic", help="enable dynamic linking, default is static", default=False, action="store_true")
     parser.add_argument("-d", "--debug", help="compile runtime with debug capability", default=False, action="store_true")
+    parser.add_argument("--dynamic", help="enable dynamic linking, default is static", default=False, action="store_true")
     parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
+    parser.add_argument("--busy-wait", help="use busy-wait instead of interrupt-based management in runtime library", default=False, action="store_true", dest="busy")
     return parser
 
 def build_cmd(args):
-    build(args, args.cross, args.dynamic, args.debug)
+    build(args, args.cross, args.dynamic, args.debug, args.busy)
 
-def build(args, cross, dynamic, debug):
+def build(args, cross, dynamic, debug, busy):
     prj = args.prj
     swdir = prj.basedir + ".sw"
 
@@ -70,10 +71,16 @@ def build(args, cross, dynamic, debug):
     if debug:
         target = target + "_dbg"
 
+    if busy:
+        cflags = "-DA3_BUSY_WAIT"
+    else:
+        cflags = ""
+
     subprocess.run("""
         bash -c "export CROSS_COMPILE={0} &&
-        make {1}"
-        """.format(cc, target), shell=True, check=True)
+        export CFLAGS_A3={1} &&
+        make {2}"
+        """.format(cc, cflags, target), shell=True, check=True)
 
     print()
     shutil2.chdir(prj.dir)

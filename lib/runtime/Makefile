@@ -16,7 +16,7 @@
 CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 
-CFLAGS = -Wall -Wextra -O3 -fpic -I../../linux
+CFLAGS = $(CFLAGS_A3) -Wall -Wextra -O3 -fpic -I../../linux
 LDFLAGS = -Wl,-R,. -shared
 LDLIBS = -lm -lpthread
 
