@@ -17,14 +17,20 @@
 
 // If not defined by command line, disable debug
 #ifndef A3_DEBUG
-#define A3_DEBUG 0
+    #define A3_DEBUG 0
 #endif
 
 // Debug messages
 #if A3_DEBUG
-#define a3_print_debug(msg, args...) printf(msg, ##args)
+    #define a3_print_debug(msg, args...) printf(msg, ##args)
+    #define a3_print_info(msg, args...) printf(msg, ##args)
 #else
-#define a3_print_debug(msg, args...)
+    #define a3_print_debug(msg, args...)
+    #if A3_INFO
+        #define a3_print_info(msg, args...) printf(msg, ##args)
+    #else
+        #define a3_print_info(msg, args...)
+    #endif
 #endif
 
 // Error messages
