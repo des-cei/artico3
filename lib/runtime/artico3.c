@@ -725,7 +725,9 @@ void *_artico3_kernel_execute(void *data) {
     int naccs;
 
     uint8_t id;
+#ifdef A3_BUSY_WAIT
     uint32_t readymask;
+#endif
 
     struct timeval t0, tf;
     float tsend = 0, texec = 0, trecv = 0;
@@ -749,7 +751,9 @@ void *_artico3_kernel_execute(void *data) {
         // For each iteration, compute number of (equivalent) accelerators
         // and the corresponding expected mask to check the ready register.
         naccs = artico3_hw_get_naccs(id);
+#ifdef A3_BUSY_WAIT
         readymask = artico3_hw_get_readymask(id);
+#endif
 
         // Send data
         gettimeofday(&t0, NULL);
