@@ -83,6 +83,7 @@ architecture behavioral of a3_wrapper is
         values      : in  std_logic_vector(31 downto 0)
     );
     end component;
+
 <a3<=end if=>a3>
 <a3<=if HWSRC=="hls"=>a3>
     ----------------
