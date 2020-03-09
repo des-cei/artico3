@@ -35,7 +35,7 @@ def get_parser(prj):
     parser = argparse.ArgumentParser("build_sw", description="""
         Builds the software project and generates an executable.
         """)
-    parser.add_argument("-d", "--debug", help="compile runtime with debug capabilities", default="no", choices=["no", "time", "yes"])
+    parser.add_argument("-d", "--debug", help="compile runtime with debug capabilities", default="no", choices=["no", "time", "gdb", "yes"])
     parser.add_argument("--dynamic", help="enable dynamic linking, default is static", default=False, action="store_true")
     parser.add_argument("-c", "--cross", help="use external cross compiler instead of Xilinx's", default="")
     parser.add_argument("--busy-wait", help="use busy-wait instead of interrupt-based management in runtime library", default=False, action="store_true", dest="busy")
@@ -70,6 +70,8 @@ def build(args, cross, dynamic, debug, busy):
         cflags += "-O3 "            # Compile with full optimization
     elif debug == "time":
         cflags += "-O3 -DA3_INFO "  # Compile with full optimization and performance measurements
+    elif debug == "gdb":
+        cflags += "-g "             # Compile with debug support
     elif debug == "yes":
         cflags += "-g -DA3_DEBUG "  # Compile with debug support and enable ARTICo³ log messages
 
