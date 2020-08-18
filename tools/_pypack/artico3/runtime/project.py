@@ -125,7 +125,7 @@ class Project:
         elif shutil2.environ("ARTICo3"):
             self.impl.repo = shutil2.environ("ARTICo3")
         else:
-            log.error("ARTICo\u00b33 repository not found")
+            log.error("ARTICo\u00b3 repository not found")
 
     def __repr__(self):
         return "<ARTICo\u00b3 Project> name={}".format(self.name)
