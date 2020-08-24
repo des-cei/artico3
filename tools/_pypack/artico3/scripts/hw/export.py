@@ -241,7 +241,7 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
             vivado_hls -f csynth.tcl"
             """.format(tmp.name, prj.impl.xil[1]), shell=True, check=True)
 
-        src = shutil2.join(tmp.name, "hls", "sol", "syn", "vhdl")
+        src = shutil2.join(tmp.name, "a3_kernel", "sol", "syn", "vhdl")
         dictionary["SOURCES"] = [src]
         incl = shutil2.listfiles(src, True)
         dictionary["INCLUDES"] = [{"File": shutil2.trimext(_)} for _ in incl]
@@ -249,9 +249,10 @@ def _export_hw_kernel(prj, hwdir, link, kernel):
         log.info("Generating export files ...")
         prj.apply_template("artico3_kernel_hdl_pcore", dictionary, hwdir)
 
-        shutil2.rmtree("/tmp/artico3_hls")
-        shutil2.mkdir("/tmp/artico3_hls")
-        shutil2.copytree(tmp.name, "/tmp/artico3_hls")
+        path = shutil2.join(hwdir, "a3_" + kernel.name.lower() + "_v1_00_a", "hls")
+        shutil2.rmtree(path)
+        shutil2.mkdir(path)
+        shutil2.copytree(tmp.name, path)
 
 def _export_hw(prj, hwdir, link):
     '''

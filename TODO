@@ -122,9 +122,7 @@
    a similar functionality (this is required to test memcpy and DMA transfer
    overheads).
 
-8. Generate accessible Vivado HLS projects for debug/test purposes.
-
-9. Check possible bugs:
+8. Check possible bugs:
    - Verify that a kernel exists before reserving ID in artico3_kernel_create
    - Verify that there are no access errors (shared resources) in the kernels
      variable (artico3.c)

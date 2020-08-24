@@ -7,7 +7,7 @@
 
 <a3<artico3_preproc>a3>
 
-open_project hls
+open_project a3_kernel
 set_top <a3<NAME>a3>
 #~ add_files artico3.h
 add_files [ glob *.cpp *.c *.h]
