@@ -4,7 +4,7 @@
 -- Author: Alfonso Rodriguez <alfonso.rodriguezm@upm.es> --
 --                                                       --
 -- Notes:                                                --
---     - READ-FIRST RAM implementation                   --
+--     - true dual-port read-first RAM implementation    --
 --     - Optional output register                        --
 -----------------------------------------------------------
 
@@ -21,7 +21,7 @@ entity bram_dualport is
         -- Memory depth (# positions)
         C_MEM_DEPTH  : integer := 4096;
         -- Memory configuration mode
-        C_MEM_MODE   : string := "LOW_LATENCY" -- Memory performance configuration mode (HIGH_PERFORMANCE, LOW_LATENCY)
+        C_MEM_MODE   : string := "LOW_LATENCY" -- Memory performance configuration mode ("HIGH_PERFORMANCE", "LOW_LATENCY")
     );
     port (
         -- Port A --
@@ -60,25 +60,24 @@ architecture behavioral of bram_dualport is
 
     -- NOTE: Xilinx has a strange way of defining dual-port (R/W) RAM memories.
     --       In former ISE tools, the RAM itself had to be defined as a shared
-    --       variable (a non-synthesizable construct). In Vivado, the template
-    --       to create RAM memories relies on signals that are assigned in two
-    --       different processes (that could even be in different clock domains).
-    --       Since this approaches are "bad" VHDL coding, this module can be
+    --       variable (a non-synthesizable construct). In early Vivado releases
+    --       (2015.3), the template to create RAM memories relied on signals
+    --       that were assigned in two different processes (that could even be
+    --       in different clock domains). Currently, Vivado has turned back to
+    --       using shared variables to define true dual-port RAM memories.
+    --
+    --       Since these approaches are "bad" VHDL coding, this module can be
     --       considered technology-dependent.
-
-    -- NOTE: In line with the previous comment, this technology-dependent code
-    --       seems to generate synthesis errors in certain Vivado versions,
-    --       namely the 2016.x ones.
 
     -- RAM definitions
     type mem_t is array (0 to C_MEM_DEPTH-1) of std_logic_vector(C_DATA_WIDTH-1 downto 0);
-    signal mem    : mem_t := (others => (others => '0'));      -- RAM memory implementation
-    signal data_a : std_logic_vector(C_DATA_WIDTH-1 downto 0); -- Port A memory data out
-    signal data_b : std_logic_vector(C_DATA_WIDTH-1 downto 0); -- Port B memory data out
+    shared variable mem : mem_t := (others => (others => '0'));      -- RAM memory implementation
+    signal data_a       : std_logic_vector(C_DATA_WIDTH-1 downto 0); -- Port A memory data out
+    signal data_b       : std_logic_vector(C_DATA_WIDTH-1 downto 0); -- Port B memory data out
 
     -- Force BRAM inference
     attribute ram_style : string;
-    attribute ram_style of mem : signal is "block";
+    attribute ram_style of mem : variable is "block";
 
 begin
 
@@ -97,12 +96,12 @@ begin
             if en_a = '1' then
                 -- Address capture
                 addr := to_integer(unsigned(addr_a));
-                -- Write enable
-                if we_a = '1' then
-                    mem(addr) <= din_a;
-                end if;
                 -- Read memory
                 data_a <= mem(addr);
+                -- Write enable
+                if we_a = '1' then
+                    mem(addr) := din_a;
+                end if;
             end if;
         end if;
     end process;
@@ -122,12 +121,12 @@ begin
             if en_b = '1' then
                 -- Address capture
                 addr := to_integer(unsigned(addr_b));
-                -- Write enable
-                if we_b = '1' then
-                    mem(addr) <= din_b;
-                end if;
                 -- Read memory
                 data_b <= mem(addr);
+                -- Write enable
+                if we_b = '1' then
+                    mem(addr) := din_b;
+                end if;
             end if;
         end if;
     end process;
