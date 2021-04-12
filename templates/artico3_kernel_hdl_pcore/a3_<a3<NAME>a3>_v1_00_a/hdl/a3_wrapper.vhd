@@ -449,7 +449,8 @@ begin
     end generate;
 
     -- Set register output value (notice that the address has to be delayed 1 clock cycle to take into account registered read accesses to registers)
-    reg_path <= reg_out(to_integer(unsigned(addr_sync)));
+    reg_path <= reg_out(to_integer(unsigned(addr_sync))) when unsigned(addr_sync) < C_NUM_REG else
+                (others => '0');
 <a3<end if>a3>
 
     ---------------------
