@@ -332,8 +332,7 @@ begin
         rst_a      <= not s_artico3_aresetn;
         en_a       <= (s_artico3_en and s_artico3_mode) when (unsigned(s_artico3_addr) >= MEM_POS*i) and (unsigned(s_artico3_addr) < MEM_POS*(i+1)) else '0';
         we_a       <= s_artico3_we and s_artico3_mode;
-        addr_a     <= std_logic_vector(unsigned(s_artico3_addr) - MEM_POS*i) when s_artico3_en = '1' else
-                      (others => '0');
+        addr_a     <= std_logic_vector(unsigned(s_artico3_addr) - MEM_POS*i);
         din_a      <= s_artico3_wdata;
         mem_out(i) <= dout_a;
 
