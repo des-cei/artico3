@@ -339,7 +339,7 @@ begin
         -- Memory I/O connections (port B)
         clk_b       <= s_artico3_aclk;
         rst_b       <= mem_rst(i);
-        en_b        <= mem_en(i);
+        en_b        <= mem_en(i) when unsigned(mem_addr(i)) < MEM_POS else '0';
         we_b        <= mem_we(i);
         addr_b      <= mem_addr(i);
         din_b       <= mem_din(i);
