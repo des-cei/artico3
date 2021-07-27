@@ -235,6 +235,10 @@ proc import_pcore { repo_path ip_name {libs ""} } {
     import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.xci]
     import_files -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.dat]
 
+    # Import testbench files (VHDL, Verilog)
+    import_files -fileset sim_1 -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *_tb.vhd]
+    import_files -fileset sim_1 -quiet [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *_tb.v]
+
     # Create additional subcores (required in HLS-based designs with floating point operations)
     foreach {subcore_script} [glob -nocomplain -directory $artico3_pcore_dir/$artico3_pcore/hdl *.tcl] {
         source $subcore_script
