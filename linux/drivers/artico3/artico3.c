@@ -853,13 +853,14 @@ static int artico3_probe(struct platform_device *pdev) {
     }
     dev_info(&pdev->dev, "[+] ioremap()");
 
-    // Register IRQ
+    // Register IRQ (TODO: check why platform_get_resource_byname() returns NULL in kernel tag xilinx-v2023.1)
     dev_info(&pdev->dev, "[ ] request_irq()");
-    rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_IRQ, "irq");
-    dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
-    dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
-    dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
-    artico3_dev->irq = rsrc->start;
+    //~ rsrc = platform_get_resource_byname(artico3_dev->pdev, IORESOURCE_IRQ, "irq");
+    //~ dev_info(&pdev->dev, "[i] resource name  = %s", rsrc->name);
+    //~ dev_info(&pdev->dev, "[i] resource start = %lx", rsrc->start);
+    //~ dev_info(&pdev->dev, "[i] resource end   = %lx", rsrc->end);
+    //~ artico3_dev->irq = rsrc->start;
+    artico3_dev->irq = platform_get_irq_byname(artico3_dev->pdev, "irq");  // Workaround to platform_get_resource_byname()
     res = request_irq(artico3_dev->irq, (irq_handler_t)artico3_isr, IRQF_TRIGGER_RISING, "artico3", artico3_dev);
     if (res) {
         dev_err(&pdev->dev, "[X] request_irq()");
