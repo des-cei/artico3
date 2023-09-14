@@ -515,16 +515,16 @@ static int artico3_mmap_dma(struct file *fp, struct vm_area_struct *vma) {
     dev_info(artico3_dev->dev, "[i] vma size      = %ld bytes", vma->vm_end - vma->vm_start);
 
     // Allocate memory in kernel space
-    dev_info(dma_dev->dev, "[ ] dma_zalloc_coherent()");
-    addr_vir = dma_zalloc_coherent(dma_dev->dev, vma->vm_end - vma->vm_start, &addr_phy, GFP_KERNEL);
+    dev_info(dma_dev->dev, "[ ] dma_alloc_coherent()");
+    addr_vir = dma_alloc_coherent(dma_dev->dev, vma->vm_end - vma->vm_start, &addr_phy, GFP_KERNEL);
     if (IS_ERR(addr_vir)) {
-        dev_err(dma_dev->dev, "[X] dma_zalloc_coherent()");
+        dev_err(dma_dev->dev, "[X] dma_alloc_coherent()");
         return PTR_ERR(addr_vir);
     }
-    dev_info(dma_dev->dev, "[+] dma_zalloc_coherent()");
-    dev_info(dma_dev->dev, "[i] dma_zalloc_coherent() -> %p (virtual)", addr_vir);
-    dev_info(dma_dev->dev, "[i] dma_zalloc_coherent() -> %p (physical)", (void *)addr_phy);
-    dev_info(dma_dev->dev, "[i] dma_zalloc_coherent() -> %ld bytes", vma->vm_end - vma->vm_start);
+    dev_info(dma_dev->dev, "[+] dma_alloc_coherent()");
+    dev_info(dma_dev->dev, "[i] dma_alloc_coherent() -> %p (virtual)", addr_vir);
+    dev_info(dma_dev->dev, "[i] dma_alloc_coherent() -> %p (physical)", (void *)addr_phy);
+    dev_info(dma_dev->dev, "[i] dma_alloc_coherent() -> %ld bytes", vma->vm_end - vma->vm_start);
 
     // Map kernel-space memory to DMA space
     dev_info(dma_dev->dev, "[ ] dma_mmap_coherent()");
