@@ -66,12 +66,15 @@ struct dmaproxy_token {
  *
  * polldma - wait for DMA transfer to finish
  * pollirq - wait for ARTICo³ accelerators to finish
- *           1 << kernel_id (i.e., 1 << 1 ... 1 << 15)
+ *           1 << kernel_id [kernel_id < 3]
+ *           1 << (kernel_id + 3) [kernel_id >= 3]*
+ *           * cannot override POLLERR, POLLHUP, POLLNVAL in Linux poll() function
+ *             as these error codes may lead to a premature return of the function (see poll.h)
  *
  */
 
 #define POLLDMA 0x0001
-#define POLLIRQ(id) (1 << id)
+#define POLLIRQ(id) ((id) < 3 ? (1 << (id)) : (1 << (id) + 3))
 
 /*
  * Hardware definitions for ARTICo³
