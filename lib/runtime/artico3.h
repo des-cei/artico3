@@ -73,6 +73,34 @@ void artico3_exit();
 
 
 /*
+ * ARTICo3 handle command
+ *
+ * This function handles all incoming command request from the user application.
+ *
+ * @client_socket_fd : user socket file descriptor
+ * @command_args     : pointer to shared memory object containing the command arguments
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE: the received commands are set to 1-byte size, limiting the available commands to 256.
+ *
+ */
+int artico3_handle_command(int user_socket_fd, char *command_args);
+
+
+/*
+ * ARTICo3 accept socket
+ *
+ * This function accepts a command request socket from the user.
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * TODO: implement with threads to enable multi-tenant
+ *
+ */
+int artico3_accept_socket();
+
+/*
  * SYSTEM MANAGEMENT
  *
  */

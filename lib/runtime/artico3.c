@@ -23,11 +23,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <dirent.h>    // DIR, struct dirent, opendir(), readdir(), closedir()
-#include <sys/mman.h>  // mmap()
-#include <sys/ioctl.h> // ioctl()
-#include <sys/poll.h>  // poll()
-#include <sys/time.h>  // struct timeval, gettimeofday()
+#include <dirent.h>     // DIR, struct dirent, opendir(), readdir(), closedir()
+#include <sys/mman.h>   // mmap()
+#include <sys/ioctl.h>  // ioctl()
+#include <sys/poll.h>   // poll()
+#include <sys/socket.h> // socket()
+#include <sys/un.h>     // struct sockaddr_un
+#include <sys/time.h>   // struct timeval, gettimeofday()
 
 #include "drivers/artico3/artico3.h"
 #include "artico3.h"
@@ -46,6 +48,8 @@ const char * __shm_directory(size_t * len) {
     return SHMDIR;
 }
 
+// Path to the command request handling socket
+#define SOCKET_PATH "/tmp/a3d_socket"
 
 /*
  * ARTICo3 global variables
@@ -59,6 +63,8 @@ const char * __shm_directory(size_t * len) {
  * @threads    : array of delegate scheduling threads
  * @mutex      : synchronization primitive for accessing @running
  * @running    : number of hardware kernels currently running (write/run/read)
+ *
+ * @socket_fd  : socket file descriptor (used for attending user application requests)
  *
  */
 static int artico3_fd;
@@ -79,6 +85,8 @@ static pthread_t *threads = NULL;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static int running = 0;
 
+static int socket_fd;
+
 
 /*
  * ARTICo3 init function
@@ -95,6 +103,7 @@ int artico3_init() {
     const char *filename = "/dev/artico3";
     unsigned int i;
     int ret;
+    struct sockaddr_un socket_addr;
 
     /*
      * NOTE: this function relies on predefined addresses for both control
@@ -183,7 +192,38 @@ int artico3_init() {
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
 
+    // Initialize the command request handling socket (as a UNIX socket)
+    socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(socket_fd < 0) {
+        a3_print_error("[artico3-hw] socket() failed\n");
+        ret = -ENODEV;
+        goto err_socket;
+    }
+    socket_addr.sun_family = AF_UNIX;
+    strcpy(socket_addr.sun_path, SOCKET_PATH);
+    unlink(socket_addr.sun_path);
+    ret = bind(socket_fd, (struct sockaddr *) &socket_addr, sizeof socket_addr);
+    if (ret < 0) {
+        printf("ret: %d\n",ret);
+        a3_print_error("[artico3-hw] bind() failed\n");
+        ret = -ENODEV;
+        goto err_connect_bind;
+    }
+    ret = listen(socket_fd, 1);
+    if (ret < 0) {
+        a3_print_error("[artico3-hw] listen() failed\n");
+        ret = -ENODEV;
+        goto err_connect_bind;
+    }
+    a3_print_debug("[artico3-hw] socket=%d\n", socket_fd);
+
     return 0;
+
+err_connect_bind:
+    close(socket_fd);
+
+err_socket:
+    free(threads);
 
 err_malloc_threads:
     free(kernels);
@@ -208,6 +248,9 @@ err_mmap:
  *
  */
 void artico3_exit() {
+
+    // Close the command request handling socket
+    close(socket_fd);
 
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
@@ -238,6 +281,110 @@ void artico3_exit() {
     shuffler.clkgate_reg = 0x00000000;
     shuffler.nslots      = 0;
     shuffler.slots       = NULL;
+
+}
+
+
+/*
+ * ARTICo3 handle command
+ *
+ * This function handles all incoming command request from the user application.
+ *
+ * @client_socket_fd : user socket file descriptor
+ * @command_args     : pointer to shared memory object containing the command arguments
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * NOTE: the received commands are set to 1-byte size, limiting the available commands to 256.
+ *
+ */
+int artico3_handle_command(int user_socket_fd, char *command_args) {
+
+    int ret, command_ret;
+    uint8_t command;
+
+    // Receive command from user
+    ret = recv(user_socket_fd, &command, 1, 0);
+    if (ret < 0) {
+        a3_print_error("[artico3-hw] socket recv() failed=%d\n", ret);
+        return -ENODEV;
+    }
+
+    // TODO: Perform command operation
+
+    // Send command return value
+    ret = send(user_socket_fd, &command_ret, sizeof (int), 0);
+    if (ret < 0) {
+        a3_print_error("[artico3-hw] socket send() failed=%d\n", ret);
+        return -ENODEV;
+    }
+
+    return 0;
+
+}
+
+
+/*
+ * ARTICo3 accept socket
+ *
+ * This function accepts a command request socket from the user.
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ * TODO: implement with threads to enable multi-tenant
+ *
+ */
+int artico3_accept_socket() {
+
+    struct sockaddr_un client_address;
+    int client_socket_fd, shm_fd, ret, args_size = 150;
+    unsigned int sock_len = 0;
+    char args_passing_filename[] = "arguments";
+    char *args_ptr;
+
+    // Accept socket
+    client_socket_fd = accept(socket_fd, (struct sockaddr*) &client_address, &sock_len);
+    if (client_socket_fd < 0) {
+        a3_print_error("[artico3-hw] accept() failed\n");
+        return -ENODEV;
+    }
+    a3_print_debug("[artico3-hw] socket connected=%d\n", client_socket_fd);
+
+    // Create a shared memory object for arguments passing (it is assumed to be created in the user)
+    shm_fd = shm_open(args_passing_filename, O_RDWR, S_IRUSR | S_IWUSR);
+    if(shm_fd < 0) {
+        ret = -ENODEV;
+        goto err_shm_open_mmap_args_filename;
+    }
+
+    // Resize the shared memory object
+    ftruncate(shm_fd, args_size);
+
+    // Allocate memory for application mapped to the shared memory object with mmap()
+    args_ptr = mmap(0, args_size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if(args_ptr == MAP_FAILED) {
+        ret = -ENOMEM;
+        close(shm_fd);
+        goto err_shm_open_mmap_args_filename;
+    }
+
+    // Close shared memory object file descriptor (not needed anymore)
+    close(shm_fd);
+
+    // Handle the requested user command
+    ret = artico3_handle_command(client_socket_fd, args_ptr);
+    if (ret < 0) {
+        a3_print_error("[artico3-hw] artico3_handle_command() failed\n");
+        ret = -ENODEV;
+    }
+
+    // Clean shared memory object
+    munmap(args_ptr, args_size);
+
+err_shm_open_mmap_args_filename:
+    close(client_socket_fd);
+
+    return ret;
 
 }
 
