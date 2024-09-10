@@ -42,7 +42,7 @@ ARTICo3D_OBJS = $(OBJS1:%=_build/%)
 OBJS2 = runtime/user/artico3.o
 ARTICo3_OBJS = $(OBJS2:%=_build/%)
 
-OBJS3 = runtime/daemon/artico3_main.o
+OBJS3 = runtime/daemon/artico3d.o
 DAEMON_OBJS = $(OBJS3:%=_build/%)
 
 OBJS4 = <a3<generate for OBJS>a3><a3<Source>a3> <a3<end generate>a3>
