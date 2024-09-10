@@ -420,6 +420,7 @@ int artico3d_add_user(void *args) {
     // Create the shared memory object
     shm_fd = shm_open(shm_filename, O_RDWR, S_IRUSR | S_IWUSR);
     if(shm_fd < 0) {
+        a3_print_error("[artico3-hw] shm_open() failed\n");
         return -ENODEV;
     }
 
@@ -430,6 +431,7 @@ int artico3d_add_user(void *args) {
     users[index] = mmap(0, sizeof (struct a3user_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if(users[index] == MAP_FAILED) {
         close(shm_fd);
+        a3_print_error("[artico3-hw] mmap() failed\n");
         return -ENOMEM;
     }
 
@@ -510,7 +512,7 @@ int artico3d_remove_user(void *args) {
     a3_print_debug("[artico3-hw] signaled user the response is available\n");
 
     // Clean shared memory object
-    munmap(&user, sizeof (struct a3user_t));
+    munmap(user, sizeof (struct a3user_t));
     a3_print_debug("[artico3-hw] released user (user id=%d)\n", user_id);
 
     return 0;
@@ -568,7 +570,7 @@ void *_artico3d_handle_request(void *args) {
 
         // Execute user requested ARTICo3 function
         response = artico3_functions[request.func](func_args);
-        a3_print_debug("[artico3-hw] user request (request=%d, user=%d, response=%d)\n", request.func, request.user_id, response);
+        a3_print_debug("[artico3-hw] user request (request=%d, user=%d, channel=%d, response=%d)\n", request.func, request.user_id, request.channel_id, response);
 
         // Send function response back to the user
         channel = &users[request.user_id]->channels[request.channel_id];
@@ -1811,12 +1813,14 @@ int artico3d_alloc(void *args) {
     // Allocate memory for kernel port configuration
     port = malloc(sizeof *port);
     if (!port) {
+        a3_print_error("[artico3-hw] port malloc() failed\n");
         return -1;
     }
 
     // Set port name
     port->name = malloc(strlen(pname) + 1);
     if (!port->name) {
+        a3_print_error("[artico3-hw] port->name malloc() failed\n");
         goto err_malloc_port_name;
     }
     strcpy(port->name, pname);
@@ -1827,6 +1831,7 @@ int artico3d_alloc(void *args) {
     // Set port filename (concatenation of kname and pname)
     port->filename = malloc(strlen(kname) + strlen(pname) + 1);
     if (!port->filename) {
+        a3_print_error("[artico3-hw] port->filename malloc() failed\n");
         goto err_malloc_port_filename;
     }
     strcpy(port->filename, kname);
@@ -1835,6 +1840,7 @@ int artico3d_alloc(void *args) {
     // Create a shared memory object
     fd = shm_open(port->filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     if(fd < 0) {
+        a3_print_error("[artico3-hw] fd shm_open() failed\n");
         goto err_shm_open_port_filename;
     }
 
@@ -1844,6 +1850,7 @@ int artico3d_alloc(void *args) {
     // Allocate memory for application mapped to the shared memory object with mmap()
     port->data = mmap(0, port->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(port->data == MAP_FAILED) {
+        a3_print_error("[artico3-hw] port->data mmap() failed\n");
         close(fd);
         goto err_mmap_port_filename;
     }

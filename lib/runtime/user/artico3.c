@@ -41,7 +41,6 @@
 // Needed when compiling -lrt statically linked
 // Note this "/dev/shm" might not be implemented in all systems
 #define SHMDIR "/dev/shm/"
-// TODO: for separate users, better create new common file
 const char * __shm_directory(size_t * len) {
 	*len = (sizeof SHMDIR) - 1;
 	return SHMDIR;
@@ -186,8 +185,8 @@ static int _artico3_send_request(struct a3request_t request) {
  * TODO : Get the tid as an argument from the user to make it user-dependant and not thread-dependant
  *
  * NOTE : This will not return if the shm filename chosen in already in use.
- *       It is done this way since there is no mechanism for new users to receive response from a3d.
- *       A timeout when shm filename already in use could be a solution.
+ *        It is done this way since there is no mechanism for new users to receive response from a3d.
+ *        A timeout when shm filename already in use could be a solution.
  *
  * Return : 0 on success, error code otherwise
  *
@@ -294,6 +293,7 @@ int artico3_init() {
 
     // Make request
     a3_print_debug("[artico3u-hw] request command\n");
+    // TODO: add timeout in case the daemon does not responde
     ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
