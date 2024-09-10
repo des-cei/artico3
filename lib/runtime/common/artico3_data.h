@@ -153,6 +153,7 @@ struct a3user_t {
  *
  * @mutex             : synchronization primitive for accessing @request_available
  * @cond_request      : user request signaling conditional variable
+ * @cond_free         : conditional variable indicating users the coordinator is free
  * @request_available : user request signaling flag
  * @request           : user request info
  *
@@ -160,6 +161,7 @@ struct a3user_t {
 struct a3coordinator_t {
     pthread_mutex_t mutex;
     pthread_cond_t cond_request;
+    pthread_cond_t cond_free;
     int request_available;
     struct a3request_t request;
 };

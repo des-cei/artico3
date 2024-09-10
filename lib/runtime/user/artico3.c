@@ -42,8 +42,8 @@
 // Note this "/dev/shm" might not be implemented in all systems
 #define SHMDIR "/dev/shm/"
 const char * __shm_directory(size_t * len) {
-	*len = (sizeof SHMDIR) - 1;
-	return SHMDIR;
+    *len = (sizeof SHMDIR) - 1;
+    return SHMDIR;
 }
 
 
@@ -139,14 +139,14 @@ static int _artico3_send_request(struct a3request_t request) {
     // Wait for server available
     while (coordinator->request_available) {
         a3_print_debug("[artico3u-hw] wait until server is free\n");
-        pthread_cond_wait(&coordinator->cond_request, &coordinator->mutex);
+        pthread_cond_wait(&coordinator->cond_free, &coordinator->mutex);
     }
 
     // Signal the request
     coordinator->request = request;
     coordinator->request_available = 1;
     pthread_cond_signal(&coordinator->cond_request);
-    a3_print_debug("[artico3u-hw] request signaled to the server\n");
+    a3_print_debug("[artico3u-hw] request signaled to the server (request=%d, user=%d, channel=%d)\n", request.func, request.user_id, request.channel_id);
 
     pthread_mutex_unlock(&coordinator->mutex);
 
@@ -167,7 +167,7 @@ static int _artico3_send_request(struct a3request_t request) {
 
     pthread_mutex_unlock(&channel->mutex);
 
-    a3_print_debug("[artico3u-hw] request processed (id=%d, func=%d, response=%d)\n", user->user_id, request.func, ack);
+    a3_print_debug("[artico3u-hw] request processed (request=%d, user=%d, channel=%d, ack=%d)\n", request.func, user->user_id, request.channel_id, ack);
 
     return ack;
 }

@@ -273,6 +273,7 @@ int artico3d_init() {
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(&coordinator->cond_request, &cond_attr);
+    pthread_cond_init(&coordinator->cond_free, &cond_attr);
     pthread_condattr_destroy(&cond_attr);
 
     // Initialize flags
@@ -329,6 +330,7 @@ void artico3d_exit(pthread_t wait_tid) {
     // cleanup mutex and conditional variables
     pthread_mutex_destroy(&coordinator->mutex);
     pthread_cond_destroy(&coordinator->cond_request);
+    pthread_cond_destroy(&coordinator->cond_free);
 
     // Cleanup daemon shared memory
     munmap(coordinator, sizeof (struct a3coordinator_t));
@@ -636,7 +638,7 @@ int artico3d_handle_request() {
 
         // Signal the users that the request has been processed
         coordinator->request_available = 0;
-        pthread_cond_signal(&coordinator->cond_request);
+        pthread_cond_signal(&coordinator->cond_free);
         pthread_mutex_unlock(&coordinator->mutex);
         a3_print_debug("[artico3-hw] indicated the daemon is available again\n");
     }
