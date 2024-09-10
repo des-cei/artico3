@@ -36,10 +36,10 @@ CFLAGS_DAEMON = $(CFLAGS_IN)-Wall -Wextra -I runtime/daemon -I runtime/common <a
 LDFLAGS_DAEMON = $(LDFLAGS_IN)-L . -Wl,-R,. <a3<LDFLAGS>a3>
 LDLIBS_DAEMON = -lartico3d -lm -lpthread -lrt <a3<LDLIBS>a3>
 
-OBJS1 = runtime/daemon/artico3_rcfg.o runtime/daemon/artico3_hw.o runtime/daemon/artico3.o
+OBJS1 = runtime/daemon/artico3_rcfg.o runtime/daemon/artico3_hw.o runtime/daemon/artico3d.o
 ARTICo3D_OBJS = $(OBJS1:%=_build/%)
 
-OBJS2 = runtime/user/artico3_user.o
+OBJS2 = runtime/user/artico3.o
 ARTICo3_OBJS = $(OBJS2:%=_build/%)
 
 OBJS3 = runtime/daemon/artico3_main.o

@@ -13,8 +13,8 @@
  */
 
 
-#ifndef _artico3_USER_H_
-#define _artico3_USER_H_
+#ifndef _ARTICO3_H_
+#define _ARTICO3_H_
 
 #include <stdlib.h> // size_t
 #include <stdint.h> // uint32_t
@@ -44,16 +44,16 @@
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_init();
+int artico3_init();
 
 
 /*
  * ARTICo3 user exit function
  *
- * This function cleans the software entities created by artico3_user_init().
+ * This function cleans the software entities created by artico3_init().
  *
  */
-int artico3_user_exit();
+int artico3_exit();
 
 
 /*
@@ -76,7 +76,7 @@ int artico3_user_exit();
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
+int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
 
 
 /*
@@ -89,7 +89,7 @@ int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, 
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_unload(uint8_t slot);
+int artico3_unload(uint8_t slot);
 
 
 /*
@@ -110,7 +110,7 @@ int artico3_user_unload(uint8_t slot);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs);
+int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs);
 
 
 /*
@@ -123,7 +123,7 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_release(const char *name);
+int artico3_kernel_release(const char *name);
 
 
 /*
@@ -138,7 +138,7 @@ int artico3_user_kernel_release(const char *name);
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize);
+int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize);
 
 
 /*
@@ -151,7 +151,7 @@ int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_wait(const char *name);
+int artico3_kernel_wait(const char *name);
 
 
 /*
@@ -164,7 +164,7 @@ int artico3_user_kernel_wait(const char *name);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_reset(const char *name);
+int artico3_kernel_reset(const char *name);
 
 
 /*
@@ -190,7 +190,7 @@ int artico3_user_kernel_reset(const char *name);
  *        transactions.
  *
  */
-int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg);
+int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg);
 
 
 /*
@@ -216,7 +216,7 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg);
  *        transactions.
  *
  */
-int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg);
+int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg);
 
 
 /*
@@ -282,7 +282,7 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg);
  * TODO   : implement optimized version using qsort();
  *
  */
-void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir);
+void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir);
 
 
 /*
@@ -297,14 +297,14 @@ void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_free(const char *kname, const char *pname);
+int artico3_free(const char *kname, const char *pname);
 
 
 /*
  * ARTICo3 data reinterpretation: float to a3data_t (32 bits)
  *
  */
-static inline a3data_t ftoa3u(float f) {
+static inline a3data_t ftoa3(float f) {
     union { float f; a3data_t u; } un;
     un.f = f;
     return un.u;
@@ -315,10 +315,10 @@ static inline a3data_t ftoa3u(float f) {
  * ARTICo3 data reinterpretation: a3data_t to float (32 bits)
  *
  */
-static inline float a3utof(a3data_t u) {
+static inline float a3tof(a3data_t u) {
     union { float f; a3data_t u; } un;
     un.u = u;
     return un.f;
 }
 
-#endif /* _artico3_USER_H_ */
+#endif /* _ARTICO3_H_ */

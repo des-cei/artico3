@@ -12,20 +12,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "artico3.h"
+#include "artico3d.h"
 
 
 int main() {
 
-    // Initialize ARTICo3 infrastructure
-    artico3_init();
+    // Initialize ARTICo3D infrastructure
+    artico3d_init();
 
     // Wait requests
-    artico3_handle_request();
+    artico3d_handle_request();
 
-    // Clean ARTICo3 setup
+    // Clean ARTICo3D setup
     // TODO: find a proper way to call artico3_exit() when the daemon is commanded to finish
-    // artico3_exit(a3d_tid);
+    // artico3d_exit(a3d_tid);
     printf("End daemon\n");
 
     return 0;

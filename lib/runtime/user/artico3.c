@@ -31,7 +31,7 @@
 #include <sys/stat.h>    // stat(), S_IRUSR, S_IWUSR
 #include <sys/syscall.h> // syscall()
 
-#include "artico3_user.h"
+#include "artico3.h"
 #include "artico3_dbg.h"
 #include "artico3_data.h"
 
@@ -131,7 +131,7 @@ unsigned int max_kernels = 0;
  * Return : 0 on success, error code otherwise
  *
  */
-static int _artico3_user_send_request(struct a3request_t request) {
+static int _artico3_send_request(struct a3request_t request) {
     int ack;
     struct a3channel_t *channel = NULL;
 
@@ -192,7 +192,7 @@ static int _artico3_user_send_request(struct a3request_t request) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_init() {
+int artico3_init() {
     unsigned int index;
     int ret, shm_fd;
     struct stat stat_buffer;
@@ -294,7 +294,7 @@ int artico3_user_init() {
 
     // Make request
     a3_print_debug("[artico3u-hw] request command\n");
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         goto err_munmap_user;
@@ -331,10 +331,10 @@ err_munmap_daemon:
 /*
  * ARTICo3 user exit function
  *
- * This function cleans the software entities created by artico3_user_init().
+ * This function cleans the software entities created by artico3_init().
  *
  */
-int artico3_user_exit() {
+int artico3_exit() {
     int ret;
     unsigned int index;
     unsigned num_bytes;
@@ -369,7 +369,7 @@ int artico3_user_exit() {
     memcpy(&(args_ptr[num_bytes]), &index, sizeof (int));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -414,7 +414,7 @@ int artico3_user_exit() {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs) {
+int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs) {
     int ret;
     unsigned num_bytes;
     unsigned int index, i;
@@ -457,7 +457,7 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
     memcpy(&(args_ptr[num_bytes]), &regs, sizeof (size_t));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -539,7 +539,7 @@ err_malloc_kernel:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_release(const char *name) {
+int artico3_kernel_release(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
@@ -574,7 +574,7 @@ int artico3_user_kernel_release(const char *name) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -624,7 +624,7 @@ int artico3_user_kernel_release(const char *name) {
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize) {
+int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
@@ -664,7 +664,7 @@ int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize) {
 
     // printf("[artico3u-hw] [id=%d] name: %s | gsize : %lu | lsize: %lu\n", user->user_id, name, gsize, lsize);
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -684,7 +684,7 @@ int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_wait(const char *name) {
+int artico3_kernel_wait(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
@@ -718,7 +718,7 @@ int artico3_user_kernel_wait(const char *name) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -738,7 +738,7 @@ int artico3_user_kernel_wait(const char *name) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_kernel_reset(const char *name) {
+int artico3_kernel_reset(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
@@ -772,7 +772,7 @@ int artico3_user_kernel_reset(const char *name) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -805,7 +805,7 @@ int artico3_user_kernel_reset(const char *name) {
  *        transactions.
  *
  */
-int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     unsigned num_bytes;
     unsigned int index;
     int ret, naccs;
@@ -840,7 +840,7 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -881,7 +881,7 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     memcpy(&(args_ptr[num_bytes]), cfg, naccs * sizeof (a3data_t));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -914,7 +914,7 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *        transactions.
  *
  */
-int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     unsigned num_bytes;
     unsigned int index;
     int ret, naccs;
@@ -948,7 +948,7 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -986,7 +986,7 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     num_bytes += sizeof (uint16_t);
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -1020,7 +1020,7 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  * TODO   : implement optimized version using qsort();
  *
  */
-void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
+void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
     int fd, ret;
     unsigned num_bytes;
     unsigned int index, b;
@@ -1065,7 +1065,7 @@ void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum
     memcpy(&(args_ptr[num_bytes]), &dir, sizeof (enum a3pdir_t));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return NULL;
@@ -1172,7 +1172,7 @@ err_malloc_buf_name:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_free(const char *kname, const char *pname) {
+int artico3_free(const char *kname, const char *pname) {
     unsigned num_bytes;
     unsigned int index, p;
     int ret;
@@ -1211,7 +1211,7 @@ int artico3_user_free(const char *kname, const char *pname) {
     args_ptr[num_bytes++] = '\0';
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -1274,7 +1274,7 @@ int artico3_user_free(const char *kname, const char *pname) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
@@ -1319,7 +1319,7 @@ int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, 
     memcpy(&(args_ptr[num_bytes]), &force, sizeof (uint8_t));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
@@ -1339,7 +1339,7 @@ int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, 
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_user_unload(uint8_t slot) {
+int artico3_unload(uint8_t slot) {
     unsigned int index;
     int ret;
     struct a3request_t request;
@@ -1370,7 +1370,7 @@ int artico3_user_unload(uint8_t slot) {
     memcpy(args_ptr, &slot, sizeof (uint8_t));
 
     // Make request
-    ret = _artico3_user_send_request(request);
+    ret = _artico3_send_request(request);
     if (ret < 0){
         a3_print_error("[artico3u-hw] send request failed\n");
         return ret;
