@@ -16,7 +16,6 @@
 #include <stdint.h>  // uint32_t
 #include <pthread.h> // pthread_mutex_t, pthread_cond_t
 
-// TODO: COMMENT
 #define A3_ARGS_SIZE              (100) // Size of the request input arguments shared memory object
 #define A3_MAXCHANNELS_PER_CLIENT (10)  // Max number of simultaneous execution threads per user
 #define A3_COORDINATOR_FILENAME   "a3d" // Coordinator shared memory object filename

@@ -24,8 +24,7 @@ int main() {
     artico3d_handle_request();
 
     // Clean ARTICo3D setup
-    // TODO: find a proper way to call artico3_exit() when the daemon is commanded to finish
-    // artico3d_exit(a3d_tid);
+    artico3d_exit();
     printf("End daemon\n");
 
     return 0;

@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <math.h>      // ceil(), requires -lm in LDFLAGS
 #include <pthread.h>
+#include <signal.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -122,6 +123,26 @@ static a3func_t artico3_functions[] = {
 
 
 /*
+ * ARTICo3D signal handler for SIGTERM and SIGINT
+ *
+ * This function sets a termination flag when SIGTERM and SIGINT is received, signaling the daemon
+ * to stop and perform a clean shutdown.
+ *
+ * @signum : signal number (SIGTERM, SIGINT)
+ */
+void artico3d_handle_sigterm(int signum) {
+
+    // Set stop termination flag when signal is received
+    // Signal the request waiting thread to terminate
+    pthread_mutex_lock(&coordinator->mutex);
+    termination_flag = 1;
+    a3_print_info("[artico3-hw] signal [%d] received\n", signum);
+    pthread_cond_signal(&coordinator->cond_request);
+    pthread_mutex_unlock(&coordinator->mutex);
+
+}
+
+/*
  * ARTICo3D init function
  *
  * This function sets up the basic software entities required to manage
@@ -136,6 +157,7 @@ int artico3d_init() {
     const char *filename = "/dev/artico3";
     unsigned int i;
     int ret, shm_fd;
+    struct sigaction action;
 
     /*
      * NOTE: this function relies on predefined addresses for both control
@@ -152,6 +174,15 @@ int artico3d_init() {
      *       ARTICo3 Data    -> 0xb0000000
      *
      */
+
+    // Set up the signal handler to terminate the daemon SIGTERM
+    action.sa_handler = artico3d_handle_sigterm;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    if (sigaction(SIGTERM, &action, NULL) == -1 || sigaction(SIGINT, &action, NULL) == -1) {
+        a3_print_error("[artico3-hw] SIGTERM/SIGINT handler error\n");
+    }
 
     // Load static system (global FPGA reconfiguration)
     fpga_load("system.bin", 0);
@@ -311,21 +342,8 @@ err_mmap:
  *
  * This function cleans the software entities created by artico3_init().
  *
- * It also terminates the daemon thread that wait for user request.
- *
- * @wait_tid : pthread ID of the waiting loop
- *
  */
-void artico3d_exit(pthread_t wait_tid) {
-
-    // Signal the request waiting thread to terminate
-    pthread_mutex_lock(&coordinator->mutex);
-    termination_flag = 1;
-    pthread_cond_signal(&coordinator->cond_request);
-    pthread_mutex_unlock(&coordinator->mutex);
-
-    // Wait for the thread
-    pthread_join(wait_tid, NULL);
+void artico3d_exit() {
 
     // cleanup mutex and conditional variables
     pthread_mutex_destroy(&coordinator->mutex);
@@ -596,8 +614,6 @@ void *_artico3d_handle_request(void *args) {
  *
  * This function waits a command request from user.
  *
- * TODO: improve the termination mechanism
- *
  * Return : 0 on success, error code otherwise
  *
  */
@@ -614,7 +630,7 @@ int artico3d_handle_request() {
             a3_print_debug("[artico3-hw] wait for user request\n");
             if (termination_flag) {
                 pthread_mutex_unlock(&coordinator->mutex);
-                a3_print_error("[artico3-hw] termination\n");
+                a3_print_info("[artico3-hw] start termination process\n");
                 return 0;
             }
             pthread_cond_wait(&coordinator->cond_request, &coordinator->mutex);

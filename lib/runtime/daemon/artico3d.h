@@ -45,12 +45,8 @@ int artico3d_init();
  *
  * This function cleans the software entities created by artico3_init().
  *
- * It also terminates the daemon thread that wait for user request.
- *
- * @wait_tid : pthread ID of the waiting loop
- *
  */
-void artico3d_exit(pthread_t wait_tid);
+void artico3d_exit();
 
 /*
  * SYSTEM MANAGEMENT
