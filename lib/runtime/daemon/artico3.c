@@ -35,6 +35,7 @@
 #include "artico3_hw.h"
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
+#include "artico3_data.h"
 
 #include <inttypes.h>
 
@@ -115,7 +116,8 @@ static a3func_t artico3_functions[] = {
     artico3_kernel_rcfg,
     artico3_alloc,
     artico3_free,
-    artico3_remove_user
+    artico3_remove_user,
+    artico3_get_naccs
 };
 
 
@@ -378,7 +380,7 @@ void artico3_exit(pthread_t wait_tid) {
  *
  * TODO: create folders and subfolders on /dev/shm for each user and its data (kernels, inputs, etc.)
  *
- * Return : 0 on success, error code otherwise
+ * Return : A3_MAXKERNS on success, error code otherwise
  */
 int artico3_add_user(void *args) {
     unsigned int index;
@@ -443,6 +445,9 @@ int artico3_add_user(void *args) {
 
     pthread_mutex_unlock(&add_user_mutex);
 
+    // Return this current user index
+    // This is required to select the appropriate user within users in the _artico3_handle_request()
+    // to send the response back
     return index;
 }
 
@@ -536,7 +541,7 @@ void *_artico3_handle_request(void *args) {
         response = artico3_functions[request.func](func_args);
         a3_print_debug("[artico3-hw] user request (request=%d, user=%d, response=%d)\n", request.func, request.user_id, response);
 
-        return;
+        return NULL;
     }
     // Handle new user requests
     if (request.func == A3_F_ADD_USER) {
@@ -548,11 +553,12 @@ void *_artico3_handle_request(void *args) {
         a3_print_debug("[artico3-hw] user request (request=%d, user=%d, response=%d)\n", request.func, request.user_id, response);
 
         // Return when an error is returned (there is no mechanism to send the response to the user)
-        if (response < 0) return;
+        if (response < 0) return NULL;
 
         // Send function response back to the user
         channel = &users[response]->channels[request.channel_id];
-        channel->response = response;
+        // Send the maximum number of kernels to the new user
+        channel->response = A3_MAXKERNS;
 
     }
     // Handle known user requests
@@ -577,6 +583,7 @@ void *_artico3_handle_request(void *args) {
     pthread_mutex_unlock(&channel->mutex);
     a3_print_debug("[artico3-hw] signaled user that response is available\n");
 
+    return NULL;
 }
 
 
@@ -1488,7 +1495,7 @@ int artico3_kernel_wcfg(void *args) {
     memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
     copied_bytes += sizeof (uint16_t);
     // @cfg
-    cfg = &(args_aux[copied_bytes]);
+    cfg = (a3data_t*) &(args_aux[copied_bytes]);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1636,7 +1643,7 @@ int artico3_kernel_rcfg(void *args) {
     memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
     copied_bytes += sizeof (uint16_t);
     // @cfg
-    cfg = &(args_aux[copied_bytes]);
+    cfg = (a3data_t*) &(args_aux[copied_bytes]);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -2299,4 +2306,49 @@ int artico3_unload(void *args) {
     a3_print_debug("[artico3-hw] removed accelerator from slot %d\n", slot);
 
     return 0;
+}
+
+
+/*
+ * ARTICo3 get number of accelerators
+ *
+ * This function gets the current number of available hardware accelerators
+ * for a given kernel ID tag.
+ *
+ * @args      : buffer storing the function arguments sent by the user
+ *     @name  : name of the hardware kernel to get the naccs from
+ *
+ * Return : number of accelerators on success, error code otherwise
+ *
+ */
+int artico3_get_naccs(void *args) {
+    unsigned int index;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Return the number of accelerators
+    return artico3_hw_get_naccs(kernels[index]->id);
 }

@@ -32,10 +32,21 @@
 #include <sys/syscall.h> // syscall()
 
 #include "artico3_user.h"
-#include "artico3_hw.h"
 #include "artico3_dbg.h"
+#include "artico3_data.h"
 
 #include <inttypes.h>
+
+
+// Needed when compiling -lrt statically linked
+// Note this "/dev/shm" might not be implemented in all systems
+#define SHMDIR "/dev/shm/"
+// TODO: for separate users, better create new common file
+const char * __shm_directory(size_t * len) {
+	*len = (sizeof SHMDIR) - 1;
+	return SHMDIR;
+}
+
 
 // Get thread ID used to identify each user
 #ifdef SYS_gettid
@@ -44,9 +55,36 @@
 #error "SYS_gettid unavailable on this system"
 #endif
 
-// Needed when compiling -lrt statically linked
-// Note this "/dev/shm" might not be implemented in all systems
-#define SHMDIR "/dev/shm/"
+
+/*
+ * ARTICo3 kernel buffer
+ *
+ * @name     : name of the kernel buffer
+ * @size     : size of the virtual memory
+ * @data     : virtual memory of input
+ *
+ */
+struct a3buf_t {
+    char *name;
+    size_t size;
+    void *data;
+};
+
+
+/*
+ * ARTICo3 kernel (hardware accelerator)
+ *
+ * @name     : kernel name
+ * @membanks : number of local memory banks inside kernel
+ * @ports   : port configuration for this kernel
+ *
+ */
+struct a3kernel_t {
+    char *name;
+    size_t membanks;
+    struct a3buf_t **bufs;
+};
+
 
 /*
  * ARTICo3 global variables
@@ -62,18 +100,21 @@
  *
  * @user_shm            : user shared memory object filename
  *
+ * @max_kernels         : maximum number of kernels
+ *
  */
 // TODO : remove this array of structures to avoid replicating code between user and daemon
-static struct a3ukernel_t **kernels;
+static struct a3kernel_t **kernels;
 
-static struct a3ucoordinator_t *coordinator = NULL;
-static struct a3uuser_t *user = NULL;
+static struct a3coordinator_t *coordinator = NULL;
+static struct a3user_t *user = NULL;
 
 static pthread_mutex_t args_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t kernel_create_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t kernels_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static char user_shm[13];
+unsigned int max_kernels = 0;
 
 
 /*
@@ -90,9 +131,9 @@ static char user_shm[13];
  * Return : 0 on success, error code otherwise
  *
  */
-static int _artico3_user_send_request(struct a3urequest_t request) {
-    int ret, ack;
-    struct a3uchannel_t *channel = NULL;
+static int _artico3_user_send_request(struct a3request_t request) {
+    int ack;
+    struct a3channel_t *channel = NULL;
 
     pthread_mutex_lock(&coordinator->mutex);
 
@@ -114,7 +155,7 @@ static int _artico3_user_send_request(struct a3urequest_t request) {
     channel = &user->channels[request.channel_id];
 
     // Wait for response
-    ret = pthread_mutex_lock(&channel->mutex);
+    pthread_mutex_lock(&channel->mutex);
     while (!channel->response_available) {
         a3_print_debug("[artico3u-hw] wait for server command response\n");
         pthread_cond_wait(&channel->cond_response, &channel->mutex);
@@ -153,43 +194,30 @@ static int _artico3_user_send_request(struct a3urequest_t request) {
  */
 int artico3_user_init() {
     unsigned int index;
-    int i, ret, shm_fd;
+    int ret, shm_fd;
     struct stat stat_buffer;
     pid_t tid;
     char a3u_shm_check_path[50];
-    struct a3urequest_t request;
-    struct a3uchannel_t *channel = NULL;
-    enum a3ufunc_t type = A3U_F_ADD_USER;
-
-    // Initialize kernel list (software)
-    kernels = malloc(A3_MAXKERNS * sizeof **kernels);
-    if (!kernels) {
-        a3_print_error("[artico3u-hw] malloc() failed\n");
-        return -ENOMEM;
-    }
-    for (i = 0; i < A3_MAXKERNS; i++) {
-        kernels[i] = NULL;
-    }
-    a3_print_debug("[artico3u-hw] kernels=%p\n", kernels);
+    struct a3request_t request;
+    struct a3channel_t *channel = NULL;
+    enum a3func_t type = A3_F_ADD_USER;
 
     // Create a shared memory object for daemon data
-    shm_fd = shm_open(A3U_COORDINATOR_FILENAME, O_RDWR, S_IRUSR | S_IWUSR);
+    shm_fd = shm_open(A3_COORDINATOR_FILENAME, O_RDWR, S_IRUSR | S_IWUSR);
     if(shm_fd < 0) {
         a3_print_error("[artico3u-hw] shm_open() failed\n");
-        ret = -ENODEV;
-        goto err_free_kernels;
+        return -ENODEV;
     }
 
     // Resize the shared memory object
-    ftruncate(shm_fd, sizeof (struct a3ucoordinator_t));
+    ftruncate(shm_fd, sizeof (struct a3coordinator_t));
 
     // Allocate memory for application mapped to the shared memory object with mmap()
-    coordinator = mmap(0, sizeof (struct a3ucoordinator_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    coordinator = mmap(0, sizeof (struct a3coordinator_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if(coordinator == MAP_FAILED) {
         a3_print_error("[artico3u-hw] mmap() failed\n");
         close(shm_fd);
-        ret = -ENODEV;
-        goto err_free_kernels;
+        return -ENODEV;
     }
     a3_print_debug("[artico3u-hw] mmap=%p\n", coordinator);
 
@@ -217,10 +245,10 @@ int artico3_user_init() {
     }
 
     // Resize the shared memory object
-    ftruncate(shm_fd, sizeof (struct a3uuser_t));
+    ftruncate(shm_fd, sizeof (struct a3user_t));
 
     // Allocate memory for application mapped to the shared memory object with mmap()
-    user = mmap(0, sizeof (struct a3uuser_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    user = mmap(0, sizeof (struct a3user_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if(user == MAP_FAILED) {
         a3_print_error("[artico3u-hw] mmap() failed\n");
         close(shm_fd);
@@ -234,11 +262,9 @@ int artico3_user_init() {
     close(shm_fd);
 
     // Initialize mutex and condition variables with shared memory attributes
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         channel = &user->channels[index];
         a3_print_debug("[artico3u-hw] init channel=%p\n", channel);
-
-        int ret;
 
         pthread_mutexattr_t mutex_attr;
         pthread_condattr_t cond_attr;
@@ -274,17 +300,29 @@ int artico3_user_init() {
         goto err_munmap_user;
     }
 
+    // Get maximum number of kernels
+    max_kernels = ret;
+
+    // Initialize kernel list (software)
+    kernels = malloc(max_kernels * sizeof **kernels);
+    if (!kernels) {
+        a3_print_error("[artico3u-hw] malloc() failed\n");
+        ret = -ENOMEM;
+        goto err_munmap_user;
+    }
+    for (index = 0; index < max_kernels; index++) {
+        kernels[index] = NULL;
+    }
+    a3_print_debug("[artico3u-hw] kernels=%p\n", kernels);
+
     return 0;
 
 err_munmap_user:
-    munmap(user, sizeof (struct a3uuser_t));
+    munmap(user, sizeof (struct a3user_t));
     shm_unlink(user_shm);
 
 err_munmap_daemon:
-    munmap(coordinator, sizeof (struct a3ucoordinator_t));
-
-err_free_kernels:
-    free(kernels);
+    munmap(coordinator, sizeof (struct a3coordinator_t));
 
     return ret;
 }
@@ -300,21 +338,21 @@ int artico3_user_exit() {
     int ret;
     unsigned int index;
     unsigned num_bytes;
-    struct a3urequest_t request;
+    struct a3request_t request;
     char *args_ptr = NULL;
-    struct a3uchannel_t *channel = NULL;
-    enum a3ufunc_t type = A3U_F_REMOVE_USER;
+    struct a3channel_t *channel = NULL;
+    enum a3func_t type = A3_F_REMOVE_USER;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -338,11 +376,8 @@ int artico3_user_exit() {
     }
 
     // Destroy mutex and condition variables with shared memory attributes
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         channel = &user->channels[index];
-
-        pthread_mutexattr_t mutex_attr;
-        pthread_condattr_t cond_attr;
 
         pthread_mutex_destroy(&channel->mutex);
         pthread_cond_destroy(&channel->cond_response);
@@ -353,11 +388,11 @@ int artico3_user_exit() {
     }
 
     // Cleanup user list
-    munmap(user, sizeof (struct a3uuser_t));
+    munmap(user, sizeof (struct a3user_t));
     shm_unlink(user_shm);
 
     // Cleanup daemon structure
-    munmap(coordinator, sizeof (struct a3ucoordinator_t));
+    munmap(coordinator, sizeof (struct a3coordinator_t));
 
     // Cleanup kernel list
     free(kernels);
@@ -383,20 +418,20 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
     int ret;
     unsigned num_bytes;
     unsigned int index, i;
-    struct a3urequest_t request;
-    struct a3ukernel_t *kernel = NULL;
-    enum a3ufunc_t type = A3U_F_KERNEL_CREATE;
+    struct a3request_t request;
+    struct a3kernel_t *kernel = NULL;
+    enum a3func_t type = A3_F_KERNEL_CREATE;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -431,10 +466,10 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
     pthread_mutex_lock(&kernel_create_mutex);
 
     // Search first available ID; if none, return with error
-    for (index = 0; index < A3_MAXKERNS; index++) {
+    for (index = 0; index < max_kernels; index++) {
         if (kernels[index] == NULL) break;
     }
-    if (index == A3_MAXKERNS) {
+    if (index == max_kernels) {
         a3_print_error("[artico3u-hw] kernel list is already full\n");
         return -EBUSY;
     }
@@ -459,17 +494,17 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
     // Set kernel configuration
     kernel->membanks = membanks;
 
-    // Initialize kernel ports
-    kernel->ports = malloc(membanks * sizeof *kernel->ports);
-    if (!kernel->ports) {
+    // Initialize kernel buffers
+    kernel->bufs = malloc(membanks * sizeof *kernel->bufs);
+    if (!kernel->bufs) {
         a3_print_error("[artico3u-hw] malloc() failed\n");
         ret = -ENOMEM;
-        goto err_malloc_kernel_ports;
+        goto err_malloc_kernel_bufs;
     }
 
     // Set initial values for ports
     for (i = 0; i < membanks; i++) {
-        kernel->ports[i] = NULL;
+        kernel->bufs[i] = NULL;
     }
 
     a3_print_debug("[artico3u-hw] created kernel (name=%s,membytes=%zd,membanks=%zd,regs=%zd)\n", name, membytes, membanks, regs);
@@ -481,7 +516,7 @@ int artico3_user_kernel_create(const char *name, size_t membytes, size_t membank
 
     return ret;
 
-err_malloc_kernel_ports:
+err_malloc_kernel_bufs:
     free(kernel->name);
 
 err_malloc_kernel_name:
@@ -508,20 +543,20 @@ int artico3_user_kernel_release(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    struct a3ukernel_t *kernel = NULL;
-    enum a3ufunc_t type = A3U_F_KERNEL_RELEASE;
+    struct a3request_t request;
+    struct a3kernel_t *kernel = NULL;
+    enum a3func_t type = A3_F_KERNEL_RELEASE;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -548,11 +583,11 @@ int artico3_user_kernel_release(const char *name) {
     pthread_mutex_lock(&kernels_mutex);
 
     // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
+    for (index = 0; index < max_kernels; index++) {
         if (!kernels[index]) continue;
         if (strcmp(kernels[index]->name, name) == 0) break;
     }
-    if (index == A3_MAXKERNS) {
+    if (index == max_kernels) {
         a3_print_error("[artico3u-hw] no kernel found with name \"%s\"\n", name);
         pthread_mutex_unlock(&kernels_mutex);
         return -ENODEV;
@@ -567,7 +602,7 @@ int artico3_user_kernel_release(const char *name) {
     pthread_mutex_unlock(&kernels_mutex);
 
     // Free allocated memory
-    free(kernel->ports);
+    free(kernel->bufs);
     free(kernel->name);
     free(kernel);
     kernel = NULL;
@@ -593,19 +628,19 @@ int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_KERNEL_EXECUTE;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_KERNEL_EXECUTE;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -653,19 +688,19 @@ int artico3_user_kernel_wait(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_KERNEL_WAIT;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_KERNEL_WAIT;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -707,19 +742,19 @@ int artico3_user_kernel_reset(const char *name) {
     unsigned num_bytes;
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_KERNEL_RESET;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_KERNEL_RESET;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -759,8 +794,6 @@ int artico3_user_kernel_reset(const char *name) {
  *
  * Return : 0 on success, error code otherwise
  *
- * NOTE : user is supposed to pass @cfg as an array of A3U_MAXSLOTS
- *
  * NOTE : configuration registers need to be handled taking into account
  *        execution priorities.
  *
@@ -772,23 +805,61 @@ int artico3_user_kernel_reset(const char *name) {
  *        transactions.
  *
  */
-int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *cfg) {
+int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     unsigned num_bytes;
     unsigned int index;
-    int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_KERNEL_WCFG;
+    int ret, naccs;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_KERNEL_WCFG;
 
+    // Ask for naccs
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
+        a3_print_error("[artico3-hw] no available channel\n");
+        return -EBUSY;
+    }
+
+    // Write request data
+    request.func = A3_F_GET_NACCS;
+    request.user_id = user->user_id;
+    request.channel_id = index;
+
+    // Copy arguments
+    char *args_ptr = user->channels[index].args;
+    // @name
+    memcpy(args_ptr, name, strlen(name));
+    num_bytes = strlen(name);
+    args_ptr[num_bytes++] = '\0';
+
+    // Make request
+    ret = _artico3_user_send_request(request);
+    if (ret < 0){
+        a3_print_error("[artico3u-hw] send request failed\n");
+        return ret;
+    }
+
+    // Store returned naccs
+    naccs = ret;
+
+    // Write configuration registers
+    pthread_mutex_lock(&args_mutex);
+    // Search for channel in channel list
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
+        if (user->channels[index].free == 1) {
+            user->channels[index].free = 0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&args_mutex);
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -799,7 +870,6 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *
     request.channel_id = index;
 
     // Copy arguments
-    char *args_ptr = user->channels[index].args;
     // @name
     memcpy(args_ptr, name, strlen(name));
     num_bytes = strlen(name);
@@ -808,7 +878,7 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *
     memcpy(&(args_ptr[num_bytes]), &offset, sizeof (uint16_t));
     num_bytes += sizeof (uint16_t);
     // @cfg
-    memcpy(&(args_ptr[num_bytes]), cfg, A3U_MAXSLOTS * sizeof (a3_user_data_t)); // TODO : ask daemon about that info
+    memcpy(&(args_ptr[num_bytes]), cfg, naccs * sizeof (a3data_t));
 
     // Make request
     ret = _artico3_user_send_request(request);
@@ -833,8 +903,6 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *
  *
  * Return : 0 on success, error code otherwise
  *
- * NOTE : user is supposed to pass @cfg as an array of A3U_MAXSLOTS
- *
  * NOTE : configuration registers need to be handled taking into account
  *        execution priorities.
  *
@@ -846,23 +914,59 @@ int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *
  *        transactions.
  *
  */
-int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *cfg) {
+int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     unsigned num_bytes;
     unsigned int index;
-    int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_KERNEL_RCFG;
+    int ret, naccs;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_KERNEL_RCFG;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
+        a3_print_error("[artico3-hw] no available channel\n");
+        return -EBUSY;
+    }
+
+    // Write request data
+    request.func = A3_F_GET_NACCS;
+    request.user_id = user->user_id;
+    request.channel_id = index;
+
+    // Copy arguments
+    char *args_ptr = user->channels[index].args;
+    // @name
+    memcpy(args_ptr, name, strlen(name));
+    num_bytes = strlen(name);
+    args_ptr[num_bytes++] = '\0';
+
+    // Make request
+    ret = _artico3_user_send_request(request);
+    if (ret < 0){
+        a3_print_error("[artico3u-hw] send request failed\n");
+        return ret;
+    }
+
+    // Store returned naccs
+    naccs = ret;
+
+    pthread_mutex_lock(&args_mutex);
+    // Search for channel in channel list
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
+        if (user->channels[index].free == 1) {
+            user->channels[index].free = 0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&args_mutex);
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -873,7 +977,6 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *
     request.channel_id = index;
 
     // Copy arguments
-    char *args_ptr = user->channels[index].args;
     // @name
     memcpy(args_ptr, name, strlen(name));
     num_bytes = strlen(name);
@@ -891,7 +994,7 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *
 
     // Copy back pass-by-reference arguments
     // @cfg
-    memcpy(cfg, &(args_ptr[num_bytes]), A3U_MAXSLOTS * sizeof (a3_user_data_t)); // TODO : ask daemon about that info
+    memcpy(cfg, &(args_ptr[num_bytes]), naccs * sizeof (a3data_t));
 
     return ret;
 }
@@ -917,24 +1020,25 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *
  * TODO   : implement optimized version using qsort();
  *
  */
-void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3_user_pdir_t dir) {
+void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
     int fd, ret;
     unsigned num_bytes;
-    unsigned int index, p;
-    struct a3urequest_t request;
-    struct a3port_t *port = NULL;
-    enum a3ufunc_t type = A3U_F_ALLOC;
+    unsigned int index, b;
+    char *buf_filename = NULL;
+    struct a3request_t request;
+    struct a3buf_t *buf = NULL;
+    enum a3func_t type = A3_F_ALLOC;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return NULL;
     }
@@ -958,7 +1062,7 @@ void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum
     num_bytes += strlen(pname);
     args_ptr[num_bytes++] = '\0';
     // @dir
-    memcpy(&(args_ptr[num_bytes]), &dir, sizeof (enum a3_user_pdir_t));
+    memcpy(&(args_ptr[num_bytes]), &dir, sizeof (enum a3pdir_t));
 
     // Make request
     ret = _artico3_user_send_request(request);
@@ -966,51 +1070,51 @@ void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum
         a3_print_error("[artico3u-hw] send request failed\n");
         return NULL;
     }
-    // Allocate memory for kernel port configuration
-    port = malloc(sizeof *port);
-    if (!port) {
+    // Allocate memory for kernel buf configuration
+    buf = malloc(sizeof *buf);
+    if (!buf) {
         return NULL;
     }
 
-    // Set port name
-    port->name = malloc(strlen(pname) + 1);
-    if (!port->name) {
-        goto err_malloc_port_name;
+    // Set buf name
+    buf->name = malloc(strlen(pname) + 1);
+    if (!buf->name) {
+        goto err_malloc_buf_name;
     }
-    strcpy(port->name, pname);
+    strcpy(buf->name, pname);
 
-    // Set port size
-    port->size = size;
+    // Set buf size
+    buf->size = size;
 
-    // Set port filename (concatenation of kname and pname)
-    port->filename = malloc(strlen(kname) + strlen(pname) + 1);
-    if (!port->filename) {
-        goto err_malloc_port_filename;
+    // Set buf filename (concatenation of kname and pname)
+    buf_filename = malloc(strlen(kname) + strlen(pname) + 1);
+    if (!buf_filename) {
+        goto err_malloc_buf_filename;
     }
-    strcpy(port->filename, kname);
-    strcpy(port->filename + strlen(kname), pname);
+    strcpy(buf_filename, kname);
+    strcpy(buf_filename + strlen(kname), pname);
 
     // Create a shared memory object
-    fd = shm_open(port->filename, O_RDWR, S_IRUSR | S_IWUSR);
+    fd = shm_open(buf_filename, O_RDWR, S_IRUSR | S_IWUSR);
     if(fd < 0) {
-        goto err_shm_open_mmap_port_filename;
+        goto err_shm_open_mmap_buf_filename;
     }
 
     // Resize the shared memory object
-    ftruncate(fd, port->size);
+    ftruncate(fd, buf->size);
 
     // Allocate memory for application mapped to the shared memory object with mmap()
-    port->data = mmap(0, port->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if(port->data == MAP_FAILED) {
+    buf->data = mmap(0, buf->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if(buf->data == MAP_FAILED) {
         close(fd);
-        goto err_shm_open_mmap_port_filename;
+        goto err_shm_open_mmap_buf_filename;
     }
 
     // Close shared memory object file descriptor (not needed anymore)
     close(fd);
 
     // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
+    for (index = 0; index < max_kernels; index++) {
         pthread_mutex_lock(&kernels_mutex);
         if (!kernels[index]) {
             pthread_mutex_unlock(&kernels_mutex);
@@ -1022,33 +1126,35 @@ void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum
         }
         pthread_mutex_unlock(&kernels_mutex);
     }
-    if (index == A3_MAXKERNS) {
+    if (index == max_kernels) {
         a3_print_error("[artico3u-hw] no kernel found with name \"%s\"\n", kname);
         return NULL;
     }
 
     // Add port to ports
-    p = 0;
-    while (kernels[index]->ports[p] && (p < kernels[index]->membanks)) p++;
-    if (p == kernels[index]->membanks) {
-        a3_print_error("[artico3u-hw] no empty bank found for port\n");
-        goto err_noport;
+    b = 0;
+    while (kernels[index]->bufs[b] && (b < kernels[index]->membanks)) b++;
+    if (b == kernels[index]->membanks) {
+        a3_print_error("[artico3u-hw] no empty bank found for buf\n");
+        goto err_nobuf;
     }
-    kernels[index]->ports[p] = port;
+    kernels[index]->bufs[b] = buf;
 
-    return port->data;
+    free(buf_filename);
 
-err_noport:
-    munmap(port->data, port->size);
+    return buf->data;
 
-err_shm_open_mmap_port_filename:
-    free(port->filename);
+err_nobuf:
+    munmap(buf->data, buf->size);
 
-err_malloc_port_filename:
-    free(port->name);
+err_shm_open_mmap_buf_filename:
+    free(buf_filename);
 
-err_malloc_port_name:
-    free(port);
+err_malloc_buf_filename:
+    free(buf->name);
+
+err_malloc_buf_name:
+    free(buf);
 
     return NULL;
 }
@@ -1070,20 +1176,20 @@ int artico3_user_free(const char *kname, const char *pname) {
     unsigned num_bytes;
     unsigned int index, p;
     int ret;
-    struct a3urequest_t request;
-    struct a3port_t *port = NULL;
-    enum a3ufunc_t type = A3U_F_FREE;
+    struct a3request_t request;
+    struct a3buf_t *buf = NULL;
+    enum a3func_t type = A3_F_FREE;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -1112,7 +1218,7 @@ int artico3_user_free(const char *kname, const char *pname) {
     }
 
     // Search for kernel in kernel list
-    for (index = 0; index < A3_MAXKERNS; index++) {
+    for (index = 0; index < max_kernels; index++) {
         pthread_mutex_lock(&kernels_mutex);
         if (!kernels[index]) {
             pthread_mutex_unlock(&kernels_mutex);
@@ -1124,17 +1230,17 @@ int artico3_user_free(const char *kname, const char *pname) {
         }
         pthread_mutex_unlock(&kernels_mutex);
     }
-    if (index == A3_MAXKERNS) {
+    if (index == max_kernels) {
         a3_print_error("[artico3u-hw] no kernel found with name \"%s\"\n", kname);
         return -ENODEV;
     }
 
     // Search for port in port lists
     for (p = 0; p < kernels[index]->membanks; p++) {
-        if (kernels[index]->ports[p]) {
-            if (strcmp(kernels[index]->ports[p]->name, pname) == 0) {
-                port = kernels[index]->ports[p];
-                kernels[index]->ports[p] = NULL;
+        if (kernels[index]->bufs[p]) {
+            if (strcmp(kernels[index]->bufs[p]->name, pname) == 0) {
+                buf = kernels[index]->bufs[p];
+                kernels[index]->bufs[p] = NULL;
                 break;
             }
         }
@@ -1145,10 +1251,9 @@ int artico3_user_free(const char *kname, const char *pname) {
     }
 
     // Free application memory
-    munmap(port->data, port->size);
-    free(port->filename);
-    free(port->name);
-    free(port);
+    munmap(buf->data, buf->size);
+    free(buf->name);
+    free(buf);
 
     return 0;
 }
@@ -1173,19 +1278,19 @@ int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, 
     unsigned num_bytes;
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_LOAD;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_LOAD;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
@@ -1237,19 +1342,19 @@ int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, 
 int artico3_user_unload(uint8_t slot) {
     unsigned int index;
     int ret;
-    struct a3urequest_t request;
-    enum a3ufunc_t type = A3U_F_UNLOAD;
+    struct a3request_t request;
+    enum a3func_t type = A3_F_UNLOAD;
 
     pthread_mutex_lock(&args_mutex);
     // Search for channel in channel list
-    for (index = 0; index < A3U_MAXCHANNELS_PER_CLIENT; index++) {
+    for (index = 0; index < A3_MAXCHANNELS_PER_CLIENT; index++) {
         if (user->channels[index].free == 1) {
             user->channels[index].free = 0;
             break;
         }
     }
     pthread_mutex_unlock(&args_mutex);
-    if (index == A3U_MAXCHANNELS_PER_CLIENT) {
+    if (index == A3_MAXCHANNELS_PER_CLIENT) {
         a3_print_error("[artico3-hw] no available channel\n");
         return -EBUSY;
     }
