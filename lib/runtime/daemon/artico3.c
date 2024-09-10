@@ -1,10 +1,10 @@
 /*
- * ARTICo3 daemon
+ * ARTICo3 daemon runtime
  *
  * Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
  *               Juan Encinas <juan.encinas@upm.es>
  * Date        : May 2024
- * Description : This file contains the ARTICo3 daemon, which enables
+ * Description : This file contains the ARTICo3 daemon runtime, which enables
  *               user applications to get access to adaptive
  *               hardware acceleration.
  *
@@ -32,7 +32,7 @@
 #include <sys/stat.h>   // S_IRUSR, S_IWUSR
 
 #include "drivers/artico3/artico3.h"
-#include "artico3d.h"
+#include "artico3.h"
 #include "artico3_hw.h"
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
@@ -51,7 +51,7 @@ const char * __shm_directory(size_t * len) {
 
 
 /*
- * ARTICo3D global variables
+ * ARTICo3 global variables
  *
  * @artico3_hw          : user-space map of ARTICo3 hardware registers
  * @artico3_fd          : /dev/artico3 file descriptor (used to access kernels)
@@ -105,32 +105,32 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int termination_flag = 0;
 
 static a3func_t artico3_functions[] = {
-    artico3d_add_user,
-    artico3d_load,
-    artico3d_unload,
-    artico3d_kernel_create,
-    artico3d_kernel_release,
-    artico3d_kernel_execute,
-    artico3d_kernel_wait,
-    artico3d_kernel_reset,
-    artico3d_kernel_wcfg,
-    artico3d_kernel_rcfg,
-    artico3d_alloc,
-    artico3d_free,
-    artico3d_remove_user,
-    artico3d_get_naccs
+    artico3_add_user,
+    artico3_load,
+    artico3_unload,
+    artico3_kernel_create,
+    artico3_kernel_release,
+    artico3_kernel_execute,
+    artico3_kernel_wait,
+    artico3_kernel_reset,
+    artico3_kernel_wcfg,
+    artico3_kernel_rcfg,
+    artico3_alloc,
+    artico3_free,
+    artico3_remove_user,
+    artico3_get_naccs
 };
 
 
 /*
- * ARTICo3D signal handler for SIGTERM and SIGINT
+ * ARTICo3 signal handler for SIGTERM and SIGINT
  *
  * This function sets a termination flag when SIGTERM and SIGINT is received, signaling the daemon
  * to stop and perform a clean shutdown.
  *
  * @signum : signal number (SIGTERM, SIGINT)
  */
-void artico3d_handle_sigterm(int signum) {
+void artico3_handle_sigterm(int signum) {
 
     // Set stop termination flag when signal is received
     // Signal the request waiting thread to terminate
@@ -143,7 +143,7 @@ void artico3d_handle_sigterm(int signum) {
 }
 
 /*
- * ARTICo3D init function
+ * ARTICo3 init function
  *
  * This function sets up the basic software entities required to manage
  * the ARTICo3 low-level functionality (DMA transfers, kernel and slot
@@ -153,7 +153,7 @@ void artico3d_handle_sigterm(int signum) {
  *
  * Return : 0 on success, error code otherwise
  */
-int artico3d_init() {
+int artico3_init() {
     const char *filename = "/dev/artico3";
     unsigned int i;
     int ret, shm_fd;
@@ -176,7 +176,7 @@ int artico3d_init() {
      */
 
     // Set up the signal handler to terminate the daemon SIGTERM
-    action.sa_handler = artico3d_handle_sigterm;
+    action.sa_handler = artico3_handle_sigterm;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
@@ -250,13 +250,13 @@ int artico3d_init() {
     a3_print_debug("[artico3-hw] threads=%p\n", threads);
 
     // Initialize users list (software)
-    users = malloc(A3D_MAXUSERS * sizeof **users);
+    users = malloc(A3_MAXUSERS * sizeof **users);
     if (!users) {
         a3_print_error("[artico3-hw] malloc() failed\n");
         ret = -ENOMEM;
         goto err_malloc_users;
     }
-    for (i = 0; i < A3D_MAXUSERS; i++) {
+    for (i = 0; i < A3_MAXUSERS; i++) {
         users[i] = NULL;
     }
     a3_print_debug("[artico3-hw] users=%p\n", users);
@@ -338,12 +338,12 @@ err_mmap:
 
 
 /*
- * ARTICo3D exit function
+ * ARTICo3 exit function
  *
  * This function cleans the software entities created by artico3_init().
  *
  */
-void artico3d_exit() {
+void artico3_exit() {
 
     // cleanup mutex and conditional variables
     pthread_mutex_destroy(&coordinator->mutex);
@@ -391,7 +391,7 @@ void artico3d_exit() {
 
 
 /*
- * ARTICo3D add new user
+ * ARTICo3 add new user
  *
  * This function creates the software entities required to manage a new user.
  *
@@ -402,7 +402,7 @@ void artico3d_exit() {
  *
  * Return : A3_MAXKERNS on success, error code otherwise
  */
-int artico3d_add_user(void *args) {
+int artico3_add_user(void *args) {
     unsigned int index;
     int shm_fd;
 
@@ -413,7 +413,7 @@ int artico3d_add_user(void *args) {
     pthread_mutex_lock(&add_user_mutex);
 
     // Ensure shm filename do not colision with other users; if so, return with error
-    for (index = 0; index < A3D_MAXUSERS; index++) {
+    for (index = 0; index < A3_MAXUSERS; index++) {
         pthread_mutex_lock(&users_mutex);
         if (!users[index]) {
             pthread_mutex_unlock(&users_mutex);
@@ -428,10 +428,10 @@ int artico3d_add_user(void *args) {
     }
 
     // Search first available UID; if none, return with error
-    for (index = 0; index < A3D_MAXUSERS; index++) {
+    for (index = 0; index < A3_MAXUSERS; index++) {
         if (users[index] == NULL) break;
     }
-    if (index == A3D_MAXUSERS) {
+    if (index == A3_MAXUSERS) {
         a3_print_error("[artico3-hw] user list is already full\n");
         return -EBUSY;
     }
@@ -475,7 +475,7 @@ int artico3d_add_user(void *args) {
 
 
 /*
- * ARTICo3D remove existing user
+ * ARTICo3 remove existing user
  *
  * This function cleans the software entities created by artico3_add_user().
  *
@@ -484,7 +484,7 @@ int artico3d_add_user(void *args) {
  *     @channel_id : ID of the channel used for handling daemon/user communication
  *
  */
-int artico3d_remove_user(void *args) {
+int artico3_remove_user(void *args) {
     unsigned int index;
     struct a3channel_t *channel = NULL;
     struct a3user_t *user = NULL;
@@ -503,11 +503,11 @@ int artico3d_remove_user(void *args) {
     pthread_mutex_lock(&users_mutex);
 
     // Search for user in user list
-    for (index = 0; index < A3D_MAXUSERS; index++) {
+    for (index = 0; index < A3_MAXUSERS; index++) {
         if (!users[index]) continue;
         if (users[index]->user_id == user_id) break;
     }
-    if (index == A3D_MAXUSERS) {
+    if (index == A3_MAXUSERS) {
         a3_print_error("[artico3-hw] no user found with id %d\n", user_id);
         pthread_mutex_unlock(&users_mutex);
         return -ENODEV;
@@ -540,12 +540,12 @@ int artico3d_remove_user(void *args) {
 
 
 /*
- * ARTICo3D delegate handling request thread
+ * ARTICo3 delegate handling request thread
  *
  * @args : request data
  *
  */
-void *_artico3d_handle_request(void *args) {
+void *_artico3_handle_request(void *args) {
     struct a3channel_t *channel = NULL;
     void *func_args = NULL;
     int response;
@@ -610,14 +610,14 @@ void *_artico3d_handle_request(void *args) {
 
 
 /*
- * ARTICo3D wait user hardware-acceleration request
+ * ARTICo3 wait user hardware-acceleration request
  *
  * This function waits a command request from user.
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_handle_request() {
+int artico3_handle_request() {
     int ret;
 
     // Loop for handling requested commands
@@ -641,7 +641,7 @@ int artico3d_handle_request() {
         pthread_t tid;
         struct a3request_t *tdata = malloc(sizeof (struct a3request_t));
         *tdata = coordinator->request;
-        ret = pthread_create(&tid, NULL, _artico3d_handle_request, tdata);
+        ret = pthread_create(&tid, NULL, _artico3_handle_request, tdata);
         if (ret) {
             a3_print_error("[artico3-hw] could not launch delegate request handling thread=%d\n", ret);
             free(tdata);
@@ -664,7 +664,7 @@ int artico3d_handle_request() {
 
 
 /*
- * ARTICo3D create hardware kernel
+ * ARTICo3 create hardware kernel
  *
  * This function creates an ARTICo3 kernel in the current application.
  *
@@ -677,7 +677,7 @@ int artico3d_handle_request() {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_kernel_create(void *args) {
+int artico3_kernel_create(void *args) {
     unsigned int index, i;
     struct a3kernel_t *kernel = NULL;
     int ret;
@@ -803,7 +803,7 @@ err_malloc_kernel_name:
 
 
 /*
- * ARTICo3D release hardware kernel
+ * ARTICo3 release hardware kernel
  *
  * This function deletes an ARTICo3 kernel in the current application.
  *
@@ -813,7 +813,7 @@ err_malloc_kernel_name:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_kernel_release(void *args) {
+int artico3_kernel_release(void *args) {
     unsigned int index, slot;
     struct a3kernel_t *kernel = NULL;
 
@@ -871,7 +871,7 @@ int artico3d_kernel_release(void *args) {
 
 
 /*
- * ARTICo3D start hardware kernel
+ * ARTICo3 start hardware kernel
  *
  * This function starts all hardware accelerators of a given kernel.
  *
@@ -884,7 +884,7 @@ int artico3d_kernel_release(void *args) {
  * Return : 0 on success, error code otherwise
  *
  */
-static int _artico3d_kernel_start(const char *name) {
+static int _artico3_kernel_start(const char *name) {
     unsigned int index;
     uint8_t id;
 
@@ -921,7 +921,7 @@ static int _artico3d_kernel_start(const char *name) {
 
 
 /*
- * ARTICo3D data transfer to accelerators
+ * ARTICo3 data transfer to accelerators
  *
  * @id      : current kernel ID
  * @naccs   : current number of hardware accelerators for this kernel
@@ -931,7 +931,7 @@ static int _artico3d_kernel_start(const char *name) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
+int artico3_send(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
     int acc;
     unsigned int port, nports, nconsts, ninputs, ninouts;
 
@@ -974,7 +974,7 @@ int artico3d_send(uint8_t id, int naccs, unsigned int round, unsigned int nround
         token.size = 0;
         ioctl(artico3_fd, ARTICo3_IOC_DMA_MEM2HW, &token);
         // ...launch kernel execution using software command...
-        _artico3d_kernel_start(kernels[id - 1]->name);
+        _artico3_kernel_start(kernels[id - 1]->name);
         // ...and return
         return 0;
     }
@@ -1085,7 +1085,7 @@ int artico3d_send(uint8_t id, int naccs, unsigned int round, unsigned int nround
 
 
 /*
- * ARTICo3D data transfer from accelerators
+ * ARTICo3 data transfer from accelerators
  *
  * @id      : current kernel ID
  * @naccs   : current number of hardware accelerators for this kernel
@@ -1095,7 +1095,7 @@ int artico3d_send(uint8_t id, int naccs, unsigned int round, unsigned int nround
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
+int artico3_recv(uint8_t id, int naccs, unsigned int round, unsigned int nrounds) {
     int acc;
     unsigned int port, nports, noutputs, ninouts;
 
@@ -1197,10 +1197,10 @@ int artico3d_recv(uint8_t id, int naccs, unsigned int round, unsigned int nround
 
 
 /*
- * ARTICo3D delegate scheduling thread
+ * ARTICo3 delegate scheduling thread
  *
  */
-void *_artico3d_kernel_execute(void *data) {
+void *_artico3_kernel_execute(void *data) {
     unsigned int round, nrounds;
     int naccs;
 
@@ -1237,7 +1237,7 @@ void *_artico3d_kernel_execute(void *data) {
 
         // Send data
         gettimeofday(&t0, NULL);
-        artico3d_send(id, naccs, round, nrounds);
+        artico3_send(id, naccs, round, nrounds);
         gettimeofday(&tf, NULL);
         tsend += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
@@ -1259,7 +1259,7 @@ void *_artico3d_kernel_execute(void *data) {
 
         // Receive data
         gettimeofday(&t0, NULL);
-        artico3d_recv(id, naccs, round, nrounds);
+        artico3_recv(id, naccs, round, nrounds);
         gettimeofday(&tf, NULL);
         trecv += ((tf.tv_sec - t0.tv_sec) * 1000.0) + ((tf.tv_usec - t0.tv_usec) / 1000.0);
 
@@ -1281,7 +1281,7 @@ void *_artico3d_kernel_execute(void *data) {
 
 
 /*
- * ARTICo3D execute hardware kernel
+ * ARTICo3 execute hardware kernel
  *
  * This function executes an ARTICo3 kernel in the current application.
  *
@@ -1293,7 +1293,7 @@ void *_artico3d_kernel_execute(void *data) {
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3d_kernel_execute(void *args) {
+int artico3_kernel_execute(void *args) {
     unsigned int index, nrounds;
     int ret;
 
@@ -1354,7 +1354,7 @@ int artico3d_kernel_execute(void *args) {
     unsigned int *tdata = malloc(2 * sizeof *tdata);
     tdata[0] = id;
     tdata[1] = nrounds;
-    ret = pthread_create(&threads[index], NULL, _artico3d_kernel_execute, tdata);
+    ret = pthread_create(&threads[index], NULL, _artico3_kernel_execute, tdata);
     if (ret) {
         a3_print_error("[artico3-hw] could not launch delegate scheduler thread for kernel \"%s\"\n", name);
         return -ret;
@@ -1366,7 +1366,7 @@ int artico3d_kernel_execute(void *args) {
 
 
 /*
- * ARTICo3D wait for kernel completion
+ * ARTICo3 wait for kernel completion
  *
  * This function waits until the kernel has finished.
  *
@@ -1376,7 +1376,7 @@ int artico3d_kernel_execute(void *args) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_kernel_wait(void *args) {
+int artico3_kernel_wait(void *args) {
     unsigned int index;
 
     // Get function arguments
@@ -1415,7 +1415,7 @@ int artico3d_kernel_wait(void *args) {
 
 
 /*
- * ARTICo3D reset hardware kernel
+ * ARTICo3 reset hardware kernel
  *
  * This function resets all hardware accelerators of a given kernel.
  *
@@ -1425,7 +1425,7 @@ int artico3d_kernel_wait(void *args) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_kernel_reset(void *args) {
+int artico3_kernel_reset(void *args) {
     unsigned int index;
     uint8_t id;
 
@@ -1469,7 +1469,7 @@ int artico3d_kernel_reset(void *args) {
 
 
 /*
- * ARTICo3D configuration register write
+ * ARTICo3 configuration register write
  *
  * This function writes configuration data to ARTICo3 kernel registers.
  *
@@ -1492,7 +1492,7 @@ int artico3d_kernel_reset(void *args) {
  *        transactions.
  *
  */
-int artico3d_kernel_wcfg(void *args) {
+int artico3_kernel_wcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -1617,7 +1617,7 @@ int artico3d_kernel_wcfg(void *args) {
 
 
 /*
- * ARTICo3D configuration register read
+ * ARTICo3 configuration register read
  *
  * This function reads configuration data from ARTICo3 kernel registers.
  *
@@ -1640,7 +1640,7 @@ int artico3d_kernel_wcfg(void *args) {
  *        transactions.
  *
  */
-int artico3d_kernel_rcfg(void *args) {
+int artico3_kernel_rcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -1765,7 +1765,7 @@ int artico3d_kernel_rcfg(void *args) {
 
 
 /*
- * ARTICo3D allocate buffer memory
+ * ARTICo3 allocate buffer memory
  *
  * This function allocates dynamic memory to be used as a buffer between
  * the application and the local memories in the hardware kernels.
@@ -1786,7 +1786,7 @@ int artico3d_kernel_rcfg(void *args) {
  * TODO   : create folders and subfolders on /dev/shm for each user and its data (kernels, inputs, etc.)
  *
  */
-int artico3d_alloc(void *args) {
+int artico3_alloc(void *args) {
     int fd;
     unsigned int index, p, i, j;
     struct a3port_t *port = NULL;
@@ -2037,7 +2037,7 @@ err_malloc_port_name:
 
 
 /*
- * ARTICo3D release buffer memory
+ * ARTICo3 release buffer memory
  *
  * This function frees dynamic memory allocated as a buffer between the
  * application and the hardware kernel.
@@ -2049,7 +2049,7 @@ err_malloc_port_name:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_free(void *args) {
+int artico3_free(void *args) {
     unsigned int index, p;
     struct a3port_t *port = NULL;
 
@@ -2130,7 +2130,7 @@ int artico3d_free(void *args) {
 
 
 /*
- * ARTICo3D load accelerator / change accelerator configuration
+ * ARTICo3 load accelerator / change accelerator configuration
  *
  * This function loads a hardware accelerator and/or sets its specific
  * configuration.
@@ -2145,7 +2145,7 @@ int artico3d_free(void *args) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_load(void *args) {
+int artico3_load(void *args) {
     unsigned int index;
     char filename[128];
     int ret;
@@ -2279,7 +2279,7 @@ err_fpga:
 
 
 /*
- * ARTICo3D remove accelerator
+ * ARTICo3 remove accelerator
  *
  * This function removes a hardware accelerator from a reconfigurable slot.
  *
@@ -2289,7 +2289,7 @@ err_fpga:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3d_unload(void *args) {
+int artico3_unload(void *args) {
 
     // Get function arguments
     uint8_t slot;
@@ -2335,7 +2335,7 @@ int artico3d_unload(void *args) {
 
 
 /*
- * ARTICo3D get number of accelerators
+ * ARTICo3 get number of accelerators
  *
  * This function gets the current number of available hardware accelerators
  * for a given kernel ID tag.
@@ -2346,7 +2346,7 @@ int artico3d_unload(void *args) {
  * Return : number of accelerators on success, error code otherwise
  *
  */
-int artico3d_get_naccs(void *args) {
+int artico3_get_naccs(void *args) {
     unsigned int index;
 
     // Get function arguments
