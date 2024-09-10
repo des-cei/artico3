@@ -84,6 +84,7 @@ def build(args, cross, dynamic, debug, busy):
     subprocess.run("""
         bash -c "export CROSS_COMPILE={0} CFLAGS_IN='{1}' LDFLAGS_IN='{2}' &&
         make clean &&
+        make daemon &&
         make app"
         """.format(cc, cflags, ldflags), shell=True, check=True)
 

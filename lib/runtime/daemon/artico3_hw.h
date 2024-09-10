@@ -50,13 +50,16 @@ extern struct a3shuffler_t shuffler;
 /*
  * ARTICo3 kernel port
  *
- * @name : name of the kernel port
- * @data : virtual memory of input
+ * @name     : name of the kernel port
+ * @size     : size of the virtual memory
+ * @filename : filename of the shared memory
+ * @data     : virtual memory of input
  *
  */
 struct a3port_t {
     char *name;
     size_t size;
+    char *filename;
     void *data;
 };
 

@@ -85,4 +85,4 @@ demos/*/*.os*/
 #
 # ARTICo3 Runtime Library products
 #
-lib/runtime/*/
+lib/runtime/*/*/

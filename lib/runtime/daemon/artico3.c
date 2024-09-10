@@ -1,10 +1,11 @@
 /*
- * ARTICo3 runtime API
+ * ARTICo3 daemon runtime
  *
  * Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
- * Date        : August 2017
- * Description : This file contains the ARTICo3 runtime API, which can
- *               be used by any application to get access to adaptive
+ *               Juan Encinas <juan.encinas@upm.es>
+ * Date        : May 2024
+ * Description : This file contains the ARTICo3 daemon runtime, which enables
+ *               user applications to get access to adaptive
  *               hardware acceleration.
  *
  */
@@ -18,38 +19,61 @@
 #include <errno.h>
 #include <math.h>      // ceil(), requires -lm in LDFLAGS
 #include <pthread.h>
+#include <signal.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 
-#include <dirent.h>    // DIR, struct dirent, opendir(), readdir(), closedir()
-#include <sys/mman.h>  // mmap()
-#include <sys/ioctl.h> // ioctl()
-#include <sys/poll.h>  // poll()
-#include <sys/time.h>  // struct timeval, gettimeofday()
+#include <dirent.h>     // DIR, struct dirent, opendir(), readdir(), closedir()
+#include <sys/mman.h>   // mmap()
+#include <sys/ioctl.h>  // ioctl()
+#include <sys/poll.h>   // poll()
+#include <sys/time.h>   // struct timeval, gettimeofday()
+#include <sys/stat.h>   // S_IRUSR, S_IWUSR
 
 #include "drivers/artico3/artico3.h"
 #include "artico3.h"
 #include "artico3_hw.h"
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
+#include "artico3_data.h"
 
 #include <inttypes.h>
+
+
+// Needed when compiling -lrt statically linked
+// Note this "/dev/shm" might not be implemented in all systems
+#define SHMDIR "/dev/shm/"
+const char * __shm_directory(size_t * len) {
+    *len = (sizeof SHMDIR) - 1;
+    return SHMDIR;
+}
 
 
 /*
  * ARTICo3 global variables
  *
- * @artico3_hw : user-space map of ARTICo3 hardware registers
- * @artico3_fd : /dev/artico3 file descriptor (used to access kernels)
+ * @artico3_hw          : user-space map of ARTICo3 hardware registers
+ * @artico3_fd          : /dev/artico3 file descriptor (used to access kernels)
  *
- * @shuffler   : current ARTICo3 infrastructure configuration
- * @kernels    : current kernel list
+ * @shuffler            : current ARTICo3 infrastructure configuration
+ * @kernels             : current kernel list
  *
- * @threads    : array of delegate scheduling threads
- * @mutex      : synchronization primitive for accessing @running
- * @running    : number of hardware kernels currently running (write/run/read)
+ * @threads             : array of delegate scheduling threads
+ * @mutex               : synchronization primitive for accessing @running
+ * @running             : number of hardware kernels currently running (write/run/read)
+ *
+ * @coordinator         : current ARTICo3 Daemon coordinator
+ * @users               : current user list
+ *
+ * @add_user_mutex      : synchronization primitive for adding a new user
+ * @kernel_create_mutex : synchronization primitive for creating a new kernel
+ * @kernels_mutex       : synchronization primitive for accessing @kernels
+ * @users_mutex         : synchronization primitive for accessing @users
+ *
+ * @termination_flag    : flag to signal artico3_handle_request() loop termination
+ *
+ * @artico3_functions   : array of ARTICo3 function pointers
  *
  */
 static int artico3_fd;
@@ -67,9 +91,56 @@ struct a3shuffler_t shuffler = {
 static struct a3kernel_t **kernels = NULL;
 
 static pthread_t *threads = NULL;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static int running = 0;
 
+static struct a3coordinator_t *coordinator = NULL;
+static struct a3user_t **users = NULL;
+
+static pthread_mutex_t add_user_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t kernel_create_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t kernels_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static int termination_flag = 0;
+
+static a3func_t artico3_functions[] = {
+    artico3_add_user,
+    artico3_load,
+    artico3_unload,
+    artico3_kernel_create,
+    artico3_kernel_release,
+    artico3_kernel_execute,
+    artico3_kernel_wait,
+    artico3_kernel_reset,
+    artico3_kernel_wcfg,
+    artico3_kernel_rcfg,
+    artico3_alloc,
+    artico3_free,
+    artico3_remove_user,
+    artico3_get_naccs
+};
+
+
+/*
+ * ARTICo3 signal handler for SIGTERM and SIGINT
+ *
+ * This function sets a termination flag when SIGTERM and SIGINT is received, signaling the daemon
+ * to stop and perform a clean shutdown.
+ *
+ * @signum : signal number (SIGTERM, SIGINT)
+ */
+void artico3_handle_sigterm(int signum) {
+
+    // Set stop termination flag when signal is received
+    // Signal the request waiting thread to terminate
+    pthread_mutex_lock(&coordinator->mutex);
+    termination_flag = 1;
+    a3_print_info("[artico3-hw] signal [%d] received\n", signum);
+    pthread_cond_signal(&coordinator->cond_request);
+    pthread_mutex_unlock(&coordinator->mutex);
+
+}
 
 /*
  * ARTICo3 init function
@@ -85,7 +156,8 @@ static int running = 0;
 int artico3_init() {
     const char *filename = "/dev/artico3";
     unsigned int i;
-    int ret;
+    int ret, shm_fd;
+    struct sigaction action;
 
     /*
      * NOTE: this function relies on predefined addresses for both control
@@ -102,6 +174,15 @@ int artico3_init() {
      *       ARTICo3 Data    -> 0xb0000000
      *
      */
+
+    // Set up the signal handler to terminate the daemon SIGTERM
+    action.sa_handler = artico3_handle_sigterm;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    if (sigaction(SIGTERM, &action, NULL) == -1 || sigaction(SIGINT, &action, NULL) == -1) {
+        a3_print_error("[artico3-hw] SIGTERM/SIGINT handler error\n");
+    }
 
     // Load static system (global FPGA reconfiguration)
     fpga_load("system.bin", 0);
@@ -168,13 +249,77 @@ int artico3_init() {
     }
     a3_print_debug("[artico3-hw] threads=%p\n", threads);
 
+    // Initialize users list (software)
+    users = malloc(A3_MAXUSERS * sizeof **users);
+    if (!users) {
+        a3_print_error("[artico3-hw] malloc() failed\n");
+        ret = -ENOMEM;
+        goto err_malloc_users;
+    }
+    for (i = 0; i < A3_MAXUSERS; i++) {
+        users[i] = NULL;
+    }
+    a3_print_debug("[artico3-hw] users=%p\n", users);
+
     // Enable clocks in reconfigurable region
     artico3_hw_enable_clk();
 
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
 
+    // Create a shared memory object for coordinator
+    shm_fd = shm_open(A3_COORDINATOR_FILENAME, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if(shm_fd < 0) {
+        a3_print_error("[artico3-hw] shm_open() failed\n");
+        ret = -ENODEV;
+        goto err_shm;
+    }
+
+    // Resize the shared memory object
+    ftruncate(shm_fd, sizeof (struct a3coordinator_t));
+
+    // Allocate memory for application mapped to the shared memory object with mmap()
+    coordinator = mmap(0, sizeof (struct a3coordinator_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if(coordinator == MAP_FAILED) {
+        a3_print_error("[artico3-hw] mmap() failed\n");
+        close(shm_fd);
+        shm_unlink(A3_COORDINATOR_FILENAME);
+        ret = -ENODEV;
+        goto err_shm;
+    }
+    a3_print_debug("[artico3-hw] mmap=%p\n", coordinator);
+
+    // Close shared memory object file descriptor (not needed anymore)
+    close(shm_fd);
+
+    // Initialize mutex and condition variables with shared memory attributes
+    pthread_mutexattr_t mutex_attr;
+    pthread_condattr_t cond_attr;
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&coordinator->mutex, &mutex_attr);
+    pthread_mutexattr_destroy(&mutex_attr);
+
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+    pthread_cond_init(&coordinator->cond_request, &cond_attr);
+    pthread_cond_init(&coordinator->cond_free, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
+
+    // Initialize flags
+    coordinator->request_available = 0;
+    coordinator->request.user_id = 0;
+    coordinator->request.channel_id = 0;
+    coordinator->request.func = 0;
+
     return 0;
+
+err_shm:
+    free(users);
+
+err_malloc_users:
+    free(threads);
 
 err_malloc_threads:
     free(kernels);
@@ -200,11 +345,23 @@ err_mmap:
  */
 void artico3_exit() {
 
+    // cleanup mutex and conditional variables
+    pthread_mutex_destroy(&coordinator->mutex);
+    pthread_cond_destroy(&coordinator->cond_request);
+    pthread_cond_destroy(&coordinator->cond_free);
+
+    // Cleanup daemon shared memory
+    munmap(coordinator, sizeof (struct a3coordinator_t));
+    shm_unlink(A3_COORDINATOR_FILENAME);
+
     // Print ARTICo3 control registers
     artico3_hw_print_regs();
 
     // Disable clocks in reconfigurable region
     artico3_hw_disable_clk();
+
+    // Release allocated memory for user list
+    free(users);
 
     // Release allocated memory for delegate threads
     free(threads);
@@ -234,22 +391,316 @@ void artico3_exit() {
 
 
 /*
- * ARTICo3 create hardware kernel
+ * ARTICo3 add new user
  *
- * This function creates an ARTICo3 kernel in the current application.
+ * This function creates the software entities required to manage a new user.
  *
- * @name     : name of the hardware kernel to be created
- * @membytes : local memory size (in bytes) of the associated accelerator
- * @membanks : number of local memory banks in the associated accelerator
- * @regs     : number of read/write registers in the associated accelerator
+ * @args             : buffer storing the function arguments sent by the user
+ *     @shm_filename : user shared memory object filename
+ *
+ * TODO: create folders and subfolders on /dev/shm for each user and its data (kernels, inputs, etc.)
+ *
+ * Return : A3_MAXKERNS on success, error code otherwise
+ */
+int artico3_add_user(void *args) {
+    unsigned int index;
+    int shm_fd;
+
+    // Get function arguments
+    // @shm_filename
+    char *shm_filename = args;
+
+    pthread_mutex_lock(&add_user_mutex);
+
+    // Ensure shm filename do not colision with other users; if so, return with error
+    for (index = 0; index < A3_MAXUSERS; index++) {
+        pthread_mutex_lock(&users_mutex);
+        if (!users[index]) {
+            pthread_mutex_unlock(&users_mutex);
+            continue;
+        }
+        if (strcmp(users[index]->shm, shm_filename) == 0) {
+            a3_print_error("[artico3-hw] \"%s\" shm file already in use by user=%u\n", shm_filename, index);
+            pthread_mutex_unlock(&users_mutex);
+            return -EINVAL;
+        }
+        pthread_mutex_unlock(&users_mutex);
+    }
+
+    // Search first available UID; if none, return with error
+    for (index = 0; index < A3_MAXUSERS; index++) {
+        if (users[index] == NULL) break;
+    }
+    if (index == A3_MAXUSERS) {
+        a3_print_error("[artico3-hw] user list is already full\n");
+        return -EBUSY;
+    }
+    a3_print_debug("[artico3-hw] created new user=%d\n", index);
+
+    // Create the shared memory object
+    shm_fd = shm_open(shm_filename, O_RDWR, S_IRUSR | S_IWUSR);
+    if(shm_fd < 0) {
+        a3_print_error("[artico3-hw] shm_open() failed\n");
+        return -ENODEV;
+    }
+
+    // Resize the shared memory object
+    ftruncate(shm_fd, sizeof (struct a3user_t));
+
+    // Allocate memory for application mapped to the shared memory object with mmap()
+    users[index] = mmap(0, sizeof (struct a3user_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if(users[index] == MAP_FAILED) {
+        close(shm_fd);
+        a3_print_error("[artico3-hw] mmap() failed\n");
+        return -ENOMEM;
+    }
+
+    // Close shared memory object file descriptor (not needed anymore)
+    close(shm_fd);
+    a3_print_debug("[artico3-hw] created shared memory for user=%d\n", index);
+
+    // Save the user ID
+    users[index]->user_id = index;
+
+    // Save the user shm
+    strcpy(users[index]->shm,shm_filename);
+
+    pthread_mutex_unlock(&add_user_mutex);
+
+    // Return this current user index
+    // This is required to select the appropriate user within users in the _artico3_handle_request()
+    // to send the response back
+    return index;
+}
+
+
+/*
+ * ARTICo3 remove existing user
+ *
+ * This function cleans the software entities created by artico3_add_user().
+ *
+ * @args           : buffer storing the function arguments sent by the user
+ *     @user_id    : ID of the user to be removed
+ *     @channel_id : ID of the channel used for handling daemon/user communication
+ *
+ */
+int artico3_remove_user(void *args) {
+    unsigned int index;
+    struct a3channel_t *channel = NULL;
+    struct a3user_t *user = NULL;
+
+    // Get function arguments
+    int user_id, channel_id;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @user_id
+    memcpy(&user_id, args_aux, sizeof (int));
+    copied_bytes = sizeof (int);
+    // @channel_id
+    memcpy(&channel_id, &(args_aux[copied_bytes]), sizeof (int));
+
+    pthread_mutex_lock(&users_mutex);
+
+    // Search for user in user list
+    for (index = 0; index < A3_MAXUSERS; index++) {
+        if (!users[index]) continue;
+        if (users[index]->user_id == user_id) break;
+    }
+    if (index == A3_MAXUSERS) {
+        a3_print_error("[artico3-hw] no user found with id %d\n", user_id);
+        pthread_mutex_unlock(&users_mutex);
+        return -ENODEV;
+    }
+
+    // Get user pointer
+    user = users[index];
+
+    // Set user list entry as empty
+    users[index] = NULL;
+
+    pthread_mutex_unlock(&users_mutex);
+
+    // Get pointer to the channel employed by the user
+    channel = &user->channels[channel_id];
+
+    // Signal the channel that the request has been processed
+    pthread_mutex_lock(&channel->mutex);
+    channel->response_available = 1;
+    pthread_cond_signal(&channel->cond_response);
+    pthread_mutex_unlock(&channel->mutex);
+    a3_print_debug("[artico3-hw] signaled user the response is available\n");
+
+    // Clean shared memory object
+    munmap(user, sizeof (struct a3user_t));
+    a3_print_debug("[artico3-hw] released user (user id=%d)\n", user_id);
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 delegate handling request thread
+ *
+ * @args : request data
+ *
+ */
+void *_artico3_handle_request(void *args) {
+    struct a3channel_t *channel = NULL;
+    void *func_args = NULL;
+    int response;
+
+    // Get request data
+    struct a3request_t request = *((struct a3request_t*) args);
+    free(args);
+
+    // Handle request to remove existing users
+    if (request.func == A3_F_REMOVE_USER) {
+        // Set function arguments
+        func_args = users[request.user_id]->channels[request.channel_id].args;
+
+        // Execute user requested ARTICo3 function
+        response = artico3_functions[request.func](func_args);
+        a3_print_debug("[artico3-hw] user request (request=%d, user=%d, response=%d)\n", request.func, request.user_id, response);
+
+        return NULL;
+    }
+    // Handle new user requests
+    if (request.func == A3_F_ADD_USER) {
+        // Set function arguments
+        func_args = request.shm;
+
+        // Execute user requested ARTICo3 function
+        response = artico3_functions[request.func](func_args);
+        a3_print_debug("[artico3-hw] user request (request=%d, user=%d, response=%d)\n", request.func, request.user_id, response);
+
+        // Return when an error is returned (there is no mechanism to send the response to the user)
+        if (response < 0) return NULL;
+
+        // Send function response back to the user
+        channel = &users[response]->channels[request.channel_id];
+        // Send the maximum number of kernels to the new user
+        channel->response = A3_MAXKERNS;
+
+    }
+    // Handle known user requests
+    else {
+        // Set function arguments
+        func_args = users[request.user_id]->channels[request.channel_id].args;
+
+        // Execute user requested ARTICo3 function
+        response = artico3_functions[request.func](func_args);
+        a3_print_debug("[artico3-hw] user request (request=%d, user=%d, channel=%d, response=%d)\n", request.func, request.user_id, request.channel_id, response);
+
+        // Send function response back to the user
+        channel = &users[request.user_id]->channels[request.channel_id];
+        channel->response = response;
+
+    }
+
+    // Indicate the request has been processed
+    pthread_mutex_lock(&channel->mutex);
+    channel->response_available = 1;
+    pthread_cond_signal(&channel->cond_response);
+    pthread_mutex_unlock(&channel->mutex);
+    a3_print_debug("[artico3-hw] signaled user that response is available\n");
+
+    return NULL;
+}
+
+
+/*
+ * ARTICo3 wait user hardware-acceleration request
+ *
+ * This function waits a command request from user.
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs) {
+int artico3_handle_request() {
+    int ret;
+
+    // Loop for handling requested commands
+    while (1) {
+
+        pthread_mutex_lock(&coordinator->mutex);
+
+        // Wait if no request available
+        while (!coordinator->request_available) {
+            a3_print_debug("[artico3-hw] wait for user request\n");
+            if (termination_flag) {
+                pthread_mutex_unlock(&coordinator->mutex);
+                a3_print_info("[artico3-hw] start termination process\n");
+                return 0;
+            }
+            pthread_cond_wait(&coordinator->cond_request, &coordinator->mutex);
+        }
+        a3_print_debug("[artico3-hw] received user request (user=%d)\n", coordinator->request.user_id);
+
+        // Launch delegate thread to handled user command request
+        pthread_t tid;
+        struct a3request_t *tdata = malloc(sizeof (struct a3request_t));
+        *tdata = coordinator->request;
+        ret = pthread_create(&tid, NULL, _artico3_handle_request, tdata);
+        if (ret) {
+            a3_print_error("[artico3-hw] could not launch delegate request handling thread=%d\n", ret);
+            free(tdata);
+            return ret;
+        }
+        a3_print_debug("[artico3-hw] started delegate request handling thread\n");
+
+        // Set pthread as detached
+        pthread_detach(tid);
+
+        // Signal the users that the request has been processed
+        coordinator->request_available = 0;
+        pthread_cond_signal(&coordinator->cond_free);
+        pthread_mutex_unlock(&coordinator->mutex);
+        a3_print_debug("[artico3-hw] indicated the daemon is available again\n");
+    }
+
+    return 0;
+}
+
+
+/*
+ * ARTICo3 create hardware kernel
+ *
+ * This function creates an ARTICo3 kernel in the current application.
+ *
+ * @args         : buffer storing the function arguments sent by the user
+ *     @name     : name of the hardware kernel to be created
+ *     @membytes : local memory size (in bytes) of the associated accelerator
+ *     @membanks : number of local memory banks in the associated accelerator
+ *     @regs     : number of read/write registers in the associated accelerator
+ *
+ * Return : 0 on success, error code otherwise
+ *
+ */
+int artico3_kernel_create(void *args) {
     unsigned int index, i;
     struct a3kernel_t *kernel = NULL;
     int ret;
+
+    // Get function arguments
+    char name[50];
+    size_t membytes, membanks, regs;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    // @membytes
+    memcpy(&membytes, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    // @membanks
+    memcpy(&membanks, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    // @regs
+    memcpy(&regs, &(args_aux[copied_bytes]), sizeof (size_t));
+
+    pthread_mutex_lock(&kernel_create_mutex);
 
     // Search first available ID; if none, return with error
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -328,6 +779,8 @@ int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, si
     // Store kernel configuration in kernel list
     kernels[index] = kernel;
 
+    pthread_mutex_unlock(&kernel_create_mutex);
+
     return 0;
 
 err_malloc_kernel_inouts:
@@ -354,13 +807,24 @@ err_malloc_kernel_name:
  *
  * This function deletes an ARTICo3 kernel in the current application.
  *
- * @name : name of the hardware kernel to be deleted
+ * @args     : buffer storing the function arguments sent by the user
+ *     @name : name of the hardware kernel to be deleted
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_release(const char *name) {
+int artico3_kernel_release(void *args) {
     unsigned int index, slot;
+    struct a3kernel_t *kernel = NULL;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+
+    pthread_mutex_lock(&kernels_mutex);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -369,13 +833,22 @@ int artico3_kernel_release(const char *name) {
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        pthread_mutex_unlock(&kernels_mutex);
         return -ENODEV;
     }
+
+    // Get kernel pointer
+    kernel = kernels[index];
+
+    // Set kernel list entry as empty
+    kernels[index] = NULL;
+
+    pthread_mutex_unlock(&kernels_mutex);
 
     // Update ARTICo3 slot info
     for (slot = 0; slot < shuffler.nslots; slot++) {
         if (shuffler.slots[slot].state != S_EMPTY) {
-            if (shuffler.slots[slot].kernel == kernels[index]) {
+            if (shuffler.slots[slot].kernel == kernel) {
                 shuffler.slots[slot].state = S_EMPTY;
                 shuffler.slots[slot].kernel = NULL;
             }
@@ -383,16 +856,15 @@ int artico3_kernel_release(const char *name) {
     }
 
     // Free allocated memory
-    free(kernels[index]->inouts);
-    free(kernels[index]->outputs);
-    free(kernels[index]->inputs);
-    free(kernels[index]->consts);
-    free(kernels[index]->name);
-    free(kernels[index]);
-    a3_print_debug("[artico3-hw] released kernel (name=%s)\n", name);
+    free(kernel->inouts);
+    free(kernel->outputs);
+    free(kernel->inputs);
+    free(kernel->consts);
+    free(kernel->name);
+    free(kernel);
+    kernel = NULL;
 
-    // Set kernel list entry as empty
-    kernels[index] = NULL;
+    a3_print_debug("[artico3-hw] released kernel (name=%s)\n", name);
 
     return 0;
 }
@@ -418,8 +890,16 @@ static int _artico3_kernel_start(const char *name) {
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -805,23 +1285,47 @@ void *_artico3_kernel_execute(void *data) {
  *
  * This function executes an ARTICo3 kernel in the current application.
  *
- * @name  : name of the hardware kernel to execute
- * @gsize : global work size (total amount of work to be done)
- * @lsize : local work size (work that can be done by one accelerator)
+ * @args      : buffer storing the function arguments sent by the user
+ *     @name  : name of the hardware kernel to execute
+ *     @gsize : global work size (total amount of work to be done)
+ *     @lsize : local work size (work that can be done by one accelerator)
  *
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
+int artico3_kernel_execute(void *args) {
     unsigned int index, nrounds;
     int ret;
 
     uint8_t id;
 
+    // Get function arguments
+    char name[50];
+    size_t gsize, lsize;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    // @gsize
+    memcpy(&gsize, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    // @lsize
+    memcpy(&lsize, &(args_aux[copied_bytes]), sizeof (size_t));
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -866,18 +1370,34 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
  *
  * This function waits until the kernel has finished.
  *
- * @name : hardware kernel to wait for
+ * @args     : buffer storing the function arguments sent by the user
+ *     @name : hardware kernel to wait for
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_wait(const char *name) {
+int artico3_kernel_wait(void *args) {
     unsigned int index;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -899,19 +1419,35 @@ int artico3_kernel_wait(const char *name) {
  *
  * This function resets all hardware accelerators of a given kernel.
  *
- * @name : hardware kernel to reset
+ * @args     : buffer storing the function arguments sent by the user
+ *     @name : hardware kernel to reset
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_reset(const char *name) {
+int artico3_kernel_reset(void *args) {
     unsigned int index;
     uint8_t id;
 
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -937,10 +1473,11 @@ int artico3_kernel_reset(const char *name) {
  *
  * This function writes configuration data to ARTICo3 kernel registers.
  *
- * @name   : hardware kernel to be addressed
- * @offset : memory offset of the register to be accessed
- * @cfg    : array of configuration words to be written, one per
- *           equivalent accelerator
+ * @args       : buffer storing the function arguments sent by the user
+ *     @name   : hardware kernel to be addressed
+ *     @offset : memory offset of the register to be accessed
+ *     @cfg    : array of configuration words to be written, one per
+ *               equivalent accelerator
  *
  * Return : 0 on success, error code otherwise
  *
@@ -955,7 +1492,7 @@ int artico3_kernel_reset(const char *name) {
  *        transactions.
  *
  */
-int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_wcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -964,10 +1501,34 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     uint64_t tmr_reg;
     uint64_t dmr_reg;
 
+    // Get function arguments
+    char name[50];
+    uint16_t offset;
+    a3data_t *cfg;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    // @offset
+    memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
+    copied_bytes += sizeof (uint16_t);
+    // @cfg
+    cfg = (a3data_t*) &(args_aux[copied_bytes]);
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -1060,10 +1621,11 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *
  * This function reads configuration data from ARTICo3 kernel registers.
  *
- * @name   : hardware kernel to be addressed
- * @offset : memory offset of the register to be accessed
- * @cfg    : array of configuration words to be read, one per
- *           equivalent accelerator
+ * @args       : buffer storing the function arguments sent by the user
+ *     @name   : hardware kernel to be addressed
+ *     @offset : memory offset of the register to be accessed
+ *     @cfg    : array of configuration words to be read, one per
+ *               equivalent accelerator
  *
  * Return : 0 on success, error code otherwise
  *
@@ -1078,7 +1640,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *        transactions.
  *
  */
-int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_rcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -1087,10 +1649,34 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     uint64_t tmr_reg;
     uint64_t dmr_reg;
 
+    // Get function arguments
+    char name[50];
+    uint16_t offset;
+    a3data_t *cfg;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    // @offset
+    memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
+    copied_bytes += sizeof (uint16_t);
+    // @cfg
+    cfg = (a3data_t*) &(args_aux[copied_bytes]);
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -1184,39 +1770,75 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  * This function allocates dynamic memory to be used as a buffer between
  * the application and the local memories in the hardware kernels.
  *
- * @size  : amount of memory (in bytes) to be allocated for the buffer
- * @kname : hardware kernel name to associate this buffer with
- * @pname : port name to associate this buffer with
- * @dir   : data direction of the port
+ * @args      : buffer storing the function arguments sent by the user
+ *     @size  : amount of memory (in bytes) to be allocated for the buffer
+ *     @kname : hardware kernel name to associate this buffer with
+ *     @pname : port name to associate this buffer with
+ *     @dir   : data direction of the port
  *
  * Return : pointer to allocated memory on success, NULL otherwise
  *
+ * NOTE   : the dynamically allocated buffer is mapped via mmap() to a
+ *          POSIX shared memory object in the "/dev/shm" tmpfs to make it
+ *          accessible from different processes
+ *
  * TODO   : implement optimized version using qsort();
+ * TODO   : create folders and subfolders on /dev/shm for each user and its data (kernels, inputs, etc.)
  *
  */
-void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
+int artico3_alloc(void *args) {
+    int fd;
     unsigned int index, p, i, j;
     struct a3port_t *port = NULL;
 
+    // Get function arguments
+    char kname[50], pname[50];
+    size_t size;
+    enum a3pdir_t dir;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    memcpy(&size, args_aux, sizeof (size_t));
+    copied_bytes = sizeof (size_t);
+    // @kname
+    strcpy(kname, &(args_aux[copied_bytes]));
+    copied_bytes += strlen(kname) + 1;
+    // @pname
+    strcpy(pname, &(args_aux[copied_bytes]));
+    copied_bytes += strlen(pname) + 1;
+    // @dir
+    memcpy(&dir, &(args_aux[copied_bytes]), sizeof (enum a3pdir_t));
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, kname) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, kname) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
-        return NULL;
+        return -1;
     }
 
     // Allocate memory for kernel port configuration
     port = malloc(sizeof *port);
     if (!port) {
-        return NULL;
+        a3_print_error("[artico3-hw] port malloc() failed\n");
+        return -1;
     }
 
     // Set port name
     port->name = malloc(strlen(pname) + 1);
     if (!port->name) {
+        a3_print_error("[artico3-hw] port->name malloc() failed\n");
         goto err_malloc_port_name;
     }
     strcpy(port->name, pname);
@@ -1224,11 +1846,35 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     // Set port size
     port->size = size;
 
-    // Allocate memory for application
-    port->data = malloc(port->size);
-    if (!port->data) {
-        goto err_malloc_port_data;
+    // Set port filename (concatenation of kname and pname)
+    port->filename = malloc(strlen(kname) + strlen(pname) + 1);
+    if (!port->filename) {
+        a3_print_error("[artico3-hw] port->filename malloc() failed\n");
+        goto err_malloc_port_filename;
     }
+    strcpy(port->filename, kname);
+    strcpy(port->filename + strlen(kname), pname);
+
+    // Create a shared memory object
+    fd = shm_open(port->filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if(fd < 0) {
+        a3_print_error("[artico3-hw] fd shm_open() failed\n");
+        goto err_shm_open_port_filename;
+    }
+
+    // Resize the shared memory object
+    ftruncate(fd, port->size);
+
+    // Allocate memory for application mapped to the shared memory object with mmap()
+    port->data = mmap(0, port->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if(port->data == MAP_FAILED) {
+        a3_print_error("[artico3-hw] port->data mmap() failed\n");
+        close(fd);
+        goto err_mmap_port_filename;
+    }
+
+    // Close shared memory object file descriptor (not needed anymore)
+    close(fd);
 
     // Check port direction flag : CONSTANTS
     if (dir == A3_P_C) {
@@ -1369,19 +2015,24 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
     }
 
-    // Return allocated memory
-    return port->data;
+    return 0;
 
 err_noport:
-    free(port->data);
+    munmap(port->data, port->size);
 
-err_malloc_port_data:
+err_mmap_port_filename:
+    shm_unlink(port->filename);
+
+err_shm_open_port_filename:
+    free(port->filename);
+
+err_malloc_port_filename:
     free(port->name);
 
 err_malloc_port_name:
     free(port);
 
-    return NULL;
+    return -1;
 }
 
 
@@ -1391,20 +2042,40 @@ err_malloc_port_name:
  * This function frees dynamic memory allocated as a buffer between the
  * application and the hardware kernel.
  *
- * @kname : hardware kernel name this buffer is associanted with
- * @pname : port name this buffer is associated with
+ * @args      : buffer storing the function arguments sent by the user
+ *     @kname : hardware kernel name this buffer is associanted with
+ *     @pname : port name this buffer is associated with
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_free(const char *kname, const char *pname) {
+int artico3_free(void *args) {
     unsigned int index, p;
     struct a3port_t *port = NULL;
 
+    // Get function arguments
+    char kname[50], pname[50];
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @kname
+    strcpy(kname, args_aux);
+    copied_bytes = strlen(kname) + 1;
+    // @pname
+    strcpy(pname, &(args_aux[copied_bytes]));
+
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, kname) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, kname) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
@@ -1448,7 +2119,9 @@ int artico3_free(const char *kname, const char *pname) {
     }
 
     // Free application memory
-    free(port->data);
+    munmap(port->data, port->size);
+    shm_unlink(port->filename);
+    free(port->filename);
     free(port->name);
     free(port);
 
@@ -1462,22 +2135,44 @@ int artico3_free(const char *kname, const char *pname) {
  * This function loads a hardware accelerator and/or sets its specific
  * configuration.
  *
- * @name  : hardware kernel name
- * @slot  : reconfigurable slot in which the accelerator is to be loaded
- * @tmr   : TMR group ID (0x1-0xf)
- * @dmr   : DMR group ID (0x1-0xf)
- * @force : force reconfiguration even if the accelerator is already present
+ * @args      : buffer storing the function arguments sent by the user
+ *     @name  : hardware kernel name
+ *     @slot  : reconfigurable slot in which the accelerator is to be loaded
+ *     @tmr   : TMR group ID (0x1-0xf)
+ *     @dmr   : DMR group ID (0x1-0xf)
+ *     @force : force reconfiguration even if the accelerator is already present
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+int artico3_load(void *args) {
     unsigned int index;
     char filename[128];
     int ret;
 
     uint8_t id;
     uint8_t reconf;
+
+    // Get function arguments
+    char name[50];
+    uint8_t slot, tmr, dmr, force;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    // @slot
+    memcpy(&slot, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    // @tmr
+    memcpy(&tmr, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    // @dmr
+    memcpy(&dmr, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    // @force
+    memcpy(&force, &(args_aux[copied_bytes]), sizeof (uint8_t));
 
     // Check if slot is within range
     if (slot >= shuffler.nslots) {
@@ -1487,8 +2182,16 @@ int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
-        if (!kernels[index]) continue;
-        if (strcmp(kernels[index]->name, name) == 0) break;
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
@@ -1580,12 +2283,20 @@ err_fpga:
  *
  * This function removes a hardware accelerator from a reconfigurable slot.
  *
- * @slot  : reconfigurable slot from which the accelerator is to be removed
+ * @args      : buffer storing the function arguments sent by the user
+ *     @slot  : reconfigurable slot from which the accelerator is to be removed
  *
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_unload(uint8_t slot) {
+int artico3_unload(void *args) {
+
+    // Get function arguments
+    uint8_t slot;
+    char *args_aux = args;
+
+    // @slot
+    memcpy(&slot, args_aux, sizeof (uint8_t));
 
     // Check if slot is within range
     if (slot >= shuffler.nslots) {
@@ -1620,4 +2331,49 @@ int artico3_unload(uint8_t slot) {
     a3_print_debug("[artico3-hw] removed accelerator from slot %d\n", slot);
 
     return 0;
+}
+
+
+/*
+ * ARTICo3 get number of accelerators
+ *
+ * This function gets the current number of available hardware accelerators
+ * for a given kernel ID tag.
+ *
+ * @args      : buffer storing the function arguments sent by the user
+ *     @name  : name of the hardware kernel to get the naccs from
+ *
+ * Return : number of accelerators on success, error code otherwise
+ *
+ */
+int artico3_get_naccs(void *args) {
+    unsigned int index;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    // @name
+    strcpy(name, args_aux);
+
+    // Search for kernel in kernel list
+    for (index = 0; index < A3_MAXKERNS; index++) {
+        pthread_mutex_lock(&kernels_mutex);
+        if (!kernels[index]) {
+            pthread_mutex_unlock(&kernels_mutex);
+            continue;
+        }
+        if (strcmp(kernels[index]->name, name) == 0) {
+            pthread_mutex_unlock(&kernels_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&kernels_mutex);
+    }
+    if (index == A3_MAXKERNS) {
+        a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", name);
+        return -ENODEV;
+    }
+
+    // Return the number of accelerators
+    return artico3_hw_get_naccs(kernels[index]->id);
 }
