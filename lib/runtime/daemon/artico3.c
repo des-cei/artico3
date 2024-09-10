@@ -37,6 +37,7 @@
 #include "artico3_rcfg.h"
 #include "artico3_dbg.h"
 #include "artico3_data.h"
+#include "artico3_pool.h"
 
 #include <inttypes.h>
 
@@ -74,6 +75,9 @@ const char * __shm_directory(size_t * len) {
  * @termination_flag    : flag to signal artico3_handle_request() loop termination
  *
  * @artico3_functions   : array of ARTICo3 function pointers
+ *
+ * @kernels_pool        : thread pool to handle kernels executions
+ * @requests_pool       : thread pool to handle incoming user requests
  *
  */
 static int artico3_fd;
@@ -120,6 +124,9 @@ static a3func_t artico3_functions[] = {
     artico3_remove_user,
     artico3_get_naccs
 };
+
+static struct a3pool_t *kernels_pool;
+static struct a3pool_t *requests_pool;
 
 
 /*
@@ -313,7 +320,32 @@ int artico3_init() {
     coordinator->request.channel_id = 0;
     coordinator->request.func = 0;
 
+	// Initialize kernels thread pool
+    kernels_pool = artico3_pool_init(A3_MAXKERNS, 0);
+	if (!kernels_pool) {
+		a3_print_error("[artico3-hw] kernels thread pool failed\n");
+        ret = -ENODEV;
+        goto err_kernels_pool;
+	}
+    a3_print_debug("[artico3-hw] kernels thread pool=%p\n", kernels_pool);
+
+	// Initialize the requests thread pool
+    requests_pool = artico3_pool_init(A3_MAXKERNS, 1);
+	if(!requests_pool) {
+		a3_print_error("[artico3-hw] request thread pool failed\n");
+        ret = -ENODEV;
+        goto err_requests_pool;
+	}
+    a3_print_debug("[artico3-hw] request thread pool=%p\n", requests_pool);
+
     return 0;
+
+err_requests_pool:
+    artico3_pool_clean(kernels_pool);
+
+err_kernels_pool:
+    pthread_mutex_destroy(&coordinator->mutex);
+    pthread_cond_destroy(&coordinator->cond_request);
 
 err_shm:
     free(users);
@@ -344,6 +376,10 @@ err_mmap:
  *
  */
 void artico3_exit() {
+
+    // Destroy thread pool
+    artico3_pool_clean(kernels_pool);
+    artico3_pool_clean(requests_pool);
 
     // cleanup mutex and conditional variables
     pthread_mutex_destroy(&coordinator->mutex);
@@ -638,19 +674,15 @@ int artico3_handle_request() {
         a3_print_debug("[artico3-hw] received user request (user=%d)\n", coordinator->request.user_id);
 
         // Launch delegate thread to handled user command request
-        pthread_t tid;
         struct a3request_t *tdata = malloc(sizeof (struct a3request_t));
         *tdata = coordinator->request;
-        ret = pthread_create(&tid, NULL, _artico3_handle_request, tdata);
-        if (ret) {
-            a3_print_error("[artico3-hw] could not launch delegate request handling thread=%d\n", ret);
+        ret = artico3_pool_submit_task(requests_pool, 0, _artico3_handle_request, tdata);
+        if(ret) {
+            a3_print_error("[artico3-hw] could not launch delegate request handling worker=%d\n", ret);
             free(tdata);
             return ret;
         }
         a3_print_debug("[artico3-hw] started delegate request handling thread\n");
-
-        // Set pthread as detached
-        pthread_detach(tid);
 
         // Signal the users that the request has been processed
         coordinator->request_available = 0;
@@ -658,6 +690,9 @@ int artico3_handle_request() {
         pthread_mutex_unlock(&coordinator->mutex);
         a3_print_debug("[artico3-hw] indicated the daemon is available again\n");
     }
+
+    // Ensure each thread in the thread pool has finished before exiting these thread
+    while(!artico3_pool_isdone(requests_pool, 0));
 
     return 0;
 }
@@ -1354,10 +1389,14 @@ int artico3_kernel_execute(void *args) {
     unsigned int *tdata = malloc(2 * sizeof *tdata);
     tdata[0] = id;
     tdata[1] = nrounds;
-    ret = pthread_create(&threads[index], NULL, _artico3_kernel_execute, tdata);
-    if (ret) {
+    ret = artico3_pool_submit_task(kernels_pool, id, _artico3_kernel_execute, tdata);
+    if (ret == -1) {
         a3_print_error("[artico3-hw] could not launch delegate scheduler thread for kernel \"%s\"\n", name);
         return -ret;
+    }
+    else {
+        // Thread is marked as running (storing the returned kernel id)
+        threads[index] = ret;
     }
     a3_print_debug("[artico3-hw] started delegate scheduler thread for kernel \"%s\"\n", name);
 
@@ -1405,7 +1444,7 @@ int artico3_kernel_wait(void *args) {
     }
 
     // Wait for thread completion
-    pthread_join(threads[index], NULL);
+    while(!artico3_pool_isdone(kernels_pool, threads[index]));
 
     // Mark thread as completed
     threads[index] = 0;
