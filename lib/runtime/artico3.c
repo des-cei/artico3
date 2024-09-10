@@ -51,20 +51,25 @@ const char * __shm_directory(size_t * len) {
 // Path to the command request handling socket
 #define SOCKET_PATH "/tmp/a3d_socket"
 
+// Typedef for ARTICo3 user function pointer
+typedef int (*a3_funct_type)(void*);
+
 /*
  * ARTICo3 global variables
  *
- * @artico3_hw : user-space map of ARTICo3 hardware registers
- * @artico3_fd : /dev/artico3 file descriptor (used to access kernels)
+ * @artico3_hw        : user-space map of ARTICo3 hardware registers
+ * @artico3_fd        : /dev/artico3 file descriptor (used to access kernels)
  *
- * @shuffler   : current ARTICo3 infrastructure configuration
- * @kernels    : current kernel list
+ * @shuffler          : current ARTICo3 infrastructure configuration
+ * @kernels           : current kernel list
  *
- * @threads    : array of delegate scheduling threads
- * @mutex      : synchronization primitive for accessing @running
- * @running    : number of hardware kernels currently running (write/run/read)
+ * @threads           : array of delegate scheduling threads
+ * @mutex             : synchronization primitive for accessing @running
+ * @running           : number of hardware kernels currently running (write/run/read)
  *
- * @socket_fd  : socket file descriptor (used for attending user application requests)
+ * @socket_fd         : socket file descriptor (used for attending user application requests)
+ *
+ * @artico3_functions : array of ARTICo3 function pointers
  *
  */
 static int artico3_fd;
@@ -86,6 +91,20 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static int running = 0;
 
 static int socket_fd;
+
+a3_funct_type artico3_functions[] = {
+    artico3_load,
+    artico3_unload,
+    artico3_kernel_create,
+    artico3_kernel_release,
+    artico3_kernel_execute,
+    artico3_kernel_wait,
+    artico3_kernel_reset,
+    artico3_kernel_wcfg,
+    artico3_kernel_rcfg,
+    artico3_alloc,
+    artico3_free,
+};
 
 
 /*
@@ -298,7 +317,7 @@ void artico3_exit() {
  * NOTE: the received commands are set to 1-byte size, limiting the available commands to 256.
  *
  */
-int artico3_handle_command(int user_socket_fd, char *command_args) {
+int artico3_handle_command(int user_socket_fd, const void *command_args) {
 
     int ret, command_ret;
     uint8_t command;
@@ -310,7 +329,23 @@ int artico3_handle_command(int user_socket_fd, char *command_args) {
         return -ENODEV;
     }
 
-    // TODO: Perform command operation
+    // Exit when a termination command is received from user
+    if (command == 0xff){
+
+        command_ret = 0;
+
+        // Send ack to exit command
+        ret = send(user_socket_fd, &command_ret, sizeof (int), 0);
+        if (ret < 0) {
+            a3_print_error("[artico3-hw] socket send() failed=%d\n", ret);
+            return -ENODEV;
+        }
+
+        return command;
+    }
+
+    // Execute user requested ARTICo3 function
+    command_ret = artico3_functions[command](command_args);
 
     // Send command return value
     ret = send(user_socket_fd, &command_ret, sizeof (int), 0);
@@ -320,6 +355,32 @@ int artico3_handle_command(int user_socket_fd, char *command_args) {
     }
 
     return 0;
+
+}
+
+
+/*
+ * ARTICo3 delegate request waiting thread
+ *
+ */
+void *_artico3_wait_request(void *args) {
+
+    int client_socket_fd, ret = 0;
+    void *request_args;
+
+    // Get command handling data
+    int *tdata = args;
+    client_socket_fd = tdata[0];
+    request_args = (void *) tdata[1];
+
+    // Loop for handling requested commands
+    while(ret == 0){
+        ret = artico3_handle_command(client_socket_fd, request_args);
+        if (ret < 0) {
+            a3_print_error("[artico3-hw] artico3_handle_command() failed\n");
+            ret = -ENODEV;
+        }
+    }
 
 }
 
@@ -341,6 +402,7 @@ int artico3_accept_socket() {
     unsigned int sock_len = 0;
     char args_passing_filename[] = "arguments";
     char *args_ptr;
+    pthread_t tid;
 
     // Accept socket
     client_socket_fd = accept(socket_fd, (struct sockaddr*) &client_address, &sock_len);
@@ -371,12 +433,19 @@ int artico3_accept_socket() {
     // Close shared memory object file descriptor (not needed anymore)
     close(shm_fd);
 
-    // Handle the requested user command
-    ret = artico3_handle_command(client_socket_fd, args_ptr);
-    if (ret < 0) {
-        a3_print_error("[artico3-hw] artico3_handle_command() failed\n");
-        ret = -ENODEV;
+    // Launch delegate thread to handled user command requests
+    int *tdata = malloc(2 * sizeof *tdata);
+    tdata[0] = client_socket_fd;
+    tdata[1] = (int) args_ptr;
+    ret = pthread_create(&tid, NULL, _artico3_wait_request, tdata);
+    if (ret) {
+        a3_print_error("[artico3-hw] could not launch delegate request handling thread\n");
+        ret = - ENODEV;
     }
+    a3_print_debug("[artico3-hw] started delegate request handling thread\n");
+
+    // Wait for thread completion
+    pthread_join(tid, NULL);
 
     // Clean shared memory object
     munmap(args_ptr, args_size);
@@ -402,10 +471,24 @@ err_shm_open_mmap_args_filename:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs) {
+int artico3_kernel_create(void *args) {
     unsigned int index, i;
     struct a3kernel_t *kernel = NULL;
     int ret;
+
+    // Get function arguments
+    char name[50];
+    size_t membytes, membanks, regs;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    memcpy(&membytes, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    memcpy(&membanks, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    memcpy(&regs, &(args_aux[copied_bytes]), sizeof (size_t));
 
     // Search first available ID; if none, return with error
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -515,8 +598,14 @@ err_malloc_kernel_name:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_release(const char *name) {
+int artico3_kernel_release(void *args) {
     unsigned int index, slot;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -968,11 +1057,23 @@ void *_artico3_kernel_execute(void *data) {
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
+int artico3_kernel_execute(void *args) {
     unsigned int index, nrounds;
     int ret;
 
     uint8_t id;
+
+    // Get function arguments
+    char name[50];
+    size_t gsize, lsize;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    memcpy(&gsize, &(args_aux[copied_bytes]), sizeof (size_t));
+    copied_bytes += sizeof (size_t);
+    memcpy(&lsize, &(args_aux[copied_bytes]), sizeof (size_t));
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1027,8 +1128,14 @@ int artico3_kernel_execute(const char *name, size_t gsize, size_t lsize) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_wait(const char *name) {
+int artico3_kernel_wait(void *args) {
     unsigned int index;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1060,9 +1167,15 @@ int artico3_kernel_wait(const char *name) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_reset(const char *name) {
+int artico3_kernel_reset(void *args) {
     unsigned int index;
     uint8_t id;
+
+    // Get function arguments
+    char name[50];
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1111,7 +1224,7 @@ int artico3_kernel_reset(const char *name) {
  *        transactions.
  *
  */
-int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_wcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -1119,6 +1232,19 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
+
+    // Get function arguments
+    char name[50];
+    uint16_t offset;
+    a3data_t *cfg;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
+    copied_bytes += sizeof (uint16_t);
+    cfg = &(args_aux[copied_bytes]);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1234,7 +1360,7 @@ int artico3_kernel_wcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *        transactions.
  *
  */
-int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
+int artico3_kernel_rcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
     uint8_t id;
@@ -1242,6 +1368,19 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
     uint64_t id_reg;
     uint64_t tmr_reg;
     uint64_t dmr_reg;
+
+    // Get function arguments
+    char name[50];
+    uint16_t offset;
+    a3data_t *cfg;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    memcpy(&offset, &(args_aux[copied_bytes]), sizeof (uint16_t));
+    copied_bytes += sizeof (uint16_t);
+    cfg = &(args_aux[copied_bytes]);
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1354,10 +1493,25 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  * TODO   : implement optimized version using qsort();
  *
  */
-void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
+int artico3_alloc(void *args) {
     int fd;
     unsigned int index, p, i, j;
     struct a3port_t *port = NULL;
+
+    // Get function arguments
+    char kname[50], pname[50];
+    size_t size;
+    enum a3pdir_t dir;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    memcpy(&size, args_aux, sizeof (size_t));
+    copied_bytes = sizeof (size_t);
+    strcpy(kname, &(args_aux[copied_bytes]));
+    copied_bytes += strlen(kname) + 1;
+    strcpy(pname, &(args_aux[copied_bytes]));
+    copied_bytes += strlen(pname) + 1;
+    memcpy(&dir, &(args_aux[copied_bytes]), sizeof (enum a3pdir_t));
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1366,13 +1520,13 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     }
     if (index == A3_MAXKERNS) {
         a3_print_error("[artico3-hw] no kernel found with name \"%s\"\n", kname);
-        return NULL;
+        return -1;
     }
 
     // Allocate memory for kernel port configuration
     port = malloc(sizeof *port);
     if (!port) {
-        return NULL;
+        return -1;
     }
 
     // Set port name
@@ -1551,8 +1705,7 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
 
     }
 
-    // Return allocated memory
-    return port->data;
+    return 0;
 
 err_noport:
     munmap(port->data, port->size);
@@ -1569,7 +1722,7 @@ err_malloc_port_filename:
 err_malloc_port_name:
     free(port);
 
-    return NULL;
+    return -1;
 }
 
 
@@ -1585,9 +1738,18 @@ err_malloc_port_name:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_free(const char *kname, const char *pname) {
+int artico3_free(void *args) {
     unsigned int index, p;
     struct a3port_t *port = NULL;
+
+    // Get function arguments
+    char kname[50], pname[50];
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(kname, args_aux);
+    copied_bytes = strlen(kname) + 1;
+    strcpy(pname, &(args_aux[copied_bytes]));
 
     // Search for kernel in kernel list
     for (index = 0; index < A3_MAXKERNS; index++) {
@@ -1661,13 +1823,29 @@ int artico3_free(const char *kname, const char *pname) {
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force) {
+int artico3_load(void *args) {
     unsigned int index;
     char filename[128];
     int ret;
 
     uint8_t id;
     uint8_t reconf;
+
+    // Get function arguments
+    char name[50];
+    uint8_t slot, tmr, dmr, force;
+    unsigned copied_bytes;
+    char *args_aux = args;
+
+    strcpy(name, args_aux);
+    copied_bytes = strlen(name) + 1;
+    memcpy(&slot, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    memcpy(&tmr, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    memcpy(&dmr, &(args_aux[copied_bytes]), sizeof (uint8_t));
+    copied_bytes += sizeof (uint8_t);
+    memcpy(&force, &(args_aux[copied_bytes]), sizeof (uint8_t));
 
     // Check if slot is within range
     if (slot >= shuffler.nslots) {
@@ -1775,7 +1953,13 @@ err_fpga:
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_unload(uint8_t slot) {
+int artico3_unload(void *args) {
+
+    // Get function arguments
+    uint8_t slot;
+    char *args_aux = args;
+
+    memcpy(&slot, args_aux, sizeof (uint8_t));
 
     // Check if slot is within range
     if (slot >= shuffler.nslots) {

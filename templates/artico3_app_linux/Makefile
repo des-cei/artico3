@@ -23,7 +23,7 @@ CFLAGS_APP = $(CFLAGS_IN)-Wall -Wextra -I runtime <a3<CFLAGS>a3>
 LDFLAGS_APP = $(LDFLAGS_IN)-L . -Wl,-R,. <a3<LDFLAGS>a3>
 LDLIBS_APP = -lartico3 -lm -lpthread -lrt <a3<LDLIBS>a3>
 
-OBJS1 = runtime/artico3_rcfg.o runtime/artico3_hw.o runtime/artico3.o
+OBJS1 = runtime/artico3_rcfg.o runtime/artico3_hw.o runtime/artico3_user.o runtime/artico3.o
 ARTICo3_OBJS = $(OBJS1:%=_build/%)
 
 OBJS2 = <a3<generate for OBJS>a3><a3<Source>a3> <a3<end generate>a3>

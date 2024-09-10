@@ -1,5 +1,5 @@
 /*
- * ARTICo3 runtime API
+ * ARTICo3 user runtime
  *
  * Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
  * Date        : August 2017
@@ -10,8 +10,8 @@
  */
 
 
-#ifndef _ARTICO3_H_
-#define _ARTICO3_H_
+#ifndef _artico3_USER_H_
+#define _artico3_USER_H_
 
 #include <stdlib.h> // size_t
 #include <stdint.h> // uint32_t
@@ -23,13 +23,13 @@
  * user applications and ARTICo3 hardware kernels. All variables to be
  * sent/received need to be declared as pointers to this type.
  *
- *     a3data_t *myconst  = artico3_alloc(size, kname, pname, A3_P_C);
- *     a3data_t *myinput  = artico3_alloc(size, kname, pname, A3_P_I);
- *     a3data_t *myoutput = artico3_alloc(size, kname, pname, A3_P_O);
- *     a3data_t *myinout  = artico3_alloc(size, kname, pname, A3_P_IO);
+ *     a3data_t *myconst  = artico3_user_alloc(size, kname, pname, A3_P_C);
+ *     a3data_t *myinput  = artico3_user_alloc(size, kname, pname, A3_P_I);
+ *     a3data_t *myoutput = artico3_user_alloc(size, kname, pname, A3_P_O);
+ *     a3data_t *myinout  = artico3_user_alloc(size, kname, pname, A3_P_IO);
  *
  */
-typedef uint32_t a3data_t;
+typedef uint32_t a3_user_data_t;
 
 
 /*
@@ -41,8 +41,38 @@ typedef uint32_t a3data_t;
  * A3_P_IO - ARTICo3 Output Port
  *
  */
-enum a3pdir_t {A3_P_C, A3_P_I, A3_P_O, A3_P_IO};
+enum a3_user_pdir_t {A3U_P_C, A3U_P_I, A3U_P_O, A3U_P_IO};
 
+
+/*
+ * ARTICo3 kernel (hardware accelerator)
+ *
+ * @name     : kernel name
+ * @membanks : number of local memory banks inside kernel
+ * @ports   : port configuration for this kernel
+ *
+ */
+struct a3ukernel_t {
+    char *name;
+    size_t membanks;
+    struct a3port_t **ports;
+};
+
+
+// ARTICo3 functions IDs
+enum a3u_funct_t {
+    A3_F_LOAD,
+    A3_F_UNLOAD,
+    A3_F_KERNEL_CREATE,
+    A3_F_KERNEL_RELEASE,
+    A3_F_KERNEL_EXECUTE,
+    A3_F_KERNEL_WAIT,
+    A3_F_KERNEL_RESET,
+    A3_F_KERNEL_WCFG,
+    A3_F_KERNEL_RCFG,
+    A3_F_ALLOC,
+    A3_F_FREE
+};
 
 /*
  * SYSTEM INITIALIZATION
@@ -60,45 +90,17 @@ enum a3pdir_t {A3_P_C, A3_P_I, A3_P_O, A3_P_IO};
  *
  * Return : 0 on success, error code otherwise
  */
-int artico3_init();
+int artico3_user_init();
 
 
 /*
  * ARTICo3 exit function
  *
- * This function cleans the software entities created by artico3_init().
+ * This function cleans the software entities created by artico3_user_init().
  *
  */
-void artico3_exit();
+void artico3_user_exit();
 
-
-/*
- * ARTICo3 handle command
- *
- * This function handles all incoming command request from the user application.
- *
- * @client_socket_fd : user socket file descriptor
- * @command_args     : pointer to shared memory object containing the command arguments
- *
- * Return : 0 on success, error code otherwise
- *
- * NOTE: the received commands are set to 1-byte size, limiting the available commands to 256.
- *
- */
-int artico3_handle_command(int user_socket_fd, const void *command_args);
-
-
-/*
- * ARTICo3 accept socket
- *
- * This function accepts a command request socket from the user.
- *
- * Return : 0 on success, error code otherwise
- *
- * TODO: implement with threads to enable multi-tenant
- *
- */
-int artico3_accept_socket();
 
 /*
  * SYSTEM MANAGEMENT
@@ -120,7 +122,7 @@ int artico3_accept_socket();
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_load(void *args);
+int artico3_user_load(const char *name, uint8_t slot, uint8_t tmr, uint8_t dmr, uint8_t force);
 
 
 /*
@@ -133,7 +135,7 @@ int artico3_load(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_unload(void *args);
+int artico3_user_unload(uint8_t slot);
 
 
 /*
@@ -154,7 +156,7 @@ int artico3_unload(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_create(void *args);
+int artico3_user_kernel_create(const char *name, size_t membytes, size_t membanks, size_t regs);
 
 
 /*
@@ -167,7 +169,7 @@ int artico3_kernel_create(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_release(void *args);
+int artico3_user_kernel_release(const char *name);
 
 
 /*
@@ -182,7 +184,7 @@ int artico3_kernel_release(void *args);
  * Return : 0 on success, error code otherwisw
  *
  */
-int artico3_kernel_execute(void *args);
+int artico3_user_kernel_execute(const char *name, size_t gsize, size_t lsize);
 
 
 /*
@@ -195,7 +197,7 @@ int artico3_kernel_execute(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_wait(void *args);
+int artico3_user_kernel_wait(const char *name);
 
 
 /*
@@ -208,7 +210,7 @@ int artico3_kernel_wait(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_kernel_reset(void *args);
+int artico3_user_kernel_reset(const char *name);
 
 
 /*
@@ -234,7 +236,7 @@ int artico3_kernel_reset(void *args);
  *        transactions.
  *
  */
-int artico3_kernel_wcfg(void *args);
+int artico3_user_kernel_wcfg(const char *name, uint16_t offset, a3_user_data_t *cfg);
 
 
 /*
@@ -260,7 +262,7 @@ int artico3_kernel_wcfg(void *args);
  *        transactions.
  *
  */
-int artico3_kernel_rcfg(void *args);
+int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *cfg);
 
 
 /*
@@ -320,7 +322,7 @@ int artico3_kernel_rcfg(void *args);
  * Return : pointer to allocated memory on success, NULL otherwise
  *
  */
-int artico3_alloc(void *args);
+void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3_user_pdir_t dir);
 
 
 /*
@@ -335,15 +337,15 @@ int artico3_alloc(void *args);
  * Return : 0 on success, error code otherwise
  *
  */
-int artico3_free(void *args);
+int artico3_user_free(const char *kname, const char *pname);
 
 
 /*
  * ARTICo3 data reinterpretation: float to a3data_t (32 bits)
  *
  */
-static inline a3data_t ftoa3(float f) {
-    union { float f; a3data_t u; } un;
+static inline a3_user_data_t ftoa3u(float f) {
+    union { float f; a3_user_data_t u; } un;
     un.f = f;
     return un.u;
 }
@@ -353,8 +355,8 @@ static inline a3data_t ftoa3(float f) {
  * ARTICo3 data reinterpretation: a3data_t to float (32 bits)
  *
  */
-static inline float a3tof(a3data_t u) {
-    union { float f; a3data_t u; } un;
+static inline float a3utof(a3_user_data_t u) {
+    union { float f; a3_user_data_t u; } un;
     un.u = u;
     return un.f;
 }
@@ -365,8 +367,8 @@ static inline float a3tof(a3data_t u) {
  *
  */
 
-// Documentation for these functions can be found in artico3_hw.h
-extern uint32_t artico3_hw_get_pmc_cycles(uint8_t slot);
-extern uint32_t artico3_hw_get_pmc_errors(uint8_t slot);
+// Documentation for these functions can be found in artico3_user_hw.h
+extern uint32_t artico3_user_hw_get_pmc_cycles(uint8_t slot);
+extern uint32_t artico3_user_hw_get_pmc_errors(uint8_t slot);
 
-#endif /* _ARTICO3_H_ */
+#endif /* _artico3_USER_H_ */
