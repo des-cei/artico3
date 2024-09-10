@@ -2,10 +2,13 @@
  * ARTICo3 user runtime
  *
  * Author      : Alfonso Rodriguez <alfonso.rodriguezm@upm.es>
- * Date        : August 2017
+ *               Juan Encinas <juan.encinas@upm.es>
+ * Date        : May 2024
  * Description : This file contains the ARTICo3 runtime API, which can
  *               be used by any application to get access to adaptive
  *               hardware acceleration.
+ *
+ * TODO: implement query function to ask info to the daemon (A3U_MAXSLOTS, etc.)
  *
  */
 
@@ -15,6 +18,11 @@
 
 #include <stdlib.h> // size_t
 #include <stdint.h> // uint32_t
+
+#define A3U_ARGS_SIZE              (100) // Size of the request input arguments shared memory object
+#define A3U_MAXCHANNELS_PER_CLIENT (10)  // Max number of simultaneous execution threads per user
+#define A3U_COORDINATOR_FILENAME   "a3d" // Coordinator shared memory object filename
+#define A3U_MAXSLOTS               (16)  // Number of slots available
 
 /*
  * ARTICo3 data type
@@ -59,19 +67,108 @@ struct a3ukernel_t {
 };
 
 
-// ARTICo3 functions IDs
-enum a3u_funct_t {
-    A3_F_LOAD,
-    A3_F_UNLOAD,
-    A3_F_KERNEL_CREATE,
-    A3_F_KERNEL_RELEASE,
-    A3_F_KERNEL_EXECUTE,
-    A3_F_KERNEL_WAIT,
-    A3_F_KERNEL_RESET,
-    A3_F_KERNEL_WCFG,
-    A3_F_KERNEL_RCFG,
-    A3_F_ALLOC,
-    A3_F_FREE
+/*
+ * ARTICo3 function IDs
+ *
+ * A3U_F_ADD_USER       - ARTICo3 artico3_add_user() Function
+ * A3U_F_LOAD           - ARTICo3 artico3_load() Function
+ * A3U_F_UNLOAD         - ARTICo3 artico3_unload() Function
+ * A3U_F_KERNEL_CREATE  - ARTICo3 artico3_kernel_create() Function
+ * A3U_F_KERNEL_RELEASE - ARTICo3 artico3_kernel_release() Function
+ * A3U_F_KERNEL_EXECUTE - ARTICo3 artico3_kernel_execute() Function
+ * A3U_F_KERNEL_WAIT    - ARTICo3 artico3_kernel_wait() Function
+ * A3U_F_KERNEL_RESET   - ARTICo3 artico3_kernel_reset() Function
+ * A3U_F_KERNEL_WCFG    - ARTICo3 artico3_kernel_wcfg() Function
+ * A3U_F_KERNEL_RCFG    - ARTICo3 artico3_kernel_wcfg() Function
+ * A3U_F_ALLOC          - ARTICo3 artico3_alloc() Function
+ * A3U_F_FREE           - ARTICo3 artico3_free() Function
+ * A3U_F_REMOVE_USER    - ARTICo3 artico3_remove_user() Function
+ *
+ */
+enum a3ufunc_t {
+    A3U_F_ADD_USER,
+    A3U_F_LOAD,
+    A3U_F_UNLOAD,
+    A3U_F_KERNEL_CREATE,
+    A3U_F_KERNEL_RELEASE,
+    A3U_F_KERNEL_EXECUTE,
+    A3U_F_KERNEL_WAIT,
+    A3U_F_KERNEL_RESET,
+    A3U_F_KERNEL_WCFG,
+    A3U_F_KERNEL_RCFG,
+    A3U_F_ALLOC,
+    A3U_F_FREE,
+    A3U_F_REMOVE_USER
+};
+
+
+/*
+ * ARTICo3 user request
+ *
+ * @user_id    : ID of the user quering the request
+ * @channel_id : ID of the channel used for handling the request
+ * @func       : function requested by the user
+ * @shm        : user shared memory data filename (only used on new users)
+ *
+ */
+struct a3urequest_t {
+    int user_id;
+    int channel_id;
+    enum a3ufunc_t func;
+    char shm[13];
+};
+
+
+/*
+ * ARTICo3 user channel (each channel handles a single request)
+ *
+ * @mutex              : synchronization primitive for accessing @request_available
+ * @cond_response      : processed user request signaling conditional variable
+ * @response_available : processed user request signaling flag
+ * @response           : processed user request response
+ * @free               : channel free flag
+ * @args               : user request input arguments buffer
+ *
+ */
+struct a3uchannel_t {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond_response;
+    int response_available;
+    int response;
+    int free;
+    char args[A3U_ARGS_SIZE];
+};
+
+
+/*
+ * ARTICo3 user (user data and its channels data )
+ *
+ * @user_id  : ID of the user quering the request
+ * @channels : user threads to handle user request queries
+ * @shm      : user shared memory data filename
+ *
+ */
+struct a3uuser_t {
+    int user_id;
+    struct a3uchannel_t channels[A3U_MAXCHANNELS_PER_CLIENT];
+    char shm[13];
+};
+
+
+/*
+ * ARTICo3 coordinator (orchestrates every users/daemon requests)
+ *
+ * @mutex             : synchronization primitive for accessing @request_available
+ * @cond_request      : user request signaling conditional variable
+ * @request_available : user request signaling flag
+ * @request           : user request info
+ *
+ */
+struct a3ucoordinator_t {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond_request;
+    int request_available;
+    struct a3urequest_t request;
 };
 
 /*
@@ -80,26 +177,33 @@ enum a3u_funct_t {
  */
 
 /*
- * ARTICo3 init function
+ * ARTICo3 user init function
  *
- * This function sets up the basic software entities required to manage
- * the ARTICo3 low-level functionality (DMA transfers, kernel and slot
- * distributions, etc.).
+ * This function sets up the basic software entities required to interact
+ * with the Daemon (kernel distribbution, shared memory objects, synchronization
+ * primitives, etc.).
  *
  * It also loads the FPGA with the initial bitstream (static system).
  *
+ * TODO: Get the tid as an argument from the user to make it user-dependant and not thread-dependant
+ *
+ * NOTE: This will not return if the shm filename chosen in already in use.
+ *       It is done this way since there is no mechanism for new users to receive response from a3d.
+ *       A timeout when shm filename already in use could be a solution.
+ *
  * Return : 0 on success, error code otherwise
+ *
  */
 int artico3_user_init();
 
 
 /*
- * ARTICo3 exit function
+ * ARTICo3 user exit function
  *
  * This function cleans the software entities created by artico3_user_init().
  *
  */
-void artico3_user_exit();
+int artico3_user_exit();
 
 
 /*
@@ -320,6 +424,12 @@ int artico3_user_kernel_rcfg(const char *name, uint16_t offset, a3_user_data_t *
  * @dir   : data direction of the port
  *
  * Return : pointer to allocated memory on success, NULL otherwise
+ *
+ * NOTE   : the dynamically allocated buffer is mapped via mmap() to a
+ *          POSIX shared memory object in the "/dev/shm" tmpfs to make it
+ *          accessible from different processes
+ *
+ * TODO   : implement optimized version using qsort();
  *
  */
 void *artico3_user_alloc(size_t size, const char *kname, const char *pname, enum a3_user_pdir_t dir);
