@@ -38,6 +38,15 @@
 #include <inttypes.h>
 
 
+// Needed when compiling -lrt statically linked
+// Note this "/dev/shm" might not be implemented in all systems
+#define SHMDIR "/dev/shm/"
+const char * __shm_directory(size_t * len) {
+    *len = (sizeof SHMDIR) - 1;
+    return SHMDIR;
+}
+
+
 /*
  * ARTICo3 global variables
  *
@@ -1191,10 +1200,15 @@ int artico3_kernel_rcfg(const char *name, uint16_t offset, a3data_t *cfg) {
  *
  * Return : pointer to allocated memory on success, NULL otherwise
  *
+ * NOTE   : the dynamically allocated buffer is mapped via mmap() to a
+ *          POSIX shared memory object in the "/dev/shm" tmpfs to make it
+ *          accessible from different processes
+ *
  * TODO   : implement optimized version using qsort();
  *
  */
 void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pdir_t dir) {
+    int fd;
     unsigned int index, p, i, j;
     struct a3port_t *port = NULL;
 
@@ -1224,11 +1238,32 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     // Set port size
     port->size = size;
 
-    // Allocate memory for application
-    port->data = malloc(port->size);
-    if (!port->data) {
-        goto err_malloc_port_data;
+    // Set port filename (concatenation of kname and pname)
+    port->filename = malloc(strlen(kname) + strlen(pname) + 1);
+    if (!port->filename) {
+        goto err_malloc_port_filename;
     }
+    strcpy(port->filename, kname);
+    strcpy(port->filename + strlen(kname), pname);
+
+    // Create a shared memory object
+    fd = shm_open(port->filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if(fd < 0) {
+        goto err_shm_open_port_filename;
+    }
+
+    // Resize the shared memory object
+    ftruncate(fd, port->size);
+
+    // Allocate memory for application mapped to the shared memory object with mmap()
+    port->data = mmap(0, port->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if(port->data == MAP_FAILED) {
+        close(fd);
+        goto err_mmap_port_filename;
+    }
+
+    // Close shared memory object file descriptor (not needed anymore)
+    close(fd);
 
     // Check port direction flag : CONSTANTS
     if (dir == A3_P_C) {
@@ -1373,9 +1408,15 @@ void *artico3_alloc(size_t size, const char *kname, const char *pname, enum a3pd
     return port->data;
 
 err_noport:
-    free(port->data);
+    munmap(port->data, port->size);
 
-err_malloc_port_data:
+err_mmap_port_filename:
+    shm_unlink(port->filename);
+
+err_shm_open_port_filename:
+    free(port->filename);
+
+err_malloc_port_filename:
     free(port->name);
 
 err_malloc_port_name:
@@ -1448,7 +1489,9 @@ int artico3_free(const char *kname, const char *pname) {
     }
 
     // Free application memory
-    free(port->data);
+    munmap(port->data, port->size);
+    shm_unlink(port->filename);
+    free(port->filename);
     free(port->name);
     free(port);
 
