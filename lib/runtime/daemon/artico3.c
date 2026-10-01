@@ -1534,7 +1534,7 @@ int artico3_kernel_reset(void *args) {
 int artico3_kernel_wcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
-    uint8_t id;
+    uint64_t id;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
@@ -1682,7 +1682,7 @@ int artico3_kernel_wcfg(void *args) {
 int artico3_kernel_rcfg(void *args) {
     unsigned int index, i, j;
     struct a3shuffler_t shuffler_shadow;
-    uint8_t id;
+    uint64_t id;
 
     uint64_t id_reg;
     uint64_t tmr_reg;
